@@ -1,0 +1,44 @@
+fun getEvenNumbers(list: [int]) -> [int] {
+    let evenNumbers = make([int])
+    for number in list {
+        if number % 2 == 0 {
+            append(evenNumbers, number)
+        }
+    }
+    return evenNumbers
+}
+
+fun fizzBuzz(list: [int]) -> [string] {
+    let fizzBuzzList = make([string])
+    for number in list {
+        if number % 3 == 0 && number % 5 == 0 {
+            append(fizzBuzzList, "FizzBuzz")
+        } else if number % 3 == 0 {
+            append(fizzBuzzList, "Fizz")
+        } else if number % 5 == 0 {
+            append(fizzBuzzList, "Buzz")
+        }
+    }
+    return fizzBuzzList
+}
+
+fun factorial(number: int) -> int {
+    if number == 0 {
+        return 1
+    }
+    return number * factorial(number - 1)
+}
+
+fun fibonacci(number: int) -> int {
+    if number == 0 {
+        return 0
+    } else if number == 1 {
+        return 1
+    }
+    return fibonacci(number - 1) + fibonacci(number - 2)
+}
+
+fun main() {
+    let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]
+    let evenNumbers = getEvenNumbers(list)
+}
