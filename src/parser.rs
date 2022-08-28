@@ -147,9 +147,9 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     };
     for (op, lit) in exs {
         res = match op {
-            "*" => Expr::Mul(Box::new(res), Box::new(lit)),
-            "/" => Expr::Div(Box::new(res), Box::new(lit)),
-            "%" => Expr::Mod(Box::new(res), Box::new(lit)),
+            "*" => Expr::Arith(ArithOp::Mul, Box::new(res), Box::new(lit)),
+            "/" => Expr::Arith(ArithOp::Div, Box::new(res), Box::new(lit)),
+            "%" => Expr::Arith(ArithOp::Mod, Box::new(res), Box::new(lit)),
             _ => panic!("unexpected operator"),
         };
     }
@@ -165,8 +165,8 @@ fn term(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "+" => Expr::Add(Box::new(res), Box::new(lit)),
-            "-" => Expr::Sub(Box::new(res), Box::new(lit)),
+            "+" => Expr::Arith(ArithOp::Add, Box::new(res), Box::new(lit)),
+            "-" => Expr::Arith(ArithOp::Sub, Box::new(res), Box::new(lit)),
             _ => panic!("unexpected operator"),
         };
     }
@@ -193,12 +193,12 @@ fn comparision(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "<" => Expr::Lt(Box::new(res), Box::new(lit)),
-            ">" => Expr::Gt(Box::new(res), Box::new(lit)),
-            "<=" => Expr::Le(Box::new(res), Box::new(lit)),
-            ">=" => Expr::Ge(Box::new(res), Box::new(lit)),
-            "==" => Expr::Eq(Box::new(res), Box::new(lit)),
-            "!=" => Expr::Ne(Box::new(res), Box::new(lit)),
+            "<" => Expr::CmpOp(CmpOp::Lt, Box::new(res), Box::new(lit)),
+            ">" => Expr::CmpOp(CmpOp::Gt, Box::new(res), Box::new(lit)),
+            "<=" => Expr::CmpOp(CmpOp::Le, Box::new(res), Box::new(lit)),
+            ">=" => Expr::CmpOp(CmpOp::Ge, Box::new(res), Box::new(lit)),
+            "==" => Expr::CmpOp(CmpOp::Eq, Box::new(res), Box::new(lit)),
+            "!=" => Expr::CmpOp(CmpOp::Ne, Box::new(res), Box::new(lit)),
             _ => panic!("unexpected operator"),
         };
     }
@@ -214,8 +214,8 @@ pub fn aexp(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "&&" => Expr::And(Box::new(res), Box::new(lit)),
-            "||" => Expr::Or(Box::new(res), Box::new(lit)),
+            "&&" => Expr::BoolOp(BoolOp::And, Box::new(res), Box::new(lit)),
+            "||" => Expr::BoolOp(BoolOp::Or, Box::new(res), Box::new(lit)),
             _ => panic!("unexpected operator"),
         };
     }

@@ -20,24 +20,39 @@ pub enum Lit {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ArithOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BoolOp {
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CmpOp {
+    Eq,
+    Ne,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Lit),
     Variable(String),
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Mul(Box<Expr>, Box<Expr>),
-    Div(Box<Expr>, Box<Expr>),
-    Mod(Box<Expr>, Box<Expr>),
     Neg(Box<Expr>),
     Not(Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
-    Eq(Box<Expr>, Box<Expr>),
-    Ne(Box<Expr>, Box<Expr>),
-    Lt(Box<Expr>, Box<Expr>),
-    Le(Box<Expr>, Box<Expr>),
-    Gt(Box<Expr>, Box<Expr>),
-    Ge(Box<Expr>, Box<Expr>),
+    Arith(ArithOp, Box<Expr>, Box<Expr>),
+    BoolOp(BoolOp, Box<Expr>, Box<Expr>),
+    CmpOp(CmpOp, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
     Subscr(Box<Expr>, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
