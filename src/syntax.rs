@@ -5,6 +5,7 @@ pub enum Type {
     Char,
     Bool,
     Void,
+    Any,
     Float,
     List(Box<Type>),
 }
@@ -59,7 +60,6 @@ pub enum Expr {
     Make(Type, usize),
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Expr(Box<Expr>),
@@ -86,7 +86,6 @@ pub struct Func {
     pub body: Vec<Stmt>,
     pub retty: Type,
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {

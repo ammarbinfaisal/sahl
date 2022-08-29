@@ -1,7 +1,9 @@
 mod syntax;
 mod parser;
+mod semant;
 
 use parser::*;
+use semant::*;
 use std::fs::*;
 use std::io::{Read};
 
@@ -24,6 +26,15 @@ fn main() {
         match res {
             Ok((_, p)) => {
                 println!("{:#?}", p);
+                let res = check_program(&p);
+                match res {
+                    Ok(_) => {
+                        println!("Program is well-typed");
+                    }
+                    Err(e) => {
+                        println!("Program is not well-typed: {}", e);
+                    }
+                }
             }
             Err(e) => {
                 println!("{}", e);
