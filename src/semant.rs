@@ -9,6 +9,7 @@ pub enum Error {
     ContinueOutsideLoop,
     BreakOutsideLoop,
     IncorrectLHS(Expr),
+    NoReturn,
 }
 
 impl std::fmt::Display for Error {
@@ -38,6 +39,9 @@ impl std::fmt::Display for Error {
             }
             Error::IncorrectLHS(expr) => {
                 write!(f, "Incorrect LHS: {:?}", expr)
+            }
+            Error::NoReturn => {
+                write!(f, "There is a path in control flow that does not return")
             }
         }
     }
@@ -363,6 +367,57 @@ impl<'a> Checker<'a> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum CFG {
+    Empty,
+    Seq(bool, Box<CFG>),
+    Branch(bool, Box<CFG>, Box<CFG>),
+}
+
+fn gen_cfg(stmts: &[Stmt]) -> CFG {
+    let res = stmts.split_first();
+    let (stmt, stmts) = match res {
+        Some((stmt, rest)) => (stmt, rest),
+        None => return CFG::Empty,
+    };
+    match stmt {
+        Stmt::Return(_) => CFG::Seq(true, Box::new(gen_cfg(stmts))),
+        Stmt::IfElse(_, cons, alt) => {
+            let cfg_alt = if alt.is_none() {
+                gen_cfg(stmts)
+            } else { 
+                let statements = vec![alt.as_ref().unwrap().as_slice(), stmts].concat();
+                gen_cfg(statements.as_slice())
+            };
+            let statements = vec![cons.as_slice(), stmts].concat();
+            CFG::Branch(
+                false,
+                Box::new(gen_cfg(statements.as_slice())),
+                Box::new(cfg_alt),
+            )
+        }
+        Stmt::While(_, block) | Stmt::For(_, _, block) => {
+            let statements = vec![block.as_slice(), stmts].concat();
+            CFG::Seq(false, Box::new(gen_cfg(statements.as_slice())))
+        }
+        _ => CFG::Seq(false, Box::new(gen_cfg(stmts))),
+    }
+}
+
+fn validate_cfg(cfg: &CFG) -> bool {
+    match cfg {
+        CFG::Empty => false,
+        CFG::Seq(b, cfg) => {
+            if **cfg == CFG::Empty {
+                *b
+            } else {
+                validate_cfg(cfg)
+            }
+        }
+        CFG::Branch(_, cfg1, cfg2) => validate_cfg(cfg1) && validate_cfg(cfg2),
+    }
+}
+
 pub fn check_program(program: &Program) -> Result<(), Error> {
     let mut func_env: FuncEnv = HashMap::new();
     for func in &program.funcs {
@@ -387,6 +442,12 @@ pub fn check_program(program: &Program) -> Result<(), Error> {
         }
         for stmt in &func.body {
             checker.check_stmt(stmt)?;
+        }
+        let cfg = gen_cfg(func.body.as_slice());
+        println!("{:?}", func.name);
+        println!("{:?}", cfg);
+        if !validate_cfg(&cfg) {
+            return Err(Error::NoReturn);
         }
     }
 

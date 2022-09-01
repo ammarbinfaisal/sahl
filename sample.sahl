@@ -38,6 +38,12 @@ fun fibonacci(number: int) -> int {
     return fibonacci(number - 1) + fibonacci(number - 2)
 }
 
+fun incorrectControlFlow(num: int) -> int {
+    if 1000 < 10 {
+        return 1000
+    }
+}
+
 fun main() {
     let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]
     let evenNumbers = getEvenNumbers(list)
