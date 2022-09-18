@@ -1,6 +1,8 @@
 mod syntax;
 mod parser;
 mod semant;
+mod code;
+mod vm;
 
 use parser::*;
 use semant::*;
@@ -30,6 +32,9 @@ fn main() {
                 match res {
                     Ok(_) => {
                         println!("Program is well-typed");
+                        let mut codegen = code::Codegen::new();
+                        codegen.compile_program(&p);
+                        codegen.execute();
                     }
                     Err(e) => {
                         println!("Program is not well-typed: {}", e);
