@@ -149,7 +149,7 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Bool(a <= a));
+                            self.stack.push(Value::Bool(b <= a));
                         }
                         (Value::Float(a), Value::Float(b)) => {
                             self.stack.push(Value::Bool(b <= a));
