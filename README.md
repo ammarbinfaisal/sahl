@@ -8,4 +8,5 @@ sahl means easy. This is the easiest statically typed language I could come up w
 
 ## todo
 
-- bytecode based virtual machine
+- complete the virtual machine and codegen
+- make for in loop work
