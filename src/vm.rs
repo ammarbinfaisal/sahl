@@ -1,5 +1,4 @@
 use crate::code::*;
-use std::collections::HashMap;
 
 pub struct VM<'a> {
     stack: Vec<Value>,
