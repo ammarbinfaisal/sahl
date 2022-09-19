@@ -60,6 +60,7 @@ pub enum Instruction {
     Store,
     Index,
     Append,
+    Length,
     List(usize),
     Const(Value),
     DefLocal(usize),
@@ -275,10 +276,19 @@ impl Codegen {
         }
     }
 
+    fn incr_for_loop(&mut self, idx: usize, start: usize) {
+        self.add_instruction(Instruction::GetLocal(idx));
+        self.add_instruction(Instruction::Const(Value::Int(1)));
+        self.add_instruction(Instruction::Add);
+        self.add_instruction(Instruction::Assign(idx));
+        self.add_instruction(Instruction::Jump(start + 1));
+    }
+
     fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Expr(expr) => {
                 self.compile_expr(expr);
+                self.add_instruction(Instruction::Pop);
             }
             Stmt::Return(expr) => {
                 self.compile_expr(expr);
@@ -320,6 +330,45 @@ impl Codegen {
                     self.instructions[break_] = Instruction::Jump(self.instructions.len());
                 }
             }
+            Stmt::For(var, expr, body) => {
+                self.compile_expr(expr);
+                let arr_var = self.add_local(String::from("<arr>"));
+                self.add_instruction(Instruction::DefLocal(arr_var));
+                self.add_instruction(Instruction::GetLocal(arr_var));
+                self.add_instruction(Instruction::Length);
+                let len_var = self.add_local(String::from("<len>"));
+                self.add_instruction(Instruction::DefLocal(len_var));
+                let idx_var = self.add_local(String::from("<idx>"));
+                self.add_instruction(Instruction::Const(Value::Int(0)));
+                self.add_instruction(Instruction::DefLocal(idx_var));
+                let start = self.instructions.len()-1;
+                self.add_instruction(Instruction::GetLocal(idx_var));
+                self.add_instruction(Instruction::GetLocal(len_var));
+                self.add_instruction(Instruction::Less);
+                let jump = self.add_instruction(Instruction::JumpIfFalse(0));
+                let var_var = self.add_local(var.clone());
+                self.add_instruction(Instruction::GetLocal(arr_var));
+                self.add_instruction(Instruction::GetLocal(idx_var));
+                self.add_instruction(Instruction::Index);
+                self.add_instruction(Instruction::DefLocal(var_var));
+                let mut breaks = Vec::<usize>::new();
+                for stmt in body {
+                    if *stmt == Stmt::Break {
+                        breaks.push(self.add_instruction(Instruction::Jump(start)));
+                    } else if *stmt == Stmt::Continue {
+                        self.incr_for_loop(arr_var, start);
+                    } else {
+                        self.compile_stmt(stmt);
+                    }
+                }
+                self.incr_for_loop(idx_var, start);
+                self.add_instruction(Instruction::Jump(start));
+                let len = self.instructions.len();
+                self.instructions[jump] = Instruction::JumpIfFalse(len);
+                for break_ in breaks {
+                    self.instructions[break_] = Instruction::Jump(len);
+                }
+            }
             Stmt::Decl(name, expr) => {
                 let n = self.add_local(name.clone());
                 self.compile_expr(expr);
@@ -331,8 +380,8 @@ impl Codegen {
             Stmt::Continue => {
                 panic!("Continue outside of loop");
             }
-            _ => {
-                panic!("Not implemented");
+            Stmt::Comment => {
+                // do nothing
             }
         }
     }

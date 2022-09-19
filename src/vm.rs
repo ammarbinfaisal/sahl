@@ -26,7 +26,8 @@ impl<'a> VM<'a> {
         self.locals.push(Vec::new());
         loop {
             let instruction = self.instructions[self.ip].clone();
-            println!("{:?}", instruction);
+            // println!("{:?}", instruction);
+            // println!("stack: {:?}", self.stack);
             match instruction {
                 Instruction::Pop => {
                     self.stack.pop();
@@ -36,7 +37,7 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Int(a + b));
+                            self.stack.push(Value::Int(b + a));
                         }
                         _ => {
                             panic!("Invalid types for add");
@@ -48,7 +49,7 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Int(a - b));
+                            self.stack.push(Value::Int(b - a));
                         }
                         _ => {
                             panic!("Invalid types for sub");
@@ -60,7 +61,7 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Int(a * b));
+                            self.stack.push(Value::Int(b * a));
                         }
                         _ => {
                             panic!("Invalid types for mul");
@@ -72,10 +73,36 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Int(a / b));
+                            self.stack.push(Value::Int(b / a));
                         }
                         _ => {
                             panic!("Invalid types for div");
+                        }
+                    }
+                }
+                Instruction::Mod => {
+                    let a = self.stack.pop().unwrap();
+                    let b = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Int(a), Value::Int(b)) => {
+                            self.stack.push(Value::Int(b % a));
+                        }
+                        _ => {
+                            panic!("Invalid types for mod");
+                        }
+                    }
+                }
+                Instruction::Neg => {
+                    let a = self.stack.pop().unwrap();
+                    match a {
+                        Value::Int(a) => {
+                            self.stack.push(Value::Int(-a));
+                        }
+                        Value::Float(a) => {
+                            self.stack.push(Value::Float(-a));
+                        }
+                        _ => {
+                            panic!("Invalid types for neg");
                         }
                     }
                 }
@@ -111,6 +138,27 @@ impl<'a> VM<'a> {
                         }
                         _ => {
                             panic!("Invalid types for equal");
+                        }
+                    }
+                }
+                Instruction::NotEqual => {
+                    let a = self.stack.pop().unwrap();
+                    let b = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Int(a), Value::Int(b)) => {
+                            self.stack.push(Value::Bool(a != b));
+                        }
+                        (Value::Float(a), Value::Float(b)) => {
+                            self.stack.push(Value::Bool(a != b));
+                        }
+                        (Value::Bool(a), Value::Bool(b)) => {
+                            self.stack.push(Value::Bool(a != b));
+                        }
+                        (Value::Str(a), Value::Str(b)) => {
+                            self.stack.push(Value::Bool(a != b));
+                        }
+                        _ => {
+                            panic!("Invalid types for not equal");
                         }
                     }
                 }
@@ -171,6 +219,30 @@ impl<'a> VM<'a> {
                         }
                         _ => {
                             panic!("Invalid types for greater than or equal");
+                        }
+                    }
+                }
+                Instruction::And => {
+                    let a = self.stack.pop().unwrap();
+                    let b = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Bool(a), Value::Bool(b)) => {
+                            self.stack.push(Value::Bool(a && b));
+                        }
+                        _ => {
+                            panic!("Invalid types for and");
+                        }
+                    }
+                }
+                Instruction::Or => {
+                    let a = self.stack.pop().unwrap();
+                    let b = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Bool(a), Value::Bool(b)) => {
+                            self.stack.push(Value::Bool(a || b));
+                        }
+                        _ => {
+                            panic!("Invalid types for or");
                         }
                     }
                 }
@@ -259,8 +331,29 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
-                _ => {
-                    panic!("Invalid instruction");
+                Instruction::Length => {
+                    let arr = self.stack.pop().unwrap();
+                    match arr {
+                        Value::List(arr) => {
+                            self.stack.push(Value::Int(arr.len() as i64));
+                        }
+                        _ => {
+                            panic!("Invalid types for len");
+                        }
+                    }
+                }
+                Instruction::Append => {
+                    let val = self.stack.pop().unwrap();
+                    let arr = self.stack.pop().unwrap();
+                    match (val, arr) {
+                        (val, Value::List(mut arr)) => {
+                            arr.push(val);
+                            self.stack.push(Value::List(arr));
+                        }
+                        _ => {
+                            panic!("Invalid types for append");
+                        }
+                    }
                 }
             }
             self.ip += 1;
