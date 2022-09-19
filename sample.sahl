@@ -2,7 +2,7 @@ fun getEvenNumbers(list: [int]) -> [int] {
     let evenNumbers = make([int])
     for number in list {
         if number % 2 == 0 {
-            append(evenNumbers, number)
+            evenNumbers = append(evenNumbers, number)
         }
     }
     return evenNumbers
@@ -12,11 +12,11 @@ fun fizzBuzz(list: [int]) -> [string] {
     let fizzBuzzList = make([string])
     for number in list {
         if number % 3 == 0 && number % 5 == 0 {
-            append(fizzBuzzList, "FizzBuzz")
+            fizzBuzzList = append(fizzBuzzList, "FizzBuzz")
         } else if number % 3 == 0 {
-            append(fizzBuzzList, "Fizz")
+            fizzBuzzList = append(fizzBuzzList, "Fizz")
         } else if number % 5 == 0 {
-            append(fizzBuzzList, "Buzz")
+            fizzBuzzList = append(fizzBuzzList, "Buzz")
         }
     }
     return fizzBuzzList
@@ -38,13 +38,17 @@ fun fibonacci(number: int) -> int {
     return fibonacci(number - 1) + fibonacci(number - 2)
 }
 
-fun incorrectControlFlow(num: int) -> int {
-    if 1000 < 10 {
-        return 1000
-    }
-}
 
 fun main() {
-    let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]
-    let evenNumbers = getEvenNumbers(list)
+    let list = make([int])
+    let i = 0
+    while i < 100 {
+        list = append(list, i)
+        i = i + 1
+    }
+    print(list)
+    print(getEvenNumbers(list))
+    print(fizzBuzz(list))
+    print(factorial(5))
+    print(fibonacci(5))
 }
