@@ -10,7 +10,6 @@ pub enum Value {
     Float(f64),
     Str(Vec<u8>),
     List(Vec<Value>),
-    Nil,
 }
 
 impl std::fmt::Display for Value {
@@ -31,7 +30,6 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
-            Value::Nil => write!(f, "nil"),
         }
     }
 }
