@@ -65,7 +65,7 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                     Type::List(t) => {
                         let ty = *(t.clone());
                         if ty == args[1] {
-                            Ok(Type::Void)
+                            Ok(Type::List(Box::new(ty)))
                         } else {
                             Err(Error::TypeMismatch(vec![ty], vec![args[1].clone()]))
                         }
