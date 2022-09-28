@@ -47,6 +47,9 @@ fun main() {
         i = i + 1
     }
     print(list)
+    for n in list {
+        print(n)
+    }
     print(getEvenNumbers(list))
     print(fizzBuzz(list))
     print(factorial(5))
