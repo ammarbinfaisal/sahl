@@ -97,9 +97,6 @@ impl<'a> VM<'a> {
                         Value::Int(a) => {
                             self.stack.push(Value::Int(-a));
                         }
-                        Value::Float(a) => {
-                            self.stack.push(Value::Float(-a));
-                        }
                         _ => {
                             panic!("Invalid types for neg");
                         }
@@ -147,9 +144,6 @@ impl<'a> VM<'a> {
                         (Value::Int(a), Value::Int(b)) => {
                             self.stack.push(Value::Bool(a != b));
                         }
-                        (Value::Float(a), Value::Float(b)) => {
-                            self.stack.push(Value::Bool(a != b));
-                        }
                         (Value::Bool(a), Value::Bool(b)) => {
                             self.stack.push(Value::Bool(a != b));
                         }
@@ -168,9 +162,6 @@ impl<'a> VM<'a> {
                         (Value::Int(a), Value::Int(b)) => {
                             self.stack.push(Value::Bool(b < a));
                         }
-                        (Value::Float(a), Value::Float(b)) => {
-                            self.stack.push(Value::Bool(b < a));
-                        }
                         _ => {
                             panic!("Invalid types for less than");
                         }
@@ -181,9 +172,6 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Bool(b > a));
-                        }
-                        (Value::Float(a), Value::Float(b)) => {
                             self.stack.push(Value::Bool(b > a));
                         }
                         _ => {
@@ -198,9 +186,6 @@ impl<'a> VM<'a> {
                         (Value::Int(a), Value::Int(b)) => {
                             self.stack.push(Value::Bool(b <= a));
                         }
-                        (Value::Float(a), Value::Float(b)) => {
-                            self.stack.push(Value::Bool(b <= a));
-                        }
                         _ => {
                             panic!("Invalid types for less than or equal");
                         }
@@ -211,9 +196,6 @@ impl<'a> VM<'a> {
                     let b = self.stack.pop().unwrap();
                     match (a, b) {
                         (Value::Int(a), Value::Int(b)) => {
-                            self.stack.push(Value::Bool(b >= a));
-                        }
-                        (Value::Float(a), Value::Float(b)) => {
                             self.stack.push(Value::Bool(b >= a));
                         }
                         _ => {

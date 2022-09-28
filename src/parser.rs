@@ -7,7 +7,6 @@ use nom::{
     combinator::{map, opt},
     error::ErrorKind,
     multi::{many0, many1},
-    number::complete::double,
     sequence::{delimited, tuple},
     Err, IResult,
 };
@@ -21,7 +20,6 @@ fn typee(source: &str) -> IResult<&str, Type> {
     let (source, ty) = alt((
         listty,
         map(tag("int"), |_| Type::Int),
-        map(tag("float"), |_| Type::Float),
         map(tag("bool"), |_| Type::Bool),
         map(tag("string"), |_| Type::Str),
         map(tag("char"), |_| Type::Char),
@@ -78,10 +76,6 @@ fn natural(source: &str) -> IResult<&str, Lit> {
     Ok((source, Lit::Int(nat.parse::<i64>().unwrap())))
 }
 
-fn floating(source: &str) -> IResult<&str, Lit> {
-    map(double, Lit::Float)(source)
-}
-
 fn boolean(source: &str) -> IResult<&str, Lit> {
     map(alt((tag("true"), tag("false"))), |s: &str| {
         Lit::Bool(s == "true")
@@ -123,7 +117,7 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = alt((
         map(
-            alt((string, charr, natural, floating, boolean)),
+            alt((string, charr, natural, boolean)),
             Expr::Literal,
         ),
         call,
@@ -132,7 +126,7 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     ))(source)?;
     let (source, exs) = many0(tuple((
         delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
-        alt((call, variable, map(alt((natural, floating)), Expr::Literal))),
+        alt((call, variable, map(natural, Expr::Literal))),
     )))(source)?;
     let mut res = match unop {
         Some(u) => {

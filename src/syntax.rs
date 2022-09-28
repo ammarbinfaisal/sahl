@@ -6,7 +6,6 @@ pub enum Type {
     Bool,
     Void,
     Any,
-    Float,
     List(Box<Type>),
 }
 
@@ -15,7 +14,6 @@ pub enum Lit {
     Int(i64),
     Char(u8),
     Bool(bool),
-    Float(f64),
     Str(Vec<u8>),
     List(Vec<Expr>),
 }

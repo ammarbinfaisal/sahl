@@ -7,7 +7,6 @@ pub enum Value {
     Int(i64),
     Char(u8),
     Bool(bool),
-    Float(f64),
     Str(Vec<u8>),
     List(Vec<Value>),
 }
@@ -18,7 +17,6 @@ impl std::fmt::Display for Value {
             Value::Int(i) => write!(f, "{}", i),
             Value::Char(c) => write!(f, "{}", c),
             Value::Bool(b) => write!(f, "{}", b),
-            Value::Float(fl) => write!(f, "{}", fl),
             Value::Str(s) => write!(f, "{}", String::from_utf8(s.clone()).unwrap()),
             Value::List(l) => {
                 write!(f, "[")?;
@@ -119,9 +117,6 @@ impl Codegen {
                     } else {
                         self.add_instruction(Instruction::False);
                     }
-                }
-                Lit::Float(f) => {
-                    self.add_instruction(Instruction::Const(Value::Float(*f)));
                 }
                 Lit::Str(s) => {
                     self.add_instruction(Instruction::Const(Value::Str(s.clone())));
@@ -259,7 +254,6 @@ impl Codegen {
                             Type::Int => Value::Int(0),
                             Type::Char => Value::Char(0),
                             Type::Bool => Value::Bool(false),
-                            Type::Float => Value::Float(0.0),
                             Type::Str => Value::Str(Vec::new()),
                             Type::List(_) => panic!("Cannot create a list of lists"),
                             Type::Void => panic!("Cannot create a list of void"),

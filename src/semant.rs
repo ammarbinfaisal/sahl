@@ -115,7 +115,6 @@ impl<'a> Checker<'a> {
         match expr {
             Expr::Literal(lit) => match lit {
                 Lit::Int(_) => Ok(Type::Int),
-                Lit::Float(_) => Ok(Type::Float),
                 Lit::Bool(_) => Ok(Type::Bool),
                 Lit::Char(_) => Ok(Type::Char),
                 Lit::Str(_) => Ok(Type::Str),
@@ -152,10 +151,10 @@ impl<'a> Checker<'a> {
             }
             Expr::Neg(e) => {
                 let ty = self.check_expr(e)?;
-                if ty == Type::Int || ty == Type::Float {
+                if ty == Type::Int {
                     Ok(ty)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int, Type::Float], vec![ty]))
+                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty]))
                 }
             }
             Expr::Not(e) => {
@@ -171,11 +170,9 @@ impl<'a> Checker<'a> {
                 let ty2 = self.check_expr(ex2)?;
                 if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Int)
-                } else if ty1 == Type::Float && ty2 == Type::Float {
-                    Ok(Type::Float)
                 } else {
                     Err(Error::TypeMismatch(
-                        vec![Type::Int, Type::Float],
+                        vec![Type::Int],
                         vec![ty1, ty2],
                     ))
                 }
@@ -194,11 +191,9 @@ impl<'a> Checker<'a> {
                 let ty2 = self.check_expr(ex2)?;
                 if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Bool)
-                } else if ty1 == Type::Float && ty2 == Type::Float {
-                    Ok(Type::Bool)
                 } else {
                     Err(Error::TypeMismatch(
-                        vec![Type::Int, Type::Float],
+                        vec![Type::Int],
                         vec![ty1, ty2],
                     ))
                 }
