@@ -447,7 +447,6 @@ impl Bytecode {
                 self.incr_for_loop(idx_var, start);
                 self.patch_u64(jump, self.code.len() as u64);
                 let len = self.code.len();
-                self.patch_u64(start, len as u64);
                 for break_ in breaks {
                     self.patch_u64(break_, len as u64);
                 }
