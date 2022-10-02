@@ -171,10 +171,7 @@ impl<'a> Checker<'a> {
                 if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Int)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Int],
-                        vec![ty1, ty2],
-                    ))
+                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
                 }
             }
             Expr::BoolOp(_, ex1, ex2) => {
@@ -192,10 +189,7 @@ impl<'a> Checker<'a> {
                 if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Int],
-                        vec![ty1, ty2],
-                    ))
+                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
                 }
             }
             Expr::Call(name, args) => {
@@ -380,7 +374,7 @@ fn gen_cfg(stmts: &[Stmt]) -> CFG {
         Stmt::IfElse(_, cons, alt) => {
             let cfg_alt = if alt.is_none() {
                 gen_cfg(stmts)
-            } else { 
+            } else {
                 let statements = vec![alt.as_ref().unwrap().as_slice(), stmts].concat();
                 gen_cfg(statements.as_slice())
             };

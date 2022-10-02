@@ -481,12 +481,12 @@ impl Bytecode {
 
     pub fn compile_program(&mut self, program: &Program) {
         let fns = &program.funcs;
-        self.func_code = Vec::with_capacity(fns.len()+1);
-        self.calls = (0..fns.len()+1).map(|_| Vec::new()).collect();
+        self.func_code = Vec::with_capacity(fns.len() + 1);
+        self.calls = (0..fns.len() + 1).map(|_| Vec::new()).collect();
         let mut idx = 0;
         for func in fns {
             self.func_idx.insert(func.name.clone(), idx);
-            idx += 1;   
+            idx += 1;
         }
         idx = 0;
         for func in fns {

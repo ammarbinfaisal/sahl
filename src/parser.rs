@@ -36,7 +36,9 @@ fn listty(source: &str) -> IResult<&str, Type> {
 
 fn isreserved(s: &str) -> bool {
     match s {
-        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make" => true,
+        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make" => {
+            true
+        }
         _ => false,
     }
 }
@@ -116,10 +118,7 @@ fn variable(source: &str) -> IResult<&str, Expr> {
 fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = alt((
-        map(
-            alt((string, charr, natural, boolean)),
-            Expr::Literal,
-        ),
+        map(alt((string, charr, natural, boolean)), Expr::Literal),
         call,
         subscript,
         variable,
@@ -227,10 +226,17 @@ fn make(source: &str) -> IResult<&str, Expr> {
     let (source, _) = tag("make")(source)?;
     let (source, _) = tag("(")(source)?;
     let (source, ty) = delimited(space0, listty, space0)(source)?;
-    let (source, len) = opt(map(tuple((
-        delimited(space0, tag(","), space0),
-        delimited(space0, take_while_m_n(1, 19, |c: char| c.is_digit(10)), space0),
-    )), |(_, l)| l))(source)?;
+    let (source, len) = opt(map(
+        tuple((
+            delimited(space0, tag(","), space0),
+            delimited(
+                space0,
+                take_while_m_n(1, 19, |c: char| c.is_digit(10)),
+                space0,
+            ),
+        )),
+        |(_, l)| l,
+    ))(source)?;
     let len = match len {
         Some(l) => l.parse::<usize>().unwrap(),
         None => 0,
@@ -381,8 +387,13 @@ fn mainfn(source: &str) -> IResult<&str, Vec<Stmt>> {
 }
 
 pub fn program(source: &str) -> IResult<&str, Program> {
-    let (source, funcs) =
-        many1(delimited(whitespace, function, whitespace))(source)?;
+    let (source, funcs) = many1(delimited(whitespace, function, whitespace))(source)?;
     let (source, mainfunc) = delimited(whitespace, mainfn, whitespace)(source)?;
-    Ok((source, Program { funcs, main: mainfunc }))
+    Ok((
+        source,
+        Program {
+            funcs,
+            main: mainfunc,
+        },
+    ))
 }

@@ -333,7 +333,7 @@ impl Codegen {
                 let idx_var = self.add_local(String::from("<idx>"));
                 self.add_instruction(Instruction::Const(Value::Int(0)));
                 self.add_instruction(Instruction::DefLocal(idx_var));
-                let start = self.instructions.len()-1;
+                let start = self.instructions.len() - 1;
                 self.add_instruction(Instruction::GetLocal(idx_var));
                 self.add_instruction(Instruction::GetLocal(len_var));
                 self.add_instruction(Instruction::Less);

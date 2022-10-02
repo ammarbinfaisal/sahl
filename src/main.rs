@@ -1,18 +1,36 @@
-mod syntax;
+mod bytecode;
+mod code;
 mod parser;
 mod semant;
-mod code;
-mod bytecode;
+mod syntax;
 mod vm;
 
 use parser::*;
 use semant::*;
 use std::fs::*;
-use std::io::{Read};
+use std::io::Read;
+
+fn usage() {
+    println!("Usage: sahl <filename> <option> <verbose>");
+    println!("Options:");
+    println!("  -c: Compile to bytecode");
+    println!("  -e: Execute code on rust backend");
+    println!("Verbose:");
+    println!("  -v: Verbose mode");
+}
 
 fn main() {
     let filename = std::env::args().nth(1);
-    if filename.is_some() {
+    let opt = std::env::args().nth(2);
+    let opt2 = std::env::args().nth(3);
+    if filename.is_some() && opt.is_some() {
+        let to_exec = opt.clone().unwrap() == "-e";
+        let to_compile = opt.unwrap() == "-c";
+        let verbose = opt2.is_some() && opt2.unwrap() == "-v";
+        if !to_exec && !to_compile {
+            usage();
+            return;
+        }
         let mut source = String::new();
         let file = File::open(filename.unwrap());
         match file {
@@ -28,17 +46,24 @@ fn main() {
         let res = program(&source);
         match res {
             Ok((_, p)) => {
-                println!("{:#?}", p);
+                if verbose {
+                    println!("{:#?}", p);
+                }
                 let res = check_program(&p);
                 match res {
                     Ok(_) => {
-                        println!("Program is well-typed");
-                        let mut codegen = code::Codegen::new();
-                        codegen.compile_program(&p);
-                        // codegen.execute();
-                        let mut codebyte = bytecode::Bytecode::new();
-                        codebyte.compile_program(&p);
-                        codebyte.write("exe.bin");
+                        if verbose {
+                            println!("Program is well-typed");
+                        }
+                        if to_exec {
+                            let mut codegen = code::Codegen::new();
+                            codegen.compile_program(&p);
+                            codegen.execute();
+                        } else if to_compile {
+                            let mut codebyte = bytecode::Bytecode::new();
+                            codebyte.compile_program(&p);
+                            codebyte.write("exe.bin");
+                        }
                     }
                     Err(e) => {
                         println!("Program is not well-typed: {}", e);
@@ -49,5 +74,7 @@ fn main() {
                 println!("{}", e);
             }
         }
+    } else {
+        usage();
     }
 }
