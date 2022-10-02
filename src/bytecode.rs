@@ -363,7 +363,7 @@ impl Bytecode {
         self.add_u32(GET_LOCAL, idx as u32);
         self.add_u64(CONST_U64, 1);
         self.add(ADD);
-        self.add_u64(ASSIGN, idx as u64);
+        self.add_u32(ASSIGN, idx as u32);
         self.add_u64(JUMP, start as u64);
     }
 
