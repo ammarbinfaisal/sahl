@@ -360,10 +360,10 @@ impl Bytecode {
     }
 
     fn incr_for_loop(&mut self, idx: usize, start: usize) {
-        self.add_u64(GET_LOCAL, idx as u64);
+        self.add_u32(GET_LOCAL, idx as u32);
         self.add_u64(CONST_U64, 1);
         self.add(ADD);
-        self.add(ASSIGN);
+        self.add_u64(ASSIGN, idx as u64);
         self.add_u64(JUMP, start as u64);
     }
 
@@ -385,12 +385,14 @@ impl Bytecode {
                 }
                 let jump2 = self.add_u64(JUMP, 0);
                 self.patch_u64(jump, self.code.len() as u64);
+                println!("patched jumpIfFalse at {} to {}", jump, self.code.len());
                 if otherwise.is_some() {
                     let otherwise = otherwise.as_ref().unwrap();
                     for stmt in otherwise {
                         self.compile_stmt(stmt);
                     }
                 }
+                println!("patching jump at {} to {}", jump2, self.code.len());
                 self.patch_u64(jump2, self.code.len() as u64);
             }
             Stmt::While(cond, body) => {
