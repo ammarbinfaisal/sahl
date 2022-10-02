@@ -2,6 +2,7 @@ mod syntax;
 mod parser;
 mod semant;
 mod code;
+mod bytecode;
 mod vm;
 
 use parser::*;
@@ -34,7 +35,10 @@ fn main() {
                         println!("Program is well-typed");
                         let mut codegen = code::Codegen::new();
                         codegen.compile_program(&p);
-                        codegen.execute();
+                        // codegen.execute();
+                        let mut codebyte = bytecode::Bytecode::new();
+                        codebyte.compile_program(&p);
+                        codebyte.write("exe.bin");
                     }
                     Err(e) => {
                         println!("Program is not well-typed: {}", e);
