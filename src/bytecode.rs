@@ -205,7 +205,7 @@ impl Bytecode {
             Expr::Variable(name) => {
                 let local = self.get_local(name);
                 if local.is_some() {
-                    self.add_u16(GET_LOCAL, *local.unwrap() as u16);
+                    self.add_u32(GET_LOCAL, *local.unwrap() as u32);
                 } else {
                     panic!("Unknown variable: {}", name);
                 }
@@ -528,7 +528,9 @@ impl Bytecode {
         }
         self.code = code;
         self.start_ip = self.code.len();
-        // println!("start ip: {}", self.start_ip);
+        println!("start ip: {}", self.start_ip);
         self.code.extend_from_slice(&self.func_code[idx]);
+        println!("code length: {}", self.code.len());
+        println!("code: {:?}", self.code);
     }
 }
