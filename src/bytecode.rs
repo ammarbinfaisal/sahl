@@ -39,7 +39,7 @@ const RETURN: u8 = 32;
 const PRINT: u8 = 33;
 const POP: u8 = 34;
 
-const MAX_LOCALS: usize = (i64::pow(32, 2) - 1) as usize;
+const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
 pub struct Bytecode {
     code: Vec<u8>,
@@ -420,7 +420,7 @@ impl Bytecode {
                 self.add_u32(GET_LOCAL, arr_var as u32);
                 self.add(LENGTH);
                 let len_var = self.add_local("<len>");
-                self.add_u64(DEF_LOCAL, len_var as u64);
+                self.add_u32(DEF_LOCAL, len_var as u32);
                 let idx_var = self.add_local("<idx>");
                 self.add_u64(CONST_U64, 0);
                 self.add_u32(DEF_LOCAL, idx_var as u32);
