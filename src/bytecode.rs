@@ -385,14 +385,14 @@ impl Bytecode {
                 }
                 let jump2 = self.add_u64(JUMP, 0);
                 self.patch_u64(jump, self.code.len() as u64);
-                println!("patched jumpIfFalse at {} to {}", jump, self.code.len());
+                // println!("patched jumpIfFalse at {} to {}", jump, self.code.len());
                 if otherwise.is_some() {
                     let otherwise = otherwise.as_ref().unwrap();
                     for stmt in otherwise {
                         self.compile_stmt(stmt);
                     }
                 }
-                println!("patching jump at {} to {}", jump2, self.code.len());
+                // println!("patching jump at {} to {}", jump2, self.code.len());
                 self.patch_u64(jump2, self.code.len() as u64);
             }
             Stmt::While(cond, body) => {
@@ -532,6 +532,6 @@ impl Bytecode {
         println!("start ip: {}", self.start_ip);
         self.code.extend_from_slice(&self.func_code[idx]);
         println!("code length: {}", self.code.len());
-        println!("code: {:?}", self.code);
+        // println!("code: {:?}", self.code);
     }
 }
