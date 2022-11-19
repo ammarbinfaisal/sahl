@@ -360,7 +360,7 @@ impl Bytecode {
         self.add_u64(CONST_U64, 1);
         self.add(ADD);
         self.add_u32(ASSIGN, idx as u32);
-        self.add_u64(JUMP, start as u64);
+        self.add_u32(JUMP, start as u32);
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) {
@@ -375,12 +375,12 @@ impl Bytecode {
             }
             Stmt::IfElse(cond, then, otherwise) => {
                 self.compile_expr(cond);
-                let jump = self.add_u64(JUMP_IF_FALSE, 0);
+                let jump = self.add_u32(JUMP_IF_FALSE, 0);
                 for stmt in then {
                     self.compile_stmt(stmt);
                 }
-                let jump2 = self.add_u64(JUMP, 0);
-                self.patch_u64(jump, self.code.len() as u64);
+                let jump2 = self.add_u32(JUMP, 0);
+                self.patch_u32(jump, self.code.len() as u32);
                 // println!("patched jumpIfFalse at {} to {}", jump, self.code.len());
                 if otherwise.is_some() {
                     let otherwise = otherwise.as_ref().unwrap();
@@ -389,7 +389,7 @@ impl Bytecode {
                     }
                 }
                 // println!("patching jump at {} to {}", jump2, self.code.len());
-                self.patch_u64(jump2, self.code.len() as u64);
+                self.patch_u32(jump2, self.code.len() as u32);
             }
             Stmt::While(cond, body) => {
                 let start = self.code.len();
@@ -405,10 +405,10 @@ impl Bytecode {
                         self.compile_stmt(stmt);
                     }
                 }
-                self.add_u64(JUMP, start as u64);
-                self.patch_u64(jump, self.code.len() as u64);
+                self.add_u32(JUMP, start as u32);
+                self.patch_u32(jump, self.code.len() as u32);
                 for break_ in breaks {
-                    self.patch_u64(break_, self.code.len() as u64);
+                    self.patch_u32(break_, self.code.len() as u32);
                 }
             }
             Stmt::For(var, expr, body) => {
@@ -426,7 +426,7 @@ impl Bytecode {
                 self.add_u32(GET_LOCAL, idx_var as u32);
                 self.add_u32(GET_LOCAL, len_var as u32);
                 self.add(LESS);
-                let jump = self.add_u64(JUMP_IF_FALSE, 0);
+                let jump = self.add_u32(JUMP_IF_FALSE, 0);
                 let var_var = self.add_local(&var.clone());
                 self.add_u32(GET_LOCAL, arr_var as u32);
                 self.add_u32(GET_LOCAL, idx_var as u32);
@@ -443,10 +443,10 @@ impl Bytecode {
                     }
                 }
                 self.incr_for_loop(idx_var, start);
-                self.patch_u64(jump, self.code.len() as u64);
+                self.patch_u32(jump, self.code.len() as u32);
                 let len = self.code.len();
                 for break_ in breaks {
-                    self.patch_u64(break_, len as u64);
+                    self.patch_u32(break_, len as u32);
                 }
             }
             Stmt::Decl(name, expr) => {
