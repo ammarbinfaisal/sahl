@@ -732,6 +732,7 @@ void run() {
                 realloc(vm->prev_ips, sizeof(uint32_t) * (vm->call_depth));
             vm->prev_ips[vm->call_depth - 1] = vm->ip;
             vm->ip = funcip;
+            break;
         }
         case RETURN: {
             struct Value *value = pop(vm);
