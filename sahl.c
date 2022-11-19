@@ -658,7 +658,9 @@ void run() {
             value->val.list->length = length;
             value->val.list->values = malloc(sizeof(struct Value) * length);
             for (int i = length - 1; i >= 0; --i) {
-                value->val.list->values[i] = *pop(vm);
+                Value *item = pop(vm);
+                value->val.list->values[i] = *item;
+                free(item);
             }
             push(value);
             vm->ip += 4;
@@ -667,6 +669,7 @@ void run() {
         case PRINT: {
             struct Value *value = pop(vm);
             print_value(value);
+            free(value);
         }
         case GET_LOCAL: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
@@ -689,7 +692,9 @@ void run() {
                     vm->locals_size[vm->locals_count] = index * 2;
                 }
             }
-            vm->locals[vm->locals_count][index] = *pop(vm);
+            Value* val = pop(vm);
+            vm->locals[vm->locals_count][index] = *val;
+            free(val);
             vm->locals_size[vm->locals_count] = index + 1;
             vm->ip += 4;
             break;
