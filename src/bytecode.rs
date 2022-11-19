@@ -49,7 +49,6 @@ pub struct Bytecode {
     calls: Vec<Vec<(usize, usize)>>, // to be patched after codegen - (function name, offset)
     start_ip: usize,
     in_function: usize,
-    jumps: Vec<Vec<(usize, usize)>>, // in func jumps[idx] there needs to be jumps inserted at offset fst idx to snd idx
 }
 
 impl Bytecode {
@@ -60,7 +59,6 @@ impl Bytecode {
             func_idx: HashMap::new(),
             func_code: Vec::new(),
             calls: Vec::new(),
-            jumps: Vec::new(),
             start_ip: 0,
             in_function: 0,
         }
@@ -116,6 +114,33 @@ impl Bytecode {
         self.code.push((n2 >> 8) as u8);
         self.code.push(n2 as u8);
         (self.code.len() - 8, self.code.len() - 4)
+    }
+
+    fn patch_u8(&mut self, ip: usize, arg: u8) {
+        self.code[ip] = arg;
+    }
+
+    fn patch_u16(&mut self, ip: usize, arg: u16) {
+        self.code[ip] = (arg >> 8) as u8;
+        self.code[ip + 1] = (arg & 0xff) as u8;
+    }
+
+    fn patch_u32(&mut self, ip: usize, n: u32) {
+        self.code[ip] = (n >> 24) as u8;
+        self.code[ip + 1] = (n >> 16) as u8;
+        self.code[ip + 2] = (n >> 8) as u8;
+        self.code[ip + 3] = n as u8;
+    }
+
+    fn patch_u64(&mut self, ip: usize, n: u64) {
+        self.code[ip] = (n >> 56) as u8;
+        self.code[ip + 1] = (n >> 48) as u8;
+        self.code[ip + 2] = (n >> 40) as u8;
+        self.code[ip + 3] = (n >> 32) as u8;
+        self.code[ip + 4] = (n >> 24) as u8;
+        self.code[ip + 5] = (n >> 16) as u8;
+        self.code[ip + 6] = (n >> 8) as u8;
+        self.code[ip + 7] = n as u8;
     }
 
     fn add_local(&mut self, name: &str) -> usize {
@@ -339,8 +364,7 @@ impl Bytecode {
         self.add_u64(CONST_U64, 1);
         self.add(ADD);
         self.add_u32(ASSIGN, idx as u32);
-        let offset = self.add_u32(JUMP, start as u32);
-        self.jumps[self.in_function].push((offset, start));
+        self.add_u64(JUMP, start as u64);
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) {
@@ -355,19 +379,21 @@ impl Bytecode {
             }
             Stmt::IfElse(cond, then, otherwise) => {
                 self.compile_expr(cond);
-                let jump = self.add_u32(JUMP_IF_FALSE, 0);
+                let jump = self.add_u64(JUMP_IF_FALSE, 0);
                 for stmt in then {
                     self.compile_stmt(stmt);
                 }
-                let jump2 = self.add_u32(JUMP, 0);
-                self.jumps[self.in_function].push((jump, self.code.len()));
+                let jump2 = self.add_u64(JUMP, 0);
+                self.patch_u64(jump, self.code.len() as u64);
+                // println!("patched jumpIfFalse at {} to {}", jump, self.code.len());
                 if otherwise.is_some() {
                     let otherwise = otherwise.as_ref().unwrap();
                     for stmt in otherwise {
                         self.compile_stmt(stmt);
                     }
                 }
-                self.jumps[self.in_function].push((jump2, self.code.len()));
+                // println!("patching jump at {} to {}", jump2, self.code.len());
+                self.patch_u64(jump2, self.code.len() as u64);
             }
             Stmt::While(cond, body) => {
                 let start = self.code.len();
@@ -378,17 +404,15 @@ impl Bytecode {
                     if stmt == &Stmt::Break {
                         breaks.push(self.add_u32(JUMP, 0));
                     } else if stmt == &Stmt::Continue {
-                        let offset = self.add_u32(JUMP, start as u32);
-                        self.jumps[self.in_function].push((offset, start));
+                        self.add_u32(JUMP, start as u32);
                     } else {
                         self.compile_stmt(stmt);
                     }
                 }
-                self.add_u32(JUMP, start as u32);
-                let len = self.code.len();
-                self.jumps[self.in_function].push((jump, len));
+                self.add_u64(JUMP, start as u64);
+                self.patch_u64(jump, self.code.len() as u64);
                 for break_ in breaks {
-                    self.jumps[self.in_function].push((break_, len));
+                    self.patch_u64(break_, self.code.len() as u64);
                 }
             }
             Stmt::For(var, expr, body) => {
@@ -406,7 +430,7 @@ impl Bytecode {
                 self.add_u32(GET_LOCAL, idx_var as u32);
                 self.add_u32(GET_LOCAL, len_var as u32);
                 self.add(LESS);
-                let jump = self.add_u32(JUMP_IF_FALSE, 0);
+                let jump = self.add_u64(JUMP_IF_FALSE, 0);
                 let var_var = self.add_local(&var.clone());
                 self.add_u32(GET_LOCAL, arr_var as u32);
                 self.add_u32(GET_LOCAL, idx_var as u32);
@@ -423,10 +447,10 @@ impl Bytecode {
                     }
                 }
                 self.incr_for_loop(idx_var, start);
+                self.patch_u64(jump, self.code.len() as u64);
                 let len = self.code.len();
-                self.jumps[self.in_function].push((jump, len));
                 for break_ in breaks {
-                    self.jumps[self.in_function].push((break_, len));
+                    self.patch_u64(break_, len as u64);
                 }
             }
             Stmt::Decl(name, expr) => {
@@ -459,7 +483,6 @@ impl Bytecode {
         let fns = &program.funcs;
         self.func_code = Vec::with_capacity(fns.len() + 1);
         self.calls = (0..fns.len() + 1).map(|_| Vec::new()).collect();
-        self.jumps = (0..fns.len() + 1).map(|_| Vec::new()).collect();
         let mut idx = 0;
         for func in fns {
             self.func_idx.insert(func.name.clone(), idx);
@@ -486,7 +509,6 @@ impl Bytecode {
         self.compile_fn(&[], &program.main);
         self.func_code.push(self.code.clone());
         // now collect the code for all functions
-        let mut prefix_len = Vec::new();
         let mut code = Vec::<u8>::new();
         for func in fns {
             let name = &func.name;
@@ -504,31 +526,11 @@ impl Bytecode {
             }
             let func_code = &self.func_code[func_idx];
             code.extend_from_slice(func_code);
-            prefix_len.push(code.len());
         }
         self.code = code;
         self.start_ip = self.code.len();
         println!("start ip: {}", self.start_ip);
         self.code.extend_from_slice(&self.func_code[idx]);
-        prefix_len.push(self.code.len());
-        // patch jumps
-        let mut code_off = 0;
-        println!("jumps: {:?}", self.jumps);
-        println!("prefix_len: {:?}", prefix_len);
-        for j in self.jumps.iter() {
-            println!("j: {:?}", j);
-            for jump in j {
-                println!("jump: {:?}", jump);
-                println!("code_off: {}", code_off);
-                println!("patching jump at {} ", jump.0);
-                let target = jump.0 + code_off;
-                self.code[code_off + jump.1] = (target >> 24) as u8;
-                self.code[code_off + jump.1 + 1] = (target >> 16) as u8;
-                self.code[code_off + jump.1 + 2] = (target >> 8) as u8;
-                self.code[code_off + jump.1 + 3] = target as u8;
-            }
-            code_off = prefix_len.remove(0);
-        }
         println!("code length: {}", self.code.len());
         // println!("code: {:?}", self.code);
     }
