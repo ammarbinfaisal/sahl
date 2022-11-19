@@ -73,6 +73,8 @@ pub struct Codegen {
     instructions: Vec<Instruction>,
     locals: HashMap<String, usize>,
     functions: HashMap<String, usize>,
+    calls: Vec<Vec<usize>>,
+    func_idx: HashMap<String, usize>,
     start_ip: usize,
 }
 
@@ -83,6 +85,8 @@ impl Codegen {
             locals: HashMap::new(),
             functions: HashMap::new(),
             instructions: Vec::new(),
+            calls: Vec::new(),
+            func_idx: HashMap::new(),
             start_ip: 0,
         }
     }
@@ -217,8 +221,10 @@ impl Codegen {
                     for arg in args {
                         self.compile_expr(arg);
                     }
-                    let global = self.functions.get(name).unwrap();
-                    self.add_instruction(Instruction::Call(*global, args.len()));
+                    self.add_instruction(Instruction::Call(0, args.len()));
+                    self.calls[*self.func_idx.get(name).unwrap()].push(
+                        self.instructions.len() - 1,
+                    );
                 }
             }
             Expr::Subscr(e1, e2) => {
@@ -390,7 +396,15 @@ impl Codegen {
 
     pub fn compile_program(&mut self, program: &Program) {
         let fns = &program.funcs;
+        let mut i = 0;
         for func in fns {
+            self.func_idx.insert(func.name.clone(), i);
+            i += 1;
+        }
+        self.calls = (0..fns.len() + 1).map(|_| Vec::new()).collect();
+        let mut func_ip = Vec::<usize>::new();
+        for func in fns {
+            func_ip.push(self.instructions.len());
             self.locals.clear();
             self.num_locals = 0;
             let name = func.name.clone();
@@ -408,6 +422,16 @@ impl Codegen {
         self.start_ip = self.instructions.len();
         self.compile_fn("main".to_string(), &[], &program.main);
         self.add_instruction(Instruction::Return);
+        // patch calls
+        for i in 0..fns.len() {
+            for ip in self.calls[i].iter() {
+                if let Instruction::Call(_, argc) = self.instructions[*ip] {
+                    self.instructions[*ip] = Instruction::Call(func_ip[i], argc);
+                } else {
+                    panic!("Expected call instruction");
+                }
+            }
+        }
         println!("Instructions: {:#?}", self.instructions);
     }
 
