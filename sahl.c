@@ -792,16 +792,18 @@ void run() {
             break;
         }
         case INDEX: {
-            uint32_t index = read_u32(vm->code, vm->ip + 1);
-            struct Value *value = pop(vm);
+            struct Value *index = pop(vm);
+            struct Value *value = pop(vm); // list shouldnt be freed
             if (value->type == VALUE_TYPE_LIST) {
                 Value *val = malloc(sizeof(struct Value));
-                *val = value->val.list->values[index];
+                *val = value->val.list->values[index->val.u64];
                 push(val);
+                free(index);
             } else {
-                error("Invalid type for INDEX");
+                char msg[100];
+                sprintf(msg, "Invalid type for INDEX: %d", value->type);
+                error(msg);
             }
-            vm->ip += 4;
             break;
         }
         case LENGTH: {
