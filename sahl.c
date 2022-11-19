@@ -747,14 +747,14 @@ void run() {
         }
         case JUMP: {
             uint32_t ip = read_u32(vm->code, vm->ip + 1);
-            vm->ip = ip;
+            vm->ip = ip - 1;
             break;
         }
         case JUMP_IF_FALSE: {
             uint32_t ip = read_u32(vm->code, vm->ip + 1);
             struct Value *value = pop(vm);
             if (value->type == VALUE_TYPE_U8 && value->val.u8 == 0) {
-                vm->ip = ip;
+                vm->ip = ip - 1;
             } else {
                 vm->ip += 4;
             }
