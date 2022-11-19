@@ -721,8 +721,6 @@ void run() {
                 vm->locals_capacity *= 2;
                 vm->locals = realloc(vm->locals, sizeof(struct Value *) *
                                                      vm->locals_capacity);
-                vm->locals_size = realloc(
-                    vm->locals_size, sizeof(uint32_t) * vm->locals_capacity);
             }
             memcpy(vm->locals[vm->locals_count], args,
                    sizeof(struct Value) * argc);
