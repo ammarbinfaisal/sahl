@@ -740,6 +740,9 @@ void run() {
             --vm->call_depth;
             vm->prev_ips =
                 realloc(vm->prev_ips, sizeof(uint32_t) * vm->call_depth);
+            for (int i = 0; i < vm->locals_size[vm->locals_count]; ++i) {
+                free(vm->locals[vm->locals_count] + i);
+            }
             free(vm->locals[vm->locals_count]);
             --vm->locals_count;
             push(value);
