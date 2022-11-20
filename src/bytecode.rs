@@ -367,7 +367,7 @@ impl Bytecode {
         match stmt {
             Stmt::Expr(expr) => {
                 self.compile_expr(expr);
-                self.add(POP);
+                // self.add(POP);
             }
             Stmt::Return(expr) => {
                 self.compile_expr(expr);
@@ -509,6 +509,7 @@ impl Bytecode {
         }
         self.start_ip = self.code.len();
         self.compile_fn(&[], &program.main);
+        self.add(RETURN);
         println!("start ip: {}", self.start_ip);
         println!("code length: {}", self.code.len());
         // println!("code: {:?}", self.code);
