@@ -387,7 +387,7 @@ fn mainfn(source: &str) -> IResult<&str, Vec<Stmt>> {
 }
 
 pub fn program(source: &str) -> IResult<&str, Program> {
-    let (source, funcs) = many1(delimited(whitespace, function, whitespace))(source)?;
+    let (source, funcs) = many0(delimited(whitespace, function, whitespace))(source)?;
     let (source, mainfunc) = delimited(whitespace, mainfn, whitespace)(source)?;
     Ok((
         source,
