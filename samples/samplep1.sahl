@@ -1,0 +1,4 @@
+fun main() {
+    let even = make([int])
+    print(even)
+}

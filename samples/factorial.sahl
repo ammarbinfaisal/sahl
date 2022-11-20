@@ -1,0 +1,31 @@
+fun factorial(n: int) -> int {
+    print(n)
+    if n == 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+fun main() {
+    print(factorial(20))
+}
+
+# Generated code should be something like this:
+#  0: GetLocal 0
+#  5: ConstU64 1
+# 14: Equal
+# 15: JumpIfFalse 35
+# 20: ConstU64 1
+# 29: Return
+# 30: Jump 35
+# 35: GetLocal 0
+# 40: GetLocal 0
+# 45: ConstU64 1
+# 54: Sub
+# 55: ReCall     fn: 0   arg count: 1 
+# 64: Mul
+# 65: Return
+# 66: ConstU64 5
+# 75: Call       fn: 0   arg count: 1 
+# 84: Return
+
+# ReCall is a new instruction that calls a function that is already on the stack.
+# It is used to implement tail recursion.
