@@ -6,6 +6,7 @@ pub enum Error {
     ArityMismatch(usize, usize),
     UndefinedVariable(String),
     UndefinedFunction(String),
+    CoroutineNotFunction,
     ContinueOutsideLoop,
     BreakOutsideLoop,
     IncorrectLHS(Expr),
@@ -22,6 +23,7 @@ impl std::fmt::Display for Error {
                     expected, actual
                 )
             }
+            Error::CoroutineNotFunction => write!(f, "Coroutine is not a function"),
             Error::ArityMismatch(expected, actual) => {
                 write!(f, "Arity mismatch: expected {}, found {}", expected, actual)
             }
@@ -352,6 +354,14 @@ impl<'a> Checker<'a> {
                 }
             }
             Stmt::Comment => Ok(()),
+            Stmt::Coroutine(expr) => {
+                self.check_expr(expr)?;
+                if let Expr::Call(_,_ ) = expr {
+                    Ok(())
+                } else {
+                    Err(Error::CoroutineNotFunction)
+                }
+            }
         }
     }
 }

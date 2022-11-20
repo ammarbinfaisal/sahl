@@ -201,8 +201,7 @@ impl Bytecode {
             Expr::Variable(name) => {
                 let local = self.get_local(name);
                 if local.is_some() {
-                    let local = *local.unwrap();
-                    self.add_u32(GET_LOCAL, local as u32);
+                    self.add_u32(GET_LOCAL, *local.unwrap() as u32);
                 } else {
                     panic!("Unknown variable: {}", name);
                 }
@@ -463,6 +462,9 @@ impl Bytecode {
             }
             Stmt::Comment => {
                 // do nothing
+            }
+            Stmt::Coroutine(call) => {
+                self.compile_expr(call);
             }
         }
     }

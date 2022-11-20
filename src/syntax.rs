@@ -66,6 +66,7 @@ pub enum Stmt {
     While(Box<Expr>, Vec<Stmt>),
     IfElse(Box<Expr>, Vec<Stmt>, Option<Vec<Stmt>>),
     Return(Box<Expr>),
+    Coroutine(Expr),
     Continue,
     Comment,
     Break,

@@ -330,8 +330,15 @@ fn returnst(source: &str) -> IResult<&str, Stmt> {
     Ok((source, Stmt::Return(Box::new(ex))))
 }
 
+fn coroutine(source: &str) -> IResult<&str, Stmt> {
+    let (source, _) = delimited(space0, tag("sahl"), space0)(source)?;
+    let (source, fncall) = call(source)?;
+    Ok((source, Stmt::Coroutine(fncall)))
+}
+
 fn statement(source: &str) -> IResult<&str, Stmt> {
     let (source, stmt) = alt((
+        coroutine,
         forin,
         ifelse,
         whileloop,

@@ -64,6 +64,7 @@ pub enum Instruction {
     Assign(usize),
     Call(usize, usize),   // global, num_args
     ReCall(usize, usize), // global, num_args
+    Coroutine,
     Return,
     ReReturn,
     Print,
@@ -405,6 +406,10 @@ impl Codegen {
             Stmt::Comment => {
                 // do nothing
             }
+            Stmt::Coroutine(expr) => {
+                self.add_instruction(Instruction::Coroutine);
+                self.compile_expr(expr);
+            }
         }
     }
 
@@ -463,7 +468,7 @@ impl Codegen {
     }
 
     pub fn execute(&self) {
-        let mut vm = VM::new(&self.instructions, self.start_ip);
+        let mut vm = VM::new(&self.instructions, self.start_ip, 0);
         vm.run();
     }
 }
