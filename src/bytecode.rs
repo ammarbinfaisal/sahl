@@ -201,7 +201,8 @@ impl Bytecode {
             Expr::Variable(name) => {
                 let local = self.get_local(name);
                 if local.is_some() {
-                    self.add_u32(GET_LOCAL, *local.unwrap() as u32);
+                    let local = *local.unwrap();
+                    self.add_u32(GET_LOCAL, local as u32);
                 } else {
                     panic!("Unknown variable: {}", name);
                 }
