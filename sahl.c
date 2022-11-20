@@ -42,8 +42,9 @@
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 256
 
-#define PRINT_STACK
-#define PRINT_LOCALS
+// #define PRINT_OPCODES
+// #define PRINT_STACK
+// #define PRINT_LOCALS
 
 enum ValueType {
     VALUE_TYPE_U64,
@@ -435,7 +436,10 @@ void print_value(Value *value) {
 void run() {
     while (vm->ip < vm->code_length) {
         uint8_t instruction = vm->code[vm->ip];
+
+#ifdef PRINT_OPCODES
         print_opcode(vm->code, vm->ip);
+#endif
 
 #ifdef PRINT_STACK
         printf("Stack: ");
@@ -443,18 +447,16 @@ void run() {
             print_value(vm->stack[i]);
             printf(" ");
         }
-        printf(" (size: %d )\n", vm->stack_size);
+        printf(" (size: %d)\n", vm->stack_size);
 #endif
 
 #ifdef PRINT_LOCALS
         printf("Locals: ");
-        for (int i = 0; i < vm->locals_count; ++i) {
-            for (int j = 0; j < vm->locals_size[i]; ++j) {
-                print_value(vm->locals[i] + j);
-                printf(" ");
-            }
+        for (int j = 0; j < vm->locals_size[vm->locals_count - 1]; ++j) {
+            print_value(vm->locals[vm->locals_count - 1] + j);
+            printf(" ");
         }
-        printf(" (size: %d )\n", vm->locals_count);
+        printf(" (size: %d)\n", vm->locals_size[vm->locals_count - 1]);
 #endif
 
         switch (instruction) {
@@ -669,40 +671,42 @@ void run() {
         case PRINT: {
             struct Value *value = pop(vm);
             print_value(value);
+            putchar('\n');
             free(value);
+            break;
         }
         case GET_LOCAL: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
             Value *val = malloc(sizeof(Value));
-            memcpy(val, vm->locals[vm->locals_count] + index, sizeof(Value));
+            memcpy(val, vm->locals[vm->locals_count - 1] + index,
+                   sizeof(Value));
             push(val);
             vm->ip += 4;
             break;
         }
         case DEF_LOCAL: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
-            if (index >= vm->locals_size[vm->locals_count]) {
-                if (vm->locals_size[vm->locals_count] == 0) {
-                    vm->locals[vm->locals_count] =
+            if (index >= vm->locals_size[vm->locals_count - 1]) {
+                if (vm->locals_size[vm->locals_count - 1] == 0) {
+                    vm->locals[vm->locals_count - 1] =
                         malloc(sizeof(struct Value) * index * 2);
                 } else {
-                    vm->locals[vm->locals_count] =
-                        realloc(vm->locals[vm->locals_count],
+                    vm->locals[vm->locals_count - 1] =
+                        realloc(vm->locals[vm->locals_count - 1],
                                 sizeof(struct Value) * index * 2);
-                    vm->locals_size[vm->locals_count] = index * 2;
                 }
             }
-            Value* val = pop(vm);
-            vm->locals[vm->locals_count][index] = *val;
+            Value *val = pop(vm);
+            vm->locals[vm->locals_count - 1][index] = *val;
             free(val);
-            vm->locals_size[vm->locals_count] = index + 1;
+            vm->locals_size[vm->locals_count - 1] = index + 1;
             vm->ip += 4;
             break;
         }
         case ASSIGN: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
             Value *val = pop(vm);
-            vm->locals[vm->locals_count][index] = *val;
+            vm->locals[vm->locals_count - 1][index] = *val;
             free(val);
             vm->ip += 4;
             break;
@@ -724,27 +728,32 @@ void run() {
             }
             memcpy(vm->locals[vm->locals_count], args,
                    sizeof(struct Value) * argc);
-            vm->locals_size[vm->locals_count] = argc;
-            vm->call_depth += 1;
+            vm->locals_size[vm->locals_count] = argc + 1;
+            ++vm->locals_count;
+            ++vm->call_depth;
             vm->prev_ips =
                 realloc(vm->prev_ips, sizeof(uint32_t) * (vm->call_depth));
             vm->prev_ips[vm->call_depth - 1] = vm->ip;
-            vm->ip = funcip;
+            vm->ip = funcip - 1;
             break;
         }
         case RETURN: {
-            struct Value *value = pop(vm);
-            vm->locals_count--;
+            if (vm->call_depth == 0) {
+                return;
+            }
             vm->ip = vm->prev_ips[vm->call_depth - 1];
             --vm->call_depth;
             vm->prev_ips =
                 realloc(vm->prev_ips, sizeof(uint32_t) * vm->call_depth);
-            for (int i = 0; i < vm->locals_size[vm->locals_count]; ++i) {
-                free(vm->locals[vm->locals_count] + i);
+            // printf("locals length %d\n", vm->locals_count);
+            // printf("locals_count: %d\n", vm->locals_size[vm->locals_count]);
+            for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
+                print_value(vm->locals[vm->locals_count - 1] + i);
+                putchar('\n');
+                free(vm->locals[vm->locals_count-1] + i);
             }
-            free(vm->locals[vm->locals_count]);
+            free(vm->locals + vm->locals_count);
             --vm->locals_count;
-            push(value);
             break;
         }
         case JUMP: {
@@ -788,7 +797,7 @@ void run() {
                 push(list);
                 free(value);
             } else {
-                printf("%d ", list->type);
+                // printf("%d ", list->type);
                 error("Invalid type for APPEND");
             }
             break;
