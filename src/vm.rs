@@ -247,12 +247,33 @@ impl<'a> VM<'a> {
                     self.call_depth += 1;
                     continue;
                 }
+                Instruction::ReCall(funcip, args_c) => {
+                    self.prev_ips.push(self.ip);
+                    self.ip = funcip;
+                    self.locals[self.call_depth].clear();
+                    for _ in 0..args_c {
+                        if let Some(val) = self.stack.pop() {
+                            self.locals[self.call_depth].push(val);
+                        } else {
+                            panic!("Stack is empty");
+                        }
+                    }
+                    continue;
+                }
                 Instruction::Return => {
                     let ip = self.prev_ips.pop();
                     if let Some(ip) = ip {
                         self.ip = ip;
                         self.call_depth -= 1;
                         self.locals.pop();
+                    } else {
+                        break;
+                    }
+                }
+                Instruction::ReReturn => {
+                    let ip = self.prev_ips.pop();
+                    if let Some(ip) = ip {
+                        self.ip = ip;
                     } else {
                         break;
                     }
