@@ -1,6 +1,6 @@
 use crate::code::*;
 use std::time::Duration;
-use std::{thread};
+use std::thread;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static GLOBAL_THREAD_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -13,7 +13,6 @@ pub struct VM<'a> {
     call_depth: usize,
     about_to_spawn: bool,
     coroutine_depth: usize,
-    coroutine_num: usize,
     ip: usize,
 }
 
@@ -21,12 +20,11 @@ impl<'a> VM<'a> {
     pub fn new(instructions: &'a Vec<Instruction>, start_ip: usize, depth: usize) -> VM {
         VM {
             stack: Vec::new(),
-            instructions: instructions,
+            instructions,
             locals: Vec::new(),
             prev_ips: Vec::new(),
             about_to_spawn: false,
             coroutine_depth: depth,
-            coroutine_num: 0,
             call_depth: 0,
             ip: start_ip,
         }
@@ -258,8 +256,6 @@ impl<'a> VM<'a> {
                         for _ in 0..args_c {
                             locals[0].push(self.stack.pop().unwrap());
                         }
-                        self.coroutine_num += 1;
-                        let n = self.coroutine_num;
                         GLOBAL_THREAD_COUNT.fetch_add(1, Ordering::SeqCst);
                         thread::spawn(move || {
                             let mut vm = VM::new(&instructions, funcip, depth);
