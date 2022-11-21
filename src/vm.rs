@@ -1,6 +1,9 @@
 use crate::code::*;
-use std::{thread, mem};
-use std::sync::mpsc::channel;
+use std::time::Duration;
+use std::{thread};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static GLOBAL_THREAD_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub struct VM<'a> {
     stack: Vec<Value>,
@@ -31,10 +34,7 @@ impl<'a> VM<'a> {
 
     pub fn run(&mut self) {
         self.locals.push(Vec::new());
-        let mut join_handles = Vec::<Option<thread::JoinHandle<()>>>::new();
-        let (send_finished_thread, receive_finished_thread) = channel::<usize>();
         loop {
-            let send_finished_thread = send_finished_thread.clone();
             let instruction = self.instructions[self.ip].clone();
             // println!("{:?}", instruction);
             // println!("stack: {:?}", self.stack);
@@ -260,13 +260,12 @@ impl<'a> VM<'a> {
                         }
                         self.coroutine_num += 1;
                         let n = self.coroutine_num;
-                        let cors = thread::spawn(move || {
+                        GLOBAL_THREAD_COUNT.fetch_add(1, Ordering::SeqCst);
+                        thread::spawn(move || {
                             let mut vm = VM::new(&instructions, funcip, depth);
                             vm.locals = locals;
                             vm.run();
-                            send_finished_thread.send(n).unwrap();
                         });
-                        join_handles.push(Some(cors));
                         self.about_to_spawn = false;
                     } else {
                         println!("{}", self.call_depth);
@@ -304,6 +303,7 @@ impl<'a> VM<'a> {
                             break;
                         }
                     } else {
+                        GLOBAL_THREAD_COUNT.fetch_sub(1, Ordering::SeqCst);
                         break;
                     }
                 }
@@ -401,19 +401,10 @@ impl<'a> VM<'a> {
             self.ip += 1;
         }
         loop {
-            // Check if all threads are finished
-            let num_left = join_handles.iter().filter(|th| th.is_some()).count();
-            if num_left == 0 {
+            if GLOBAL_THREAD_COUNT.load(Ordering::SeqCst) == 0 {
                 break;
             }
-            println!("Waiting for {} threads to finish", num_left);
-    
-            // Wait until a thread is finished, then join it
-            let i = receive_finished_thread.recv().unwrap();
-            let join_handle = mem::take(&mut join_handles[i]).unwrap();
-            println!("Joining {} ...", i);
-            join_handle.join().unwrap();
-            println!("{} joined.", i);
+            thread::sleep(Duration::from_millis(100));
         }
     }
 }
