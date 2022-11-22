@@ -250,7 +250,6 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Call(funcip, args_c) => {
                     if self.about_to_spawn {
-                        println!("Spawning thread");
                         let instructions = self.instructions.clone();
                         let depth = self.coroutine_depth + 1;
                         let mut locals: Vec<Vec<Value>> = Vec::with_capacity(1);
