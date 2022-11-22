@@ -18,7 +18,7 @@ fun recvvals(c: chan int, count: int) -> int {
 
 fun main() {
     let i = 0
-    while i < 1000 {
+    while i < 100 {
         let a = make(chan int)
         let b = make(chan int)
         sahl sendvals(a, 100)
