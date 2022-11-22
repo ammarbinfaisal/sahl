@@ -434,7 +434,7 @@ impl<'a> VM<'a> {
             if GLOBAL_THREAD_COUNT.load(Ordering::SeqCst) == 0 {
                 break;
             }
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(5));
         }
     }
 }
