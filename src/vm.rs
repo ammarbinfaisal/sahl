@@ -266,7 +266,6 @@ impl<'a> VM<'a> {
                         });
                         self.about_to_spawn = false;
                     } else {
-                        println!("{}", self.call_depth);
                         self.ip = funcip;
                         self.locals.push(Vec::new());
                         for _ in 0..args_c {
