@@ -201,8 +201,7 @@ impl Bytecode {
             Expr::Variable(name) => {
                 let local = self.get_local(name);
                 if local.is_some() {
-                    let local = *local.unwrap();
-                    self.add_u32(GET_LOCAL, local as u32);
+                    self.add_u32(GET_LOCAL, *local.unwrap() as u32);
                 } else {
                     panic!("Unknown variable: {}", name);
                 }
@@ -344,6 +343,7 @@ impl Bytecode {
                                     self.add_u8(CONST_U32, 0);
                                 }
                             }
+                            Type::Chan(_) => panic!("Cannot create a list of channels"),
                             Type::List(_) => panic!("Cannot create a list of lists"),
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
@@ -352,6 +352,9 @@ impl Bytecode {
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
+            }
+            _ => {
+                println!("unimplemented {:?}", expr);
             }
         }
     }
@@ -463,6 +466,12 @@ impl Bytecode {
             }
             Stmt::Comment => {
                 // do nothing
+            }
+            Stmt::Coroutine(call) => {
+                self.compile_expr(call);
+            }
+            _ => {
+                println!("unimplemented {:?}", stmt);
             }
         }
     }

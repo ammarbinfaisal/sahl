@@ -16,6 +16,20 @@ sahl means easy. This is the easiest statically typed language I could come up w
 
 I used hyperfine to benchmark the language.
 
+### channels
+
+#### compiling and running on rust vm
+
+`../target/release/sahl chan.sahl -e` <br/>
+  Time (mean ± σ):      32.9 ms ±   3.9 ms    [User: 27.3 ms, System: 69.9 ms] <br/>
+  Range (min … max):    20.9 ms …  53.0 ms    85 runs <br/>
+
+#### using yaegi for golang 
+
+`yaegi chan.go` <br/>
+  Time (mean ± σ):      34.9 ms ±   3.8 ms    [User: 84.5 ms, System: 22.4 ms] <br/>
+  Range (min … max):    27.1 ms …  50.1 ms    96 runs <br/>
+
 ### sample 3
 
 #### compiling and running on rust vm

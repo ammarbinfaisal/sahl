@@ -7,6 +7,7 @@ pub enum Type {
     Void,
     Any,
     List(Box<Type>),
+    Chan(Box<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +57,7 @@ pub enum Expr {
     Subscr(Box<Expr>, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
     Make(Type, usize),
+    ChanRead(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +68,8 @@ pub enum Stmt {
     While(Box<Expr>, Vec<Stmt>),
     IfElse(Box<Expr>, Vec<Stmt>, Option<Vec<Stmt>>),
     Return(Box<Expr>),
+    Coroutine(Expr),
+    ChanWrite(String, Box<Expr>),
     Continue,
     Comment,
     Break,

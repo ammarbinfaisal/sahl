@@ -1,4 +1,11 @@
 use crate::code::*;
+use std::thread;
+use std::time::Duration;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
+
+static GLOBAL_THREAD_COUNT: AtomicUsize = AtomicUsize::new(0);
+
 
 pub struct VM<'a> {
     stack: Vec<Value>,
@@ -6,16 +13,20 @@ pub struct VM<'a> {
     locals: Vec<Vec<Value>>,
     prev_ips: Vec<usize>,
     call_depth: usize,
+    about_to_spawn: bool,
+    coroutine_depth: usize,
     ip: usize,
 }
 
 impl<'a> VM<'a> {
-    pub fn new(instructions: &'a Vec<Instruction>, start_ip: usize) -> VM {
+    pub fn new(instructions: &'a Vec<Instruction>, start_ip: usize, depth: usize) -> VM {
         VM {
             stack: Vec::new(),
-            instructions: instructions,
+            instructions,
             locals: Vec::new(),
             prev_ips: Vec::new(),
+            about_to_spawn: false,
+            coroutine_depth: depth,
             call_depth: 0,
             ip: start_ip,
         }
@@ -238,14 +249,33 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::Call(funcip, args_c) => {
-                    self.prev_ips.push(self.ip);
-                    self.ip = funcip;
-                    self.locals.push(Vec::new());
-                    for _ in 0..args_c {
-                        self.locals[self.call_depth + 1].push(self.stack.pop().unwrap());
+                    if self.about_to_spawn {
+                        let instructions = self.instructions.clone();
+                        let depth = self.coroutine_depth + 1;
+                        let mut locals: Vec<Vec<Value>> = Vec::with_capacity(1);
+                        locals.push(Vec::new());
+                        for _ in 0..args_c {
+                            locals[0].push(self.stack.pop().unwrap());
+                        }
+                        locals[0].reverse();
+                        GLOBAL_THREAD_COUNT.fetch_add(1, Ordering::SeqCst);
+                        thread::spawn(move || {
+                            let mut vm = VM::new(&instructions, funcip, depth);
+                            vm.locals = locals;
+                            vm.run();
+                        });
+                        self.about_to_spawn = false;
+                    } else {
+                        println!("{}", self.call_depth);
+                        self.ip = funcip;
+                        self.locals.push(Vec::new());
+                        for _ in 0..args_c {
+                            self.locals[self.call_depth + 1].push(self.stack.pop().unwrap());
+                        }
+                        self.locals[self.call_depth + 1].reverse();
+                        self.call_depth += 1;
+                        continue;
                     }
-                    self.call_depth += 1;
-                    continue;
                 }
                 Instruction::ReCall(funcip, args_c) => {
                     self.prev_ips.push(self.ip);
@@ -261,12 +291,18 @@ impl<'a> VM<'a> {
                     continue;
                 }
                 Instruction::Return => {
-                    let ip = self.prev_ips.pop();
-                    if let Some(ip) = ip {
-                        self.ip = ip;
-                        self.call_depth -= 1;
-                        self.locals.pop();
+                    if self.coroutine_depth == 0 {
+                        let ip = self.prev_ips.pop();
+                        if let Some(ip) = ip {
+                            self.call_depth -= 1;
+                            self.locals.pop();
+                            self.ip = ip;
+                            continue;
+                        } else {
+                            break;
+                        }
                     } else {
+                        GLOBAL_THREAD_COUNT.fetch_sub(1, Ordering::SeqCst);
                         break;
                     }
                 }
@@ -357,8 +393,47 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
+                Instruction::Coroutine => {
+                    self.about_to_spawn = true;
+                }
+                Instruction::MakeChan => {
+                    let chan = Arc::new(Mutex::new(VecDeque::<Value>::new()));
+                    self.stack.push(Value::Chan(chan));
+                }
+                Instruction::ChanWrite => {
+                    let chan = self.stack.pop().unwrap();
+                    let val = self.stack.pop().unwrap();
+                    match chan {
+                        Value::Chan(chan) => {
+                            chan.lock().unwrap().push_back(val);
+                        }
+                        _ => {
+                            panic!("Invalid types for chan write");
+                        }
+                    }
+                }
+                Instruction::ChanRead => {
+                    let chan = self.stack.pop().unwrap();
+                    match chan {
+                        Value::Chan(chan) => {
+                            while chan.lock().unwrap().is_empty() {
+                                thread::sleep(Duration::from_millis(10));
+                            }
+                            self.stack.push(chan.lock().unwrap().pop_front().unwrap());
+                        }
+                        _ => {
+                            panic!("Invalid types for chan read");
+                        }
+                    }
+                }
             }
             self.ip += 1;
+        }
+        loop {
+            if GLOBAL_THREAD_COUNT.load(Ordering::SeqCst) == 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(5));
         }
     }
 }
