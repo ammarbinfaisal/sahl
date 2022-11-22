@@ -1,9 +1,11 @@
 use crate::code::*;
-use std::time::Duration;
 use std::thread;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 
 static GLOBAL_THREAD_COUNT: AtomicUsize = AtomicUsize::new(0);
+
 
 pub struct VM<'a> {
     stack: Vec<Value>,
@@ -256,6 +258,7 @@ impl<'a> VM<'a> {
                         for _ in 0..args_c {
                             locals[0].push(self.stack.pop().unwrap());
                         }
+                        locals[0].reverse();
                         GLOBAL_THREAD_COUNT.fetch_add(1, Ordering::SeqCst);
                         thread::spawn(move || {
                             let mut vm = VM::new(&instructions, funcip, depth);
@@ -270,6 +273,7 @@ impl<'a> VM<'a> {
                         for _ in 0..args_c {
                             self.locals[self.call_depth + 1].push(self.stack.pop().unwrap());
                         }
+                        self.locals[self.call_depth + 1].reverse();
                         self.call_depth += 1;
                         continue;
                     }
@@ -392,6 +396,36 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Coroutine => {
                     self.about_to_spawn = true;
+                }
+                Instruction::MakeChan => {
+                    let chan = Arc::new(Mutex::new(VecDeque::<Value>::new()));
+                    self.stack.push(Value::Chan(chan));
+                }
+                Instruction::ChanWrite => {
+                    let chan = self.stack.pop().unwrap();
+                    let val = self.stack.pop().unwrap();
+                    match chan {
+                        Value::Chan(chan) => {
+                            chan.lock().unwrap().push_back(val);
+                        }
+                        _ => {
+                            panic!("Invalid types for chan write");
+                        }
+                    }
+                }
+                Instruction::ChanRead => {
+                    let chan = self.stack.pop().unwrap();
+                    match chan {
+                        Value::Chan(chan) => {
+                            while chan.lock().unwrap().is_empty() {
+                                thread::sleep(Duration::from_millis(10));
+                            }
+                            self.stack.push(chan.lock().unwrap().pop_front().unwrap());
+                        }
+                        _ => {
+                            panic!("Invalid types for chan read");
+                        }
+                    }
                 }
             }
             self.ip += 1;

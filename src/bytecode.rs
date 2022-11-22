@@ -343,6 +343,7 @@ impl Bytecode {
                                     self.add_u8(CONST_U32, 0);
                                 }
                             }
+                            Type::Chan(_) => panic!("Cannot create a list of channels"),
                             Type::List(_) => panic!("Cannot create a list of lists"),
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
@@ -351,6 +352,9 @@ impl Bytecode {
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
+            }
+            _ => {
+                println!("unimplemented {:?}", expr);
             }
         }
     }
@@ -465,6 +469,9 @@ impl Bytecode {
             }
             Stmt::Coroutine(call) => {
                 self.compile_expr(call);
+            }
+            _ => {
+                println!("unimplemented {:?}", stmt);
             }
         }
     }

@@ -23,6 +23,17 @@ fn typee(source: &str) -> IResult<&str, Type> {
         map(tag("bool"), |_| Type::Bool),
         map(tag("string"), |_| Type::Str),
         map(tag("char"), |_| Type::Char),
+        chanty
+    ))(source)?;
+    Ok((source, ty))
+}
+
+fn chanty(source: &str) -> IResult<&str, Type> {
+    let (source, ty) = alt((
+        map(tag("chan int"), |_| Type::Chan(Box::new(Type::Int))),
+        map(tag("chan bool"), |_| Type::Chan(Box::new(Type::Bool))),
+        map(tag("chan string"), |_| Type::Chan(Box::new(Type::Str))),
+        map(tag("chan char"), |_| Type::Chan(Box::new(Type::Char))),
     ))(source)?;
     Ok((source, ty))
 }
@@ -215,17 +226,23 @@ pub fn aexp(source: &str) -> IResult<&str, Expr> {
     Ok((source, res))
 }
 
+fn chanread(source: &str) -> IResult<&str, Expr> {
+    let (source, _) = tag("<-")(source)?;
+    let (source, id) = identifier(source)?;
+    Ok((source, Expr::ChanRead(id)))
+}
+
 fn assignment(source: &str) -> IResult<&str, Expr> {
     let (source, lhs) = alt((variable, subscript))(source)?;
     let (source, _) = delimited(space0, tag("="), space0)(source)?;
-    let (source, expr) = aexp(source)?;
+    let (source, expr) = alt((chanread, aexp))(source)?;
     Ok((source, Expr::Assign(Box::new(lhs), Box::new(expr))))
 }
 
 fn make(source: &str) -> IResult<&str, Expr> {
     let (source, _) = tag("make")(source)?;
     let (source, _) = tag("(")(source)?;
-    let (source, ty) = delimited(space0, listty, space0)(source)?;
+    let (source, ty) = delimited(space0, alt((listty, chanty)), space0)(source)?;
     let (source, len) = opt(map(
         tuple((
             delimited(space0, tag(","), space0),
@@ -246,7 +263,7 @@ fn make(source: &str) -> IResult<&str, Expr> {
 }
 
 pub fn expression(source: &str) -> IResult<&str, Expr> {
-    alt((assignment, aexp, make, list))(source)
+    alt((chanread, assignment, aexp, make, list))(source)
 }
 
 fn list(source: &str) -> IResult<&str, Expr> {
@@ -336,8 +353,16 @@ fn coroutine(source: &str) -> IResult<&str, Stmt> {
     Ok((source, Stmt::Coroutine(fncall)))
 }
 
+fn chanwrite(source: &str) -> IResult<&str, Stmt> {
+    let (source, id) = identifier(source)?;
+    let (source, _) = delimited(space0, tag("<-"), space0)(source)?;
+    let (source, ex) = expression(source)?;
+    Ok((source, Stmt::ChanWrite(id, Box::new(ex))))
+}
+
 fn statement(source: &str) -> IResult<&str, Stmt> {
     let (source, stmt) = alt((
+        chanwrite,
         coroutine,
         forin,
         ifelse,

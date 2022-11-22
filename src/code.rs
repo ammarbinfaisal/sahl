@@ -1,6 +1,7 @@
 use crate::syntax::*;
 use crate::vm::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -9,6 +10,7 @@ pub enum Value {
     Bool(bool),
     Str(Vec<u8>),
     List(Vec<Value>),
+    Chan(Arc<Mutex<VecDeque<Value>>>),
 }
 
 impl std::fmt::Display for Value {
@@ -28,6 +30,7 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
+            Value::Chan(_) => write!(f, "chan"),
         }
     }
 }
@@ -65,6 +68,9 @@ pub enum Instruction {
     Call(usize, usize),   // global, num_args
     ReCall(usize, usize), // global, num_args
     Coroutine,
+    MakeChan,
+    ChanRead,
+    ChanWrite,
     Return,
     ReReturn,
     Print,
@@ -225,7 +231,7 @@ impl Codegen {
                     }
                     self.add_instruction(Instruction::Append);
                 } else {
-                    let func = self.functions.get(name);
+                    let func = self.func_idx.get(name);
                     if func.is_some() {
                         let func = *func.unwrap();
                         for arg in args {
@@ -277,13 +283,27 @@ impl Codegen {
                             Type::Bool => Value::Bool(false),
                             Type::Str => Value::Str(Vec::new()),
                             Type::List(_) => panic!("Cannot create a list of lists"),
+                            Type::Chan(_) => panic!("Cannot create a list of channels"),
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
                         };
                         let list = (0..*size).map(|_| default.clone()).collect();
                         self.add_instruction(Instruction::Const(Value::List(list)));
                     }
+                    Type::Chan(_) => {
+                        self.add_instruction(Instruction::MakeChan);
+                    }
                     _ => panic!("Cannot make a non-list"),
+                }
+            }
+            Expr::ChanRead(e) => {
+                let chan = self.get_local(e).clone();
+                if let Some(chan) = chan {
+                    let chan = *chan;
+                    self.add_instruction(Instruction::GetLocal(chan));
+                    self.add_instruction(Instruction::ChanRead);
+                } else {
+                    panic!("Unknown channel: {}", e);
                 }
             }
         }
@@ -410,6 +430,17 @@ impl Codegen {
                 self.add_instruction(Instruction::Coroutine);
                 self.compile_expr(expr);
             }
+            Stmt::ChanWrite(chan_name, expr) => {
+                self.compile_expr(expr);
+                let chan = self.get_local(chan_name).clone();
+                if let Some(chan) = chan {
+                    let chan = *chan;
+                    self.add_instruction(Instruction::GetLocal(chan));
+                    self.add_instruction(Instruction::ChanWrite);
+                } else {
+                    panic!("Unknown channel {}", chan_name);
+                }
+            }
         }
     }
 
@@ -428,6 +459,7 @@ impl Codegen {
         let mut i = 0;
         for func in fns {
             self.func_idx.insert(func.name.clone(), i);
+            println!("{} is given index {}", func.name, i);
             i += 1;
         }
         self.calls = (0..fns.len() + 1).map(|_| Vec::new()).collect();

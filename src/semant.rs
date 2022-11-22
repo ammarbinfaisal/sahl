@@ -243,6 +243,16 @@ impl<'a> Checker<'a> {
                     )),
                 }
             }
+            Expr::ChanRead(chan_name) => {
+                let ty = self.find_var(chan_name)?;
+                match ty {
+                    Type::Chan(ty) => Ok(*ty.clone()),
+                    _ => Err(Error::TypeMismatch(
+                        vec![Type::Chan(Box::new(Type::Void))],
+                        vec![ty],
+                    )),
+                }
+            }
             Expr::Make(ty, _) => Ok(ty.clone()),
         }
     }
@@ -360,6 +370,23 @@ impl<'a> Checker<'a> {
                     Ok(())
                 } else {
                     Err(Error::CoroutineNotFunction)
+                }
+            }
+            Stmt::ChanWrite(chan_name, expr) => {
+                let chan_ty = self.find_var(chan_name)?;
+                let expr_ty = self.check_expr(expr)?;
+                match chan_ty {
+                    Type::Chan(ty) => {
+                        if *ty == expr_ty {
+                            Ok(())
+                        } else {
+                            Err(Error::TypeMismatch(vec![*ty], vec![expr_ty]))
+                        }
+                    }
+                    _ => Err(Error::TypeMismatch(
+                        vec![Type::Chan(Box::new(Type::Void))],
+                        vec![chan_ty],
+                    )),
                 }
             }
         }
