@@ -1,11 +1,45 @@
 use crate::code::*;
+use std::collections::VecDeque;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::Duration;
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 
 static GLOBAL_THREAD_COUNT: AtomicUsize = AtomicUsize::new(0);
 
+#[derive(Debug, Clone)]
+pub enum Value {
+    Int(i64),
+    Char(u8),
+    Bool(bool),
+    Str(Vec<u8>),
+    List(Vec<Value>),
+    Chan(Arc<Mutex<VecDeque<Value>>>),
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Value::Int(i) => write!(f, "{}", i),
+            Value::Char(c) => write!(f, "{}", c),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Str(s) => write!(f, "{}", String::from_utf8(s.clone()).unwrap()),
+            Value::List(l) => {
+                write!(f, "[")?;
+                for (i, v) in l.iter().enumerate() {
+                    write!(f, "{}", v)?;
+                    if i < l.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, "]")
+            }
+            Value::Chan(_) => write!(f, "chan"),
+        }
+    }
+}
 
 pub struct VM<'a> {
     stack: Vec<Value>,
