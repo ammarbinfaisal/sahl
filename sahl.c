@@ -304,6 +304,8 @@ struct VM {
 
 struct VM *vm;
 
+void free_value(Value *value);
+
 void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm = malloc(sizeof(struct VM));
     vm->ip = start_ip;
@@ -313,11 +315,18 @@ void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm->stack = malloc(sizeof(struct Value) * 1024);
     vm->locals_count = 1;
     vm->locals_capacity = 4;
-    vm->locals = malloc(sizeof(struct Value *));
+    vm->locals = calloc(sizeof(struct Value *), MAX_CALL_DEPTH);
     vm->locals[0] = malloc(sizeof(struct Value) * 4);
     vm->locals_size = calloc(sizeof(int), MAX_CALL_DEPTH);
     vm->locals_size[0] = 0;
     vm->call_depth = 0;
+}
+
+void free_vm() {
+    free(vm->locals);
+    free(vm->locals_size);
+    free(vm->stack);
+    free(vm);
 }
 
 void error(char *msg) {
@@ -350,7 +359,7 @@ struct Value *get_local(int index) {
     if (index >= vm->locals_count) {
         error("Local variable not found");
     }
-    return &vm->locals[index][vm->locals_size[index] - 1];
+    return vm->locals[index] + (vm->locals_size[index] - 1);
 }
 
 void set_local(int index, struct Value value) {
@@ -378,6 +387,22 @@ void pop_local(int index) {
         error("Local variable stack underflow");
     }
     --vm->locals_size[index];
+}
+
+char *value_type_to_string(enum ValueType type) {
+    switch (type) {
+    case VALUE_TYPE_U64:
+        return "INT";
+    case VALUE_TYPE_STRING:
+        return "STRING";
+    case VALUE_TYPE_LIST:
+        return "LIST";
+    default: {
+        char *res = calloc(sizeof(char), 7 + 19);
+        sprintf(res, "UNKNOWN %d", type);
+        return res;
+    }
+    }
 }
 
 struct Value *new_u32(uint32_t value) {
@@ -433,11 +458,27 @@ void print_value(Value *value) {
     }
 }
 
+void free_value(Value *value) {
+    switch (value->type) {
+        {
+        case VALUE_TYPE_STRING:
+            free(value->val.string);
+            break;
+        case VALUE_TYPE_LIST:
+            free(value->val.list->values);
+            free(value->val.list);
+            break;
+        }
+    }
+    free(value);
+}
+
 void run() {
     while (vm->ip < vm->code_length) {
         uint8_t instruction = vm->code[vm->ip];
 
 #ifdef PRINT_OPCODES
+        printf("%d ", vm->ip);
         print_opcode(vm->code, vm->ip);
 #endif
 
@@ -461,8 +502,8 @@ void run() {
 
         switch (instruction) {
         case ADD: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u64(a->val.u64 + b->val.u64));
                 free(a);
@@ -473,8 +514,8 @@ void run() {
             break;
         }
         case SUB: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u64(a->val.u64 - b->val.u64));
                 free(a);
@@ -485,8 +526,8 @@ void run() {
             break;
         }
         case MUL: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u64(a->val.u64 * b->val.u64));
                 free(a);
@@ -497,8 +538,8 @@ void run() {
             break;
         }
         case DIV: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u64(a->val.u64 / b->val.u64));
                 free(a);
@@ -509,8 +550,8 @@ void run() {
             break;
         }
         case MOD: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u64(a->val.u64 % b->val.u64));
                 free(a);
@@ -521,7 +562,7 @@ void run() {
             break;
         }
         case NEG: {
-            struct Value *a = pop(vm);
+            struct Value *a = pop();
             push(new_u64(-a->val.u64));
             free(a);
             break;
@@ -547,30 +588,30 @@ void run() {
             break;
         }
         case NOT: {
-            struct Value *a = pop(vm);
+            struct Value *a = pop();
             push(new_u8(!a->val.u8));
             free(a);
             break;
         }
         case AND: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             push(new_u8(a->val.u8 && b->val.u8));
             free(a);
             free(b);
             break;
         }
         case OR: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             push(new_u8(a->val.u8 || b->val.u8));
             free(a);
             free(b);
             break;
         }
         case EQUAL: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 == b->val.u64));
                 free(a);
@@ -581,8 +622,8 @@ void run() {
             break;
         }
         case NOT_EQUAL: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 != b->val.u64));
                 free(a);
@@ -593,20 +634,23 @@ void run() {
             break;
         }
         case LESS: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 < b->val.u64));
                 free(a);
                 free(b);
             } else {
-                error("Invalid types for LESS");
+                char *a_type = value_type_to_string(a->type);
+                char *b_type = value_type_to_string(b->type);
+                printf("Invalid types for LESS: %s and %s", a_type, b_type);
+                error("");
             }
             break;
         }
         case LESS_EQUAL: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 <= b->val.u64));
                 free(a);
@@ -617,8 +661,8 @@ void run() {
             break;
         }
         case GREATER: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 > b->val.u64));
                 free(a);
@@ -629,8 +673,8 @@ void run() {
             break;
         }
         case GREATER_EQUAL: {
-            struct Value *b = pop(vm);
-            struct Value *a = pop(vm);
+            struct Value *b = pop();
+            struct Value *a = pop();
             if (a->type == VALUE_TYPE_U64 && b->type == VALUE_TYPE_U64) {
                 push(new_u8(a->val.u64 >= b->val.u64));
                 free(a);
@@ -641,15 +685,13 @@ void run() {
             break;
         }
         case STRING: {
-            uint32_t length = read_u32(vm->code, vm->ip + 4);
-            char *string = malloc(length + 1);
-            memcpy(string, vm->code + vm->ip + 5, length);
-            string[length] = '\0';
+            uint32_t length = read_u32(vm->code, vm->ip + 2);
+            char *string = read_string(vm->code, vm->ip + 6, length);
             struct Value *value = malloc(sizeof(struct Value));
             value->type = VALUE_TYPE_STRING;
             value->val.string = string;
             push(value);
-            vm->ip += 9 + length;
+            vm->ip += 5 + length;
             break;
         }
         case LIST: {
@@ -660,7 +702,7 @@ void run() {
             value->val.list->length = length;
             value->val.list->values = malloc(sizeof(struct Value) * length);
             for (int i = length - 1; i >= 0; --i) {
-                Value *item = pop(vm);
+                Value *item = pop();
                 value->val.list->values[i] = *item;
                 free(item);
             }
@@ -669,7 +711,7 @@ void run() {
             break;
         }
         case PRINT: {
-            struct Value *value = pop(vm);
+            struct Value *value = pop();
             print_value(value);
             putchar('\n');
             free(value);
@@ -696,7 +738,7 @@ void run() {
                                 sizeof(struct Value) * index * 2);
                 }
             }
-            Value *val = pop(vm);
+            Value *val = pop();
             vm->locals[vm->locals_count - 1][index] = *val;
             free(val);
             vm->locals_size[vm->locals_count - 1] = index + 1;
@@ -705,7 +747,7 @@ void run() {
         }
         case ASSIGN: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
-            Value *val = pop(vm);
+            Value *val = pop();
             vm->locals[vm->locals_count - 1][index] = *val;
             free(val);
             vm->ip += 4;
@@ -716,18 +758,15 @@ void run() {
             uint32_t argc = read_u32(vm->code, vm->ip + 5);
             struct Value *args = malloc(sizeof(struct Value) * argc);
             for (int i = argc - 1; i >= 0; --i) {
-                Value *val = pop(vm);
+                Value *val = pop();
                 args[i] = *val;
                 free(val);
             }
             vm->locals_count++;
-            if (vm->locals_capacity <= vm->locals_count) {
-                vm->locals_capacity *= 2;
-                vm->locals = realloc(vm->locals, sizeof(struct Value *) *
-                                                     vm->locals_capacity);
+            if (vm->locals_count >= MAX_CALL_DEPTH) {
+                error("Maximum call depth exceeded");
             }
-            memcpy(vm->locals[vm->locals_count], args,
-                   sizeof(struct Value) * argc);
+            vm->locals[vm->locals_count - 1] = args;
             vm->locals_size[vm->locals_count] = argc + 1;
             ++vm->locals_count;
             ++vm->call_depth;
@@ -750,7 +789,7 @@ void run() {
             for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
                 print_value(vm->locals[vm->locals_count - 1] + i);
                 putchar('\n');
-                free(vm->locals[vm->locals_count-1] + i);
+                free(vm->locals[vm->locals_count - 1] + i);
             }
             free(vm->locals + vm->locals_count);
             --vm->locals_count;
@@ -763,7 +802,7 @@ void run() {
         }
         case JUMP_IF_FALSE: {
             uint32_t ip = read_u32(vm->code, vm->ip + 1);
-            struct Value *value = pop(vm);
+            struct Value *value = pop();
             if (value->type == VALUE_TYPE_U8 && value->val.u8 == 0) {
                 vm->ip = ip - 1;
             } else {
@@ -774,9 +813,9 @@ void run() {
         }
         case STORE: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
-            struct Value *arr = pop(vm);
+            struct Value *arr = pop();
             if (arr->type == VALUE_TYPE_LIST) {
-                struct Value *value = pop(vm);
+                struct Value *value = pop();
                 arr->val.list->values[index] = *value;
                 free(value);
             } else {
@@ -786,8 +825,12 @@ void run() {
             break;
         }
         case APPEND: {
-            struct Value *value = pop(vm);
-            struct Value *list = pop(vm);
+            struct Value *value = pop();
+            struct Value *list = pop();
+            puts("appending");
+            print_value(list);
+            putchar('\n');
+            print_value(value);
             if (list->type == VALUE_TYPE_LIST) {
                 list->val.list->length += 1;
                 list->val.list->values =
@@ -803,8 +846,8 @@ void run() {
             break;
         }
         case INDEX: {
-            struct Value *index = pop(vm);
-            struct Value *value = pop(vm); // list shouldnt be freed
+            struct Value *index = pop();
+            struct Value *value = pop(); // list shouldnt be freed
             if (value->type == VALUE_TYPE_LIST) {
                 Value *val = malloc(sizeof(struct Value));
                 *val = value->val.list->values[index->val.u64];
@@ -818,11 +861,11 @@ void run() {
             break;
         }
         case LENGTH: {
-            struct Value *value = pop(vm);
+            struct Value *value = pop();
             if (value->type == VALUE_TYPE_LIST) {
                 Value *val = malloc(sizeof(struct Value));
-                val->type = VALUE_TYPE_U32;
-                val->val.u32 = value->val.list->length;
+                val->type = VALUE_TYPE_U64;
+                val->val.u64 = value->val.list->length;
                 push(val);
             } else {
                 error("Invalid type for LENGTH");
@@ -830,7 +873,7 @@ void run() {
             break;
         }
         case POP: {
-            free(pop(vm));
+            free(pop());
             break;
         }
         default: {
@@ -856,4 +899,5 @@ int main(int argc, char **argv) {
     run();
     free(code->bytes);
     free(code);
+    free_vm();
 }

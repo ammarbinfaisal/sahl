@@ -1,0 +1,22 @@
+fun main() {
+    let list = make([int])
+    let i  = 0
+    while i < 100 {
+        list = append(list, i)
+        i = i + 1
+    }
+    print(list)
+
+    let fizzBuzzList = make([string])
+    for number in list {
+        print(number)
+        if number % 3 == 0 && number % 5 == 0 {
+            fizzBuzzList = append(fizzBuzzList, "FizzBuzz")
+        } else if number % 3 == 0 {
+            fizzBuzzList = append(fizzBuzzList, "Fizz")
+        } else if number % 5 == 0 {
+            fizzBuzzList = append(fizzBuzzList, "Buzz")
+        }
+    }
+    print(fizzBuzzList)
+}
