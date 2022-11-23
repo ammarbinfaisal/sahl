@@ -274,16 +274,14 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
-                Instruction::GetLocal(i) => {
-                    match &self.locals[self.call_depth][i] {
-                        Value::List(_) => {
-                            self.stack.push(Value::Address(i));
-                        }
-                        _ => {
-                            self.stack.push(self.locals[self.call_depth][i].clone());
-                        }
+                Instruction::GetLocal(i) => match &self.locals[self.call_depth][i] {
+                    Value::List(_) => {
+                        self.stack.push(Value::Address(i));
                     }
-                }
+                    _ => {
+                        self.stack.push(self.locals[self.call_depth][i].clone());
+                    }
+                },
                 Instruction::DefLocal(i) => {
                     if i == self.locals[self.call_depth].len() {
                         self.locals[self.call_depth].push(self.stack.pop().unwrap());
@@ -309,11 +307,17 @@ impl<'a> VM<'a> {
                         });
                         self.about_to_spawn = false;
                     } else {
-                        self.prev_ips.push(self.ip);
+                        self.prev_ips.push(self.ip + 1);
                         self.ip = funcip;
                         self.locals.push(Vec::new());
                         for _ in 0..args_c {
-                            self.locals[self.call_depth + 1].push(self.stack.pop().unwrap());
+                            let val = self.stack.pop().unwrap();
+                            if let Value::Address(i) = val {
+                                let val = self.locals[self.call_depth][i].clone();
+                                self.locals[self.call_depth+1].push(val);
+                            } else {
+                                self.locals[self.call_depth+1].push(val);
+                            }
                         }
                         self.locals[self.call_depth + 1].reverse();
                         self.call_depth += 1;
@@ -321,7 +325,7 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::ReCall(funcip, args_c) => {
-                    self.prev_ips.push(self.ip);
+                    self.prev_ips.push(self.ip + 1);
                     self.ip = funcip;
                     self.locals[self.call_depth].clear();
                     for _ in 0..args_c {
@@ -377,7 +381,8 @@ impl<'a> VM<'a> {
                         if addr == local_idx {
                             // Do nothing
                         }
-                        self.locals[self.call_depth][local_idx] = self.locals[self.call_depth][addr].clone();
+                        self.locals[self.call_depth][local_idx] =
+                            self.locals[self.call_depth][addr].clone();
                     } else {
                         self.locals[self.call_depth][local_idx] = val;
                     }
@@ -415,7 +420,7 @@ impl<'a> VM<'a> {
                     list.reverse();
                     self.stack.push(Value::List(list));
                 }
-                Instruction::MakeList(size, def ) => {
+                Instruction::MakeList(size, def) => {
                     let mut list = Vec::with_capacity(size);
                     for _ in 0..size {
                         list.push(def.clone());
@@ -447,8 +452,15 @@ impl<'a> VM<'a> {
                         Value::List(arr) => {
                             self.stack.push(Value::Int(arr.len() as i64));
                         }
+                        Value::Address(index) => {
+                            if let Value::List(arr) = &self.locals[self.call_depth][index] {
+                                self.stack.push(Value::Int(arr.len() as i64));
+                            } else {
+                                panic!("Invalid types for length");
+                            }
+                        }
                         _ => {
-                            panic!("Invalid types for len");
+                            panic!("Invalid types for length");
                         }
                     }
                 }
