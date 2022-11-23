@@ -1,0 +1,9 @@
+fun main() {
+    let arr = make([int], 100000)
+    let i = 0
+    while i < 100000 {
+        arr[i] = i
+        i = i + 1
+    }
+    print(arr)
+}

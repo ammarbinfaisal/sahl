@@ -27,6 +27,7 @@ pub enum Instruction {
     Index,
     Append,
     Length,
+    MakeList(usize, Value),
     List(usize),
     Const(Value),
     DefLocal(usize),
@@ -254,8 +255,11 @@ impl Codegen {
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
                         };
-                        let list = (0..*size).map(|_| default.clone()).collect();
-                        self.add_instruction(Instruction::Const(Value::List(list)));
+                        if *size > 0 {
+                            self.add_instruction(Instruction::MakeList(*size, default));
+                        } else {
+                            self.add_instruction(Instruction::Const(Value::List(Vec::new())));
+                        }
                     }
                     Type::Chan(_) => {
                         self.add_instruction(Instruction::MakeChan);

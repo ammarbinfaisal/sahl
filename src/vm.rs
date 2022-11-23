@@ -408,11 +408,18 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::List(size) => {
-                    let mut list = Vec::new();
-                    for _ in 0..size {
-                        list.push(self.stack.pop().unwrap());
+                    let mut list = Vec::with_capacity(size);;
+                    for i in 0..size {
+                        list[size - i - 1] = self.stack.pop().unwrap();
                     }
                     list.reverse();
+                    self.stack.push(Value::List(list));
+                }
+                Instruction::MakeList(size, def ) => {
+                    let mut list = Vec::with_capacity(size);
+                    for _ in 0..size {
+                        list.push(def.clone());
+                    }
                     self.stack.push(Value::List(list));
                 }
                 Instruction::Index => {
