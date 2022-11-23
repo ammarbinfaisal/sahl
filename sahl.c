@@ -827,10 +827,6 @@ void run() {
         case APPEND: {
             struct Value *value = pop();
             struct Value *list = pop();
-            puts("appending");
-            print_value(list);
-            putchar('\n');
-            print_value(value);
             if (list->type == VALUE_TYPE_LIST) {
                 list->val.list->length += 1;
                 list->val.list->values =
