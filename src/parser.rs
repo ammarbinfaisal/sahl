@@ -233,7 +233,7 @@ fn chanread(source: &str) -> IResult<&str, Expr> {
 }
 
 fn assignment(source: &str) -> IResult<&str, Expr> {
-    let (source, lhs) = alt((variable, subscript))(source)?;
+    let (source, lhs) = alt((subscript, variable))(source)?;
     let (source, _) = delimited(space0, tag("="), space0)(source)?;
     let (source, expr) = alt((chanread, aexp))(source)?;
     Ok((source, Expr::Assign(Box::new(lhs), Box::new(expr))))
