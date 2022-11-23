@@ -408,9 +408,9 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::List(size) => {
-                    let mut list = Vec::with_capacity(size);;
-                    for i in 0..size {
-                        list[size - i - 1] = self.stack.pop().unwrap();
+                    let mut list = Vec::with_capacity(size);
+                    for _ in 0..size {
+                        list.push(self.stack.pop().unwrap());
                     }
                     list.reverse();
                     self.stack.push(Value::List(list));
@@ -428,6 +428,13 @@ impl<'a> VM<'a> {
                     match (idx, arr) {
                         (Value::Int(idx), Value::List(arr)) => {
                             self.stack.push(arr[idx as usize].clone());
+                        }
+                        (Value::Int(idx), Value::Address(index)) => {
+                            if let Value::List(arr) = &self.locals[self.call_depth][index] {
+                                self.stack.push(arr[idx as usize].clone());
+                            } else {
+                                panic!("Invalid types for index");
+                            }
                         }
                         _ => {
                             panic!("Invalid types for index");
