@@ -23,7 +23,7 @@ fn typee(source: &str) -> IResult<&str, Type> {
         map(tag("bool"), |_| Type::Bool),
         map(tag("string"), |_| Type::Str),
         map(tag("char"), |_| Type::Char),
-        chanty
+        chanty,
     ))(source)?;
     Ok((source, ty))
 }
@@ -388,23 +388,31 @@ fn function(source: &str) -> IResult<&str, Func> {
     let (source, _) = delimited(space0, tag("fun"), space0)(source)?;
     let (source, name) = identifier(source)?;
     let (source, _) = delimited(space0, tag("("), space0)(source)?;
-    let (source, arg) = parameter(source)?;
-    let (source, args) = many0(map(
-        tuple((delimited(space0, tag(","), space0), parameter)),
-        |(_, p)| p,
+    let (source, arg) = opt(parameter)(source)?;
+    let mut args = vec![];
+    let source = if arg.is_some() {
+        let (source, args2) = many0(map(
+            tuple((delimited(space0, tag(","), space0), parameter)),
+            |(_, p)| p,
+        ))(source)?;
+        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
+        args = vec![arg.unwrap()].into_iter().chain(args2).collect();
+        source
+    } else {
+        source
+    };
+    let (source, retty) = opt(map(
+        tuple((delimited(space0, tag("->"), space0), typee)),
+        |(_, ty)| ty,
     ))(source)?;
-    let (source, _) = delimited(space0, tag(")"), space0)(source)?;
-    let (source, _) = delimited(space0, tag("->"), space0)(source)?;
-    let (source, retty) = typee(source)?;
     let (source, body) = block(source)?;
-    let args = vec![arg].into_iter().chain(args).collect();
     Ok((
         source,
         Func {
             name,
             args,
             body,
-            retty,
+            retty: retty.unwrap_or(Type::Void),
         },
     ))
 }

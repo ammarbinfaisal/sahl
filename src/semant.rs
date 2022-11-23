@@ -366,7 +366,7 @@ impl<'a> Checker<'a> {
             Stmt::Comment => Ok(()),
             Stmt::Coroutine(expr) => {
                 self.check_expr(expr)?;
-                if let Expr::Call(_,_ ) = expr {
+                if let Expr::Call(_, _) = expr {
                     Ok(())
                 } else {
                     Err(Error::CoroutineNotFunction)
@@ -469,11 +469,13 @@ pub fn check_program(program: &Program) -> Result<(), Error> {
         for stmt in &func.body {
             checker.check_stmt(stmt)?;
         }
-        let cfg = gen_cfg(func.body.as_slice());
-        println!("{:?}", func.name);
-        println!("{:?}", cfg);
-        if !validate_cfg(&cfg) {
-            return Err(Error::NoReturn);
+        if func.retty != Type::Void {
+            let cfg = gen_cfg(func.body.as_slice());
+            println!("{:?}", func.name);
+            println!("{:?}", cfg);
+            if !validate_cfg(&cfg) {
+                return Err(Error::NoReturn);
+            }
         }
     }
 
