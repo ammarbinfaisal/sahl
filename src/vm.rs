@@ -445,7 +445,6 @@ impl<'a> VM<'a> {
                         (val, Value::Address(index)) => {
                             if let Value::List(list) = &mut self.locals[self.call_depth][index] {
                                 list.push(val);
-                                self.stack.push(Value::Address(index));
                             } else {
                                 panic!("Invalid types for append");
                             }
