@@ -365,7 +365,7 @@ impl Bytecode {
         self.add_u64(CONST_U64, 1);
         self.add(ADD);
         self.add_u32(ASSIGN, idx as u32);
-        self.add_u32(JUMP, start as u32);
+        self.add_u32(JUMP, (start + 1) as u32);
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt) {
