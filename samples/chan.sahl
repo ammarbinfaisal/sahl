@@ -20,7 +20,6 @@ fun main() {
     let i = 0
     while i < 100 {
         let a = make(chan int)
-        let b = make(chan int)
         sahl sendvals(a, 100)
         sahl recvvals(a, 100)
         i = i + 1
