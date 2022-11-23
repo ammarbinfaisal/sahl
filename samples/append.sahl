@@ -1,8 +1,8 @@
 fun main() {
     let list = make([int])
     let i = 0 
-    while i < 100000 {
-        list = append(list, i)
+    while i < 1000000 {
+        append(list, i)
         i = i + 1
     }
     print(list)

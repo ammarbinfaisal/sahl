@@ -42,9 +42,9 @@
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 256
 
-#define PRINT_OPCODES
-#define PRINT_STACK
-#define PRINT_LOCALS
+// #define PRINT_OPCODES
+// #define PRINT_STACK
+// #define PRINT_LOCALS
 
 enum ValueType {
     VALUE_TYPE_U64,
@@ -833,7 +833,6 @@ void run() {
                     realloc(list->val.list->values,
                             sizeof(struct Value) * list->val.list->length);
                 list->val.list->values[list->val.list->length - 1] = *value;
-                push(list);
                 free(value);
             } else {
                 // printf("%d ", list->type);

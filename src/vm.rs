@@ -17,6 +17,7 @@ pub enum Value {
     Str(Vec<u8>),
     List(Vec<Value>),
     Chan(Arc<Mutex<VecDeque<Value>>>),
+    Address(usize), // local index
 }
 
 impl std::fmt::Display for Value {
@@ -36,6 +37,7 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
+            Value::Address(a) => write!(f, "<local {}>", a),
             Value::Chan(_) => write!(f, "chan"),
         }
     }
@@ -273,7 +275,14 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::GetLocal(i) => {
-                    self.stack.push(self.locals[self.call_depth][i].clone());
+                    match &self.locals[self.call_depth][i] {
+                        Value::List(_) => {
+                            self.stack.push(Value::Address(i));
+                        }
+                        _ => {
+                            self.stack.push(self.locals[self.call_depth][i].clone());
+                        }
+                    }
                 }
                 Instruction::DefLocal(i) => {
                     if i == self.locals[self.call_depth].len() {
@@ -364,19 +373,34 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Assign(local_idx) => {
                     let val = self.stack.pop().unwrap();
-                    self.locals[self.call_depth][local_idx] = val;
+                    if let Value::Address(addr) = val {
+                        if addr == local_idx {
+                            // Do nothing
+                        }
+                        self.locals[self.call_depth][local_idx] = self.locals[self.call_depth][addr].clone();
+                    } else {
+                        self.locals[self.call_depth][local_idx] = val;
+                    }
                 }
                 Instruction::Print => {
                     let val = self.stack.pop().unwrap();
-                    println!("{}", val);
+                    if let Value::Address(addr) = val {
+                        println!("{}", self.locals[self.call_depth][addr]);
+                    } else {
+                        println!("{}", val);
+                    }
                 }
                 Instruction::Store => {
                     let idx = self.stack.pop().unwrap();
                     let arr = self.stack.pop().unwrap();
                     let val = self.stack.pop().unwrap();
                     match (idx, arr, val) {
-                        (Value::Int(idx), Value::List(mut arr), val) => {
-                            arr[idx as usize] = val;
+                        (Value::Int(idx), Value::Address(index), val) => {
+                            if let Value::List(list) = &mut self.locals[self.call_depth][index] {
+                                list[idx as usize] = val;
+                            } else {
+                                panic!("Invalid types for store");
+                            }
                         }
                         _ => {
                             panic!("Invalid types for store");
@@ -418,9 +442,13 @@ impl<'a> VM<'a> {
                     let val = self.stack.pop().unwrap();
                     let arr = self.stack.pop().unwrap();
                     match (val, arr) {
-                        (val, Value::List(mut arr)) => {
-                            arr.push(val);
-                            self.stack.push(Value::List(arr));
+                        (val, Value::Address(index)) => {
+                            if let Value::List(list) = &mut self.locals[self.call_depth][index] {
+                                list.push(val);
+                                self.stack.push(Value::Address(index));
+                            } else {
+                                panic!("Invalid types for append");
+                            }
                         }
                         _ => {
                             panic!("Invalid types for append");
