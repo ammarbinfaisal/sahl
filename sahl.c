@@ -42,9 +42,9 @@
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 256
 
-// #define PRINT_OPCODES
-// #define PRINT_STACK
-// #define PRINT_LOCALS
+#define PRINT_OPCODES
+#define PRINT_STACK
+#define PRINT_LOCALS
 
 enum ValueType {
     VALUE_TYPE_U64,
@@ -73,6 +73,7 @@ typedef struct Value Value;
 struct ValueList {
     struct Value *values;
     unsigned int length;
+    unsigned int capacity;
 };
 
 typedef struct ValueList ValueList;
@@ -812,16 +813,15 @@ void run() {
             break;
         }
         case STORE: {
-            uint32_t index = read_u32(vm->code, vm->ip + 1);
+            struct Value *index = pop();
             struct Value *arr = pop();
+            struct Value *value = pop();
             if (arr->type == VALUE_TYPE_LIST) {
-                struct Value *value = pop();
-                arr->val.list->values[index] = *value;
+                arr->val.list->values[index->val.u64] = *value;
                 free(value);
             } else {
                 error("Invalid type for STORE");
             }
-            vm->ip += 4;
             break;
         }
         case APPEND: {
