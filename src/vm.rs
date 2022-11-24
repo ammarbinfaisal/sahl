@@ -504,7 +504,7 @@ impl<'a> VM<'a> {
                     match chan {
                         Value::Chan(chan) => {
                             while chan.lock().unwrap().is_empty() {
-                                thread::sleep(Duration::from_millis(10));
+                                thread::sleep(Duration::from_millis(1));
                             }
                             self.stack.push(chan.lock().unwrap().pop_front().unwrap());
                         }
