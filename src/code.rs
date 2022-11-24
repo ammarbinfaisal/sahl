@@ -34,13 +34,11 @@ pub enum Instruction {
     GetLocal(usize),
     Assign(usize),
     Call(usize, usize),   // global, num_args
-    ReCall(usize, usize), // global, num_args
     Coroutine,
     MakeChan,
     ChanRead,
     ChanWrite,
     Return,
-    ReReturn,
     Print,
     Pop,
 }
@@ -52,7 +50,6 @@ pub struct Codegen {
     functions: HashMap<String, usize>,
     calls: Vec<Vec<usize>>,
     func_idx: HashMap<String, usize>,
-    self_calls_sites: Vec<usize>,
     curr_func: usize,
     start_ip: usize,
 }
@@ -66,7 +63,6 @@ impl Codegen {
             instructions: Vec::new(),
             calls: Vec::new(),
             func_idx: HashMap::new(),
-            self_calls_sites: Vec::new(),
             curr_func: 0,
             start_ip: 0,
         }
@@ -207,9 +203,6 @@ impl Codegen {
                         }
                         let instr_len = self.instructions.len();
                         self.add_instruction(Instruction::Call(0, args.len()));
-                        if func == self.curr_func {
-                            self.self_calls_sites.push(instr_len);
-                        }
                         self.calls[func].push(self.instructions.len() - 1);
                     } else {
                         panic!("Unknown function: {}", name);
@@ -294,19 +287,8 @@ impl Codegen {
                 self.compile_expr(expr);
             }
             Stmt::Return(expr) => {
-                self.self_calls_sites.clear();
                 self.compile_expr(expr);
-                if self.self_calls_sites.len() == 1 {
-                    let site = self.self_calls_sites[0];
-                    if let Instruction::Call(func, args) = self.instructions[site] {
-                        self.instructions[site] = Instruction::ReCall(func, args);
-                        self.add_instruction(Instruction::ReReturn);
-                    } else {
-                        panic!("Invalid self call");
-                    }
-                } else {
-                    self.add_instruction(Instruction::Return);
-                }
+                self.add_instruction(Instruction::Return);
             }
             Stmt::IfElse(cond, then, otherwise) => {
                 self.compile_expr(cond);
@@ -460,8 +442,6 @@ impl Codegen {
             for ip in self.calls[i].iter() {
                 if let Instruction::Call(_, argc) = self.instructions[*ip] {
                     self.instructions[*ip] = Instruction::Call(func_ip[i], argc);
-                } else if let Instruction::ReCall(_, argc) = self.instructions[*ip] {
-                    self.instructions[*ip] = Instruction::ReCall(func_ip[i], argc);
                 } else {
                     panic!("Expected call instruction");
                 }

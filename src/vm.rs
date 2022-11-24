@@ -324,19 +324,6 @@ impl<'a> VM<'a> {
                         continue;
                     }
                 }
-                Instruction::ReCall(funcip, args_c) => {
-                    self.prev_ips.push(self.ip + 1);
-                    self.ip = funcip;
-                    self.locals[self.call_depth].clear();
-                    for _ in 0..args_c {
-                        if let Some(val) = self.stack.pop() {
-                            self.locals[self.call_depth].push(val);
-                        } else {
-                            panic!("Stack is empty");
-                        }
-                    }
-                    continue;
-                }
                 Instruction::Return => {
                     if self.coroutine_depth == 0 {
                         let ip = self.prev_ips.pop();
@@ -350,14 +337,6 @@ impl<'a> VM<'a> {
                         }
                     } else {
                         GLOBAL_THREAD_COUNT.fetch_sub(1, Ordering::SeqCst);
-                        break;
-                    }
-                }
-                Instruction::ReReturn => {
-                    let ip = self.prev_ips.pop();
-                    if let Some(ip) = ip {
-                        self.ip = ip;
-                    } else {
                         break;
                     }
                 }
