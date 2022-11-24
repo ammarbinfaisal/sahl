@@ -43,9 +43,9 @@ impl std::fmt::Display for Value {
     }
 }
 
-pub struct VM<'a> {
+pub struct VM {
     stack: Vec<Value>,
-    instructions: &'a Vec<Instruction>,
+    instructions: Arc<Vec<Instruction>>,
     locals: Vec<Vec<Value>>,
     prev_ips: Vec<usize>,
     call_depth: usize,
@@ -54,8 +54,8 @@ pub struct VM<'a> {
     ip: usize,
 }
 
-impl<'a> VM<'a> {
-    pub fn new(instructions: &'a Vec<Instruction>, start_ip: usize, depth: usize) -> VM {
+impl VM {
+    pub fn new(instructions: Arc<Vec<Instruction>>, start_ip: usize, depth: usize) -> VM {
         VM {
             stack: Vec::new(),
             instructions,
@@ -71,7 +71,7 @@ impl<'a> VM<'a> {
     pub fn run(&mut self) {
         self.locals.push(Vec::new());
         loop {
-            let instruction = self.instructions[self.ip].clone();
+            let instruction = &self.instructions[self.ip];
             // println!("{:?}", instruction);
             // println!("stack: {:?}", self.stack);
             match instruction {
@@ -150,7 +150,7 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::Const(val) => {
-                    self.stack.push(val);
+                    self.stack.push(val.clone());
                 }
                 Instruction::False => {
                     self.stack.push(Value::Bool(false));
@@ -274,19 +274,19 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
-                Instruction::GetLocal(i) => match &self.locals[self.call_depth][i] {
+                Instruction::GetLocal(i) => match &self.locals[self.call_depth][*i] {
                     Value::List(_) => {
-                        self.stack.push(Value::Address(i));
+                        self.stack.push(Value::Address(*i));
                     }
                     _ => {
-                        self.stack.push(self.locals[self.call_depth][i].clone());
+                        self.stack.push(self.locals[self.call_depth][*i].clone());
                     }
                 },
                 Instruction::DefLocal(i) => {
-                    if i == self.locals[self.call_depth].len() {
+                    if *i == self.locals[self.call_depth].len() {
                         self.locals[self.call_depth].push(self.stack.pop().unwrap());
                     } else {
-                        self.locals[self.call_depth][i] = self.stack.pop().unwrap();
+                        self.locals[self.call_depth][*i] = self.stack.pop().unwrap();
                     }
                 }
                 Instruction::Call(funcip, args_c) => {
@@ -294,32 +294,35 @@ impl<'a> VM<'a> {
                         let instructions = self.instructions.clone();
                         let depth = self.coroutine_depth + 1;
                         let mut locals: Vec<Vec<Value>> = Vec::with_capacity(1);
-                        locals.push(Vec::new());
-                        for _ in 0..args_c {
-                            locals[0].push(self.stack.pop().unwrap());
+                        let mut args = Vec::with_capacity(*args_c);
+                        for _ in 0..*args_c {
+                            args.push(self.stack.pop().unwrap());
                         }
-                        locals[0].reverse();
+                        args.reverse();
+                        locals.push(args);
                         GLOBAL_THREAD_COUNT.fetch_add(1, Ordering::SeqCst);
+                        let funcip = funcip.clone();
                         thread::spawn(move || {
-                            let mut vm = VM::new(&instructions, funcip, depth);
+                            let mut vm = VM::new(instructions, funcip, depth);
                             vm.locals = locals;
                             vm.run();
                         });
                         self.about_to_spawn = false;
                     } else {
                         self.prev_ips.push(self.ip + 1);
-                        self.ip = funcip;
-                        self.locals.push(Vec::new());
-                        for _ in 0..args_c {
+                        self.ip = *funcip;
+                        let mut args = Vec::with_capacity(*args_c);
+                        for _ in 0..*args_c {
                             let val = self.stack.pop().unwrap();
                             if let Value::Address(i) = val {
                                 let val = self.locals[self.call_depth][i].clone();
-                                self.locals[self.call_depth+1].push(val);
+                                args.push(val);
                             } else {
-                                self.locals[self.call_depth+1].push(val);
+                                args.push(val);
                             }
                         }
-                        self.locals[self.call_depth + 1].reverse();
+                        args.reverse();
+                        self.locals.push(args);
                         self.call_depth += 1;
                         continue;
                     }
@@ -341,14 +344,14 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::Jump(i) => {
-                    self.ip = i;
+                    self.ip = *i;
                     continue;
                 }
                 Instruction::JumpIfFalse(i) => {
                     let cond = self.stack.pop().unwrap();
                     match cond {
                         Value::Bool(false) => {
-                            self.ip = i;
+                            self.ip = *i;
                             continue;
                         }
                         _ => {}
@@ -357,13 +360,13 @@ impl<'a> VM<'a> {
                 Instruction::Assign(local_idx) => {
                     let val = self.stack.pop().unwrap();
                     if let Value::Address(addr) = val {
-                        if addr == local_idx {
+                        if addr == *local_idx {
                             // Do nothing
                         }
-                        self.locals[self.call_depth][local_idx] =
+                        self.locals[self.call_depth][*local_idx] =
                             self.locals[self.call_depth][addr].clone();
                     } else {
-                        self.locals[self.call_depth][local_idx] = val;
+                        self.locals[self.call_depth][*local_idx] = val;
                     }
                 }
                 Instruction::Print => {
@@ -392,16 +395,16 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::List(size) => {
-                    let mut list = Vec::with_capacity(size);
-                    for _ in 0..size {
+                    let mut list = Vec::with_capacity(*size);
+                    for _ in 0..*size {
                         list.push(self.stack.pop().unwrap());
                     }
                     list.reverse();
                     self.stack.push(Value::List(list));
                 }
                 Instruction::MakeList(size, def) => {
-                    let mut list = Vec::with_capacity(size);
-                    for _ in 0..size {
+                    let mut list = Vec::with_capacity(*size);
+                    for _ in 0..*size {
                         list.push(def.clone());
                     }
                     self.stack.push(Value::List(list));

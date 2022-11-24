@@ -1,6 +1,7 @@
 use crate::syntax::*;
 use crate::vm::*;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
@@ -451,7 +452,8 @@ impl Codegen {
     }
 
     pub fn execute(&self) {
-        let mut vm = VM::new(&self.instructions, self.start_ip, 0);
+        let instrs = Arc::new(self.instructions.clone());
+        let mut vm = VM::new(instrs, self.start_ip, 0);
         vm.run();
     }
 }
