@@ -380,7 +380,7 @@ fn statement(source: &str) -> IResult<&str, Stmt> {
 fn parameter(source: &str) -> IResult<&str, Param> {
     let (source, name) = identifier(source)?;
     let (source, _) = delimited(space0, tag(":"), space0)(source)?;
-    let (source, ty) = typee(source)?;
+    let (source, ty) = alt((listty, typee))(source)?;
     Ok((source, Param { name, ty }))
 }
 
