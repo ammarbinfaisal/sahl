@@ -485,9 +485,9 @@ impl Bytecode {
             let func_idx = self.func_idx[&func.name];
             let func_ip = func_ips[func_idx];
             for offset in &self.calls[func_idx] {
-                self.code[*offset+3] = (func_ip >> 24) as u8;
-                self.code[*offset+2] = (func_ip >> 16) as u8;
-                self.code[*offset+1] = (func_ip >> 8) as u8;
+                self.code[*offset + 3] = (func_ip >> 24) as u8;
+                self.code[*offset + 2] = (func_ip >> 16) as u8;
+                self.code[*offset + 1] = (func_ip >> 8) as u8;
                 self.code[*offset] = func_ip as u8;
             }
         }
