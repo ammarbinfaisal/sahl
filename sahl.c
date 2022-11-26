@@ -38,6 +38,7 @@
 #define RETURN 32
 #define PRINT 33
 #define POP 34
+#define MAKE_LIST 35
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 256
@@ -229,6 +230,11 @@ int print_opcode(uint8_t *code, int i) {
         // u32 length
         printf("List %u\n", read_u32(code, i + 1));
         i += 4;
+        break;
+    case MAKE_LIST:
+        // u32 length
+        printf("MakeList\n");
+        i += 1;
         break;
     case STRING: {
         ++i; // ignore CONST_U32
@@ -568,6 +574,20 @@ void run() {
             obj->list.capacity = (length ? length : 2) * 2;
             push(OBJ_VAL(obj));
             vm->ip += 4;
+            break;
+        }
+        case MAKE_LIST: {
+            Value def = pop();
+            Value len = pop();
+            Obj *obj = malloc(sizeof(Obj));
+            obj->type = OBJ_LIST;
+            obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
+            obj->list.length = len;
+            obj->list.capacity = (len ? len : 2) * 2;
+            for (int i = 0; i < len; ++i) {
+                obj->list.items[i] = def;
+            }
+            push(OBJ_VAL(obj));
             break;
         }
         case PRINT: {

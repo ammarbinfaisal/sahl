@@ -38,6 +38,7 @@ const CALL: u8 = 31;
 const RETURN: u8 = 32;
 const PRINT: u8 = 33;
 const POP: u8 = 34;
+const MAKE_LIST: u8 = 35;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -293,12 +294,32 @@ impl Bytecode {
             }
             Expr::Make(ty, size) => {
                 if size.is_some() {
-                    panic!("Array size not implemented");
+                    self.compile_expr(size.as_ref().unwrap());
                 }
                 match ty {
-                    Type::List(_) => {
-                        // create a list of the given size and populate it with the default value
-                        self.add_u32(LIST, 0);
+                    Type::List(ty) => {
+                        if size.is_none() {
+                            self.add_u32(LIST, 0);
+                        } else {
+                            match **ty {
+                                Type::Int => {
+                                    self.add_u64(CONST_U64, 0);
+                                }
+                                Type::Char => {
+                                    self.add_u8(CONST_U8, 0);
+                                }
+                                Type::Bool => {
+                                    self.add(FALSE);
+                                }
+                                Type::Str => {
+                                    self.add_u32(STRING, 0);
+                                }
+                                _ => {
+                                    panic!("Invalid type for list");
+                                }
+                            }
+                            self.add(MAKE_LIST);
+                        }
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
