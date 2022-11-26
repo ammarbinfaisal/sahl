@@ -70,73 +70,46 @@ impl Bytecode {
         self.code.len() - 1
     }
 
-    fn add_u16(&mut self, op: u8, arg: u16) -> usize {
-        self.code.push(op);
-        self.code.push((arg >> 8) as u8);
-        self.code.push((arg & 0xff) as u8);
-        self.code.len() - 2
-    }
-
     fn add_u32(&mut self, op: u8, n: u32) -> usize {
         self.code.push(op);
-        self.code.push((n >> 24) as u8);
-        self.code.push((n >> 16) as u8);
-        self.code.push((n >> 8) as u8);
         self.code.push(n as u8);
+        self.code.push((n >> 8) as u8);
+        self.code.push((n >> 16) as u8);
+        self.code.push((n >> 24) as u8);
         self.code.len() - 4
     }
 
     fn add_u64(&mut self, op: u8, n: u64) -> usize {
         self.code.push(op);
-        self.code.push((n >> 56) as u8);
-        self.code.push((n >> 48) as u8);
-        self.code.push((n >> 40) as u8);
-        self.code.push((n >> 32) as u8);
-        self.code.push((n >> 24) as u8);
-        self.code.push((n >> 16) as u8);
-        self.code.push((n >> 8) as u8);
         self.code.push(n as u8);
+        self.code.push((n >> 8) as u8);
+        self.code.push((n >> 16) as u8);
+        self.code.push((n >> 24) as u8);
+        self.code.push((n >> 32) as u8);
+        self.code.push((n >> 40) as u8);
+        self.code.push((n >> 48) as u8);
+        self.code.push((n >> 56) as u8);
         self.code.len() - 8
     }
 
     fn add_2_u32(&mut self, op: u8, n1: u32, n2: u32) -> (usize, usize) {
         self.code.push(op);
-        self.code.push((n1 >> 24) as u8);
-        self.code.push((n1 >> 16) as u8);
-        self.code.push((n1 >> 8) as u8);
         self.code.push(n1 as u8);
-        self.code.push((n2 >> 24) as u8);
-        self.code.push((n2 >> 16) as u8);
-        self.code.push((n2 >> 8) as u8);
+        self.code.push((n1 >> 8) as u8);
+        self.code.push((n1 >> 16) as u8);
+        self.code.push((n1 >> 24) as u8);
         self.code.push(n2 as u8);
+        self.code.push((n2 >> 8) as u8);
+        self.code.push((n2 >> 16) as u8);
+        self.code.push((n2 >> 24) as u8);
         (self.code.len() - 8, self.code.len() - 4)
     }
 
-    fn patch_u8(&mut self, ip: usize, arg: u8) {
-        self.code[ip] = arg;
-    }
-
-    fn patch_u16(&mut self, ip: usize, arg: u16) {
-        self.code[ip] = (arg >> 8) as u8;
-        self.code[ip + 1] = (arg & 0xff) as u8;
-    }
-
     fn patch_u32(&mut self, ip: usize, n: u32) {
-        self.code[ip] = (n >> 24) as u8;
-        self.code[ip + 1] = (n >> 16) as u8;
-        self.code[ip + 2] = (n >> 8) as u8;
-        self.code[ip + 3] = n as u8;
-    }
-
-    fn patch_u64(&mut self, ip: usize, n: u64) {
-        self.code[ip] = (n >> 56) as u8;
-        self.code[ip + 1] = (n >> 48) as u8;
-        self.code[ip + 2] = (n >> 40) as u8;
-        self.code[ip + 3] = (n >> 32) as u8;
-        self.code[ip + 4] = (n >> 24) as u8;
-        self.code[ip + 5] = (n >> 16) as u8;
-        self.code[ip + 6] = (n >> 8) as u8;
-        self.code[ip + 7] = n as u8;
+        self.code[ip + 3] = (n >> 24) as u8;
+        self.code[ip + 2] = (n >> 16) as u8;
+        self.code[ip + 1] = (n >> 8) as u8;
+        self.code[ip] = n as u8;
     }
 
     fn add_local(&mut self, name: &str) -> usize {
@@ -155,10 +128,10 @@ impl Bytecode {
     // start ip
     fn header(&self) -> [u8; 4] {
         [
-            (self.start_ip >> 24) as u8,
-            (self.start_ip >> 16) as u8,
-            (self.start_ip >> 8) as u8,
             self.start_ip as u8,
+            (self.start_ip >> 8) as u8,
+            (self.start_ip >> 16) as u8,
+            (self.start_ip >> 24) as u8,
         ]
     }
 
