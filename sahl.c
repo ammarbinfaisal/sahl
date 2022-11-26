@@ -47,10 +47,10 @@
 // #define PRINT_LOCALS
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
-#define QNAN     ((uint64_t)0x7ffc000000000000)
+#define QNAN ((uint64_t)0x7ffc000000000000)
 
 #define TAG_FALSE 2 // 10.
-#define TAG_TRUE  3 // 11.
+#define TAG_TRUE 3  // 11.
 
 typedef uint64_t Value;
 
@@ -77,35 +77,17 @@ struct Obj {
 
 typedef struct Obj Obj;
 
-#define IS_BOOL(value)      (((value) | 1) == TRUE_VAL)
-#define IS_NUMBER(value)    (((value) & QNAN) != QNAN)
-#define IS_OBJ(value) \
-    (((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
+#define IS_BOOL(value) (((value) | 1) == TRUE_VAL)
+#define IS_NUMBER(value) (((value)&QNAN) != QNAN)
+#define IS_OBJ(value) (((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
 
-#define AS_BOOL(value)      ((value) == TRUE_VAL)
-#define AS_NUMBER(value)    valueToNum(value)
-#define AS_OBJ(value) \
-    ((Obj*)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
+#define AS_BOOL(value) ((value) == TRUE_VAL)
+#define AS_OBJ(value) ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
 
-
-static inline uint64_t valueToNum(Value value) {
-  uint64_t num;
-  memcpy(&num, &value, sizeof(Value));
-  return num;
-}
-
-static inline Value numToValue(uint64_t num) {
-  Value value;
-  memcpy(&value, &num, sizeof(uint64_t));
-  return value;
-}
-
-#define BOOL_VAL(b)     ((b) ? TRUE_VAL : FALSE_VAL)
-#define FALSE_VAL       ((Value)(uint64_t)(QNAN | TAG_FALSE))
-#define TRUE_VAL        ((Value)(uint64_t)(QNAN | TAG_TRUE))
-#define NUMBER_VAL(num) numToValue(num)
-#define OBJ_VAL(obj) \
-    (Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
+#define BOOL_VAL(b) ((b) ? TRUE_VAL : FALSE_VAL)
+#define FALSE_VAL ((Value)(uint64_t)(QNAN | TAG_FALSE))
+#define TRUE_VAL ((Value)(uint64_t)(QNAN | TAG_TRUE))
+#define OBJ_VAL(obj) (Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
 
 struct Code {
     uint32_t start_ip;
@@ -318,10 +300,10 @@ struct VM {
     int code_length;
     Value *stack;
     int stack_size;
-    Value **locals; // list of local for each function in the call stack
-    int *locals_size;      // size of each local list
-    int locals_count;      // number of local lists
-    int locals_capacity;   // capacity of local lists
+    Value **locals;      // list of local for each function in the call stack
+    int *locals_size;    // size of each local list
+    int locals_count;    // number of local lists
+    int locals_capacity; // capacity of local lists
     int call_depth;
     uint32_t *prev_ips;
 };
@@ -342,6 +324,7 @@ void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm->locals = calloc(sizeof(Value *), MAX_CALL_DEPTH);
     vm->locals[0] = malloc(sizeof(Value) * 4);
     vm->locals_size = calloc(sizeof(int), MAX_CALL_DEPTH);
+    vm->prev_ips = calloc(sizeof(uint32_t), MAX_CALL_DEPTH);
     vm->locals_size[0] = 0;
     vm->call_depth = 0;
 }
@@ -352,18 +335,21 @@ void free_vm() {
     }
     free(vm->stack);
     // there is double free here
-    // for (int i = 0; i < vm->locals_count; ++i) {
-    //     for (int j = 0; j < vm->locals_size[i]; ++j) {
-    //         free_value(vm->locals[i][j]);
-    //     }
-    // }
+    for (int i = 0; i < vm->locals_count; ++i) {
+        for (int j = 0; j < vm->locals_size[i]; ++j) {
+            free_value(vm->locals[i][j]);
+        }
+        free(vm->locals[i]);
+    }
     free(vm->locals);
     free(vm->locals_size);
+    free(vm->prev_ips);
     free(vm);
 }
 
 void error(char *msg) {
     printf("Error: %s", msg);
+    free_vm();
     exit(1);
 }
 
@@ -392,9 +378,10 @@ void print_value(Value value) {
     if (IS_BOOL(value)) {
         printf("%s", AS_BOOL(value) ? "true" : "false");
     } else if (IS_NUMBER(value)) {
-        printf("%ld", AS_NUMBER(value));
+        printf("%ld", value);
     } else if (IS_OBJ(value)) {
-        Obj* obj = AS_OBJ(value);
+        Obj *obj = AS_OBJ(value);
+        printf("%p ", obj);
         if (obj->type == OBJ_STRING) {
             printf("%s", obj->string.data);
         } else if (obj->type == OBJ_LIST) {
@@ -410,7 +397,7 @@ void print_value(Value value) {
 
 void free_value(Value value) {
     if (IS_OBJ(value)) {
-        Obj* obj = AS_OBJ(value);
+        Obj *obj = AS_OBJ(value);
         if (obj->type == OBJ_STRING) {
             free(obj->string.data);
         } else if (obj->type == OBJ_LIST) {
@@ -454,36 +441,36 @@ void run() {
         case ADD: {
             Value a = pop();
             Value b = pop();
-            push(NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
+            push(a + b);
             break;
         }
         case SUB: {
             Value a = pop();
             Value b = pop();
-            push(NUMBER_VAL(AS_NUMBER(b) - AS_NUMBER(a)));
+            push(b - a);
             break;
         }
         case MUL: {
             Value a = pop();
             Value b = pop();
-            push(NUMBER_VAL(AS_NUMBER(b) * AS_NUMBER(a)));
+            push(b * a);
             break;
         }
         case DIV: {
             Value a = pop();
             Value b = pop();
-            push(NUMBER_VAL(AS_NUMBER(b) / AS_NUMBER(a)));
+            push(b / a);
             break;
         }
         case MOD: {
             Value a = pop();
             Value b = pop();
-            push(NUMBER_VAL(AS_NUMBER(b) % AS_NUMBER(a)));
+            push(b % a);
             break;
         }
         case NEG: {
             Value a = pop();
-            push(NUMBER_VAL(-AS_NUMBER(a)));
+            push(-a);
             break;
         }
         case CONST_U32: {
@@ -526,37 +513,37 @@ void run() {
         case EQUAL: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) == AS_NUMBER(b)));
+            push(BOOL_VAL(a == b));
             break;
         }
         case NOT_EQUAL: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) != AS_NUMBER(b)));
+            push(BOOL_VAL(a != b));
             break;
         }
         case LESS: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) < AS_NUMBER(b)));
+            push(BOOL_VAL(a < b));
             break;
         }
         case LESS_EQUAL: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) <= AS_NUMBER(b)));
+            push(BOOL_VAL(a <= b));
             break;
         }
         case GREATER: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) > AS_NUMBER(b)));
+            push(BOOL_VAL(a > b));
             break;
         }
         case GREATER_EQUAL: {
             Value b = pop();
             Value a = pop();
-            push(BOOL_VAL(AS_NUMBER(a) >= AS_NUMBER(b)));
+            push(BOOL_VAL(a >= b));
             break;
         }
         case STRING: {
@@ -633,12 +620,9 @@ void run() {
                 error("Maximum call depth exceeded");
             }
             vm->locals[vm->locals_count - 1] = args;
-            vm->locals_size[vm->locals_count] = argc + 1;
-            ++vm->locals_count;
+            vm->locals_size[vm->locals_count - 1] = argc;
             ++vm->call_depth;
-            vm->prev_ips =
-                realloc(vm->prev_ips, sizeof(uint32_t) * (vm->call_depth));
-            vm->prev_ips[vm->call_depth - 1] = vm->ip;
+            vm->prev_ips[vm->call_depth - 1] = vm->ip + 9;
             vm->ip = funcip - 1;
             break;
         }
@@ -646,18 +630,13 @@ void run() {
             if (vm->call_depth == 0) {
                 return;
             }
-            vm->ip = vm->prev_ips[vm->call_depth - 1];
+            vm->ip = vm->prev_ips[vm->call_depth - 1] - 1;
             --vm->call_depth;
-            vm->prev_ips =
-                realloc(vm->prev_ips, sizeof(uint32_t) * vm->call_depth);
-            // printf("locals length %d\n", vm->locals_count);
-            // printf("locals_count: %d\n", vm->locals_size[vm->locals_count]);
             for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
-                print_value(vm->locals[vm->locals_count - 1][i]);
-                putchar('\n');
-                free(vm->locals[vm->locals_count - 1] + i);
+                free_value(vm->locals[vm->locals_count - 1][i]);
             }
-            free(vm->locals + vm->locals_count);
+            free(vm->locals[vm->locals_count - 1]);
+            vm->locals_size[vm->locals_count - 1] = 0;
             --vm->locals_count;
             break;
         }
@@ -680,50 +659,34 @@ void run() {
             Value index = pop();
             Value arr = pop();
             Value value = pop();
-            Obj* obj = AS_OBJ(arr);
-            if (obj->type == OBJ_LIST) {
-                obj->list.items[AS_NUMBER(index)] = value;
-            } else {
-                error("Cannot store to non-list object");
-            }
+            Obj *obj = AS_OBJ(arr);
+            obj->list.items[index] = value;
             break;
         }
         case APPEND: {
             Value value = pop();
             Value list = pop();
-            Obj* obj = AS_OBJ(list);
-            if (obj->type == OBJ_LIST) {
-                if (obj->list.length >= obj->list.capacity) {
-                    puts("reallocating");
-                    obj->list.capacity *= 2;
-                    obj->list.items = realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
-                }
-                obj->list.items[obj->list.length] = value;
-                obj->list.length++;
-            } else {
-                error("Cannot append to non-list object");
+            Obj *obj = AS_OBJ(list);
+            if (obj->list.length >= obj->list.capacity) {
+                obj->list.capacity *= 2;
+                obj->list.items = realloc(obj->list.items,
+                                          sizeof(Value) * obj->list.capacity);
             }
+            obj->list.items[obj->list.length] = value;
+            obj->list.length++;
             break;
         }
         case INDEX: {
             Value index = pop();
             Value value = pop();
-            Obj* obj = AS_OBJ(value);
-            if (obj->type == OBJ_LIST) {
-                push(obj->list.items[AS_NUMBER(index)]);
-            } else {
-                error("Cannot index non-list object");
-            }
+            Obj *obj = AS_OBJ(value);
+            push(obj->list.items[index]);
             break;
         }
         case LENGTH: {
             Value value = pop();
-            Obj* obj = AS_OBJ(value);
-            if (obj->type == OBJ_LIST) {
-                push(NUMBER_VAL(obj->list.length));
-            } else {
-                error("Cannot get length of non-list object");
-            }
+            Obj *obj = AS_OBJ(value);
+            push(obj->list.length);
             break;
         }
         case POP: {
