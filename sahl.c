@@ -351,11 +351,12 @@ void free_vm() {
         free_value(vm->stack[i]);
     }
     free(vm->stack);
-    for (int i = 0; i < vm->locals_count; ++i) {
-        for (int j = 0; j < vm->locals_size[i]; ++j) {
-            free_value(vm->locals[i][j]);
-        }
-    }
+    // there is double free here
+    // for (int i = 0; i < vm->locals_count; ++i) {
+    //     for (int j = 0; j < vm->locals_size[i]; ++j) {
+    //         free_value(vm->locals[i][j]);
+    //     }
+    // }
     free(vm->locals);
     free(vm->locals_size);
     free(vm);
