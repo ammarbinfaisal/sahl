@@ -17,7 +17,7 @@ pub enum Value {
     Str(Vec<u8>),
     List(Vec<Value>),
     Chan(Arc<Mutex<VecDeque<Value>>>),
-    Address(usize), // local index
+    Address(usize, usize), // local index
 }
 
 impl std::fmt::Display for Value {
@@ -37,7 +37,7 @@ impl std::fmt::Display for Value {
                 }
                 write!(f, "]")
             }
-            Value::Address(a) => write!(f, "<local {}>", a),
+            Value::Address(depth, index) => write!(f, "<local {}:{}>", depth, index),
             Value::Chan(_) => write!(f, "chan"),
         }
     }
@@ -276,7 +276,7 @@ impl VM {
                 }
                 Instruction::GetLocal(i) => match &self.locals[self.call_depth][*i] {
                     Value::List(_) => {
-                        self.stack.push(Value::Address(*i));
+                        self.stack.push(Value::Address(self.call_depth, *i));
                     }
                     _ => {
                         self.stack.push(self.locals[self.call_depth][*i].clone());
@@ -296,7 +296,13 @@ impl VM {
                         let mut locals: Vec<Vec<Value>> = Vec::with_capacity(1);
                         let mut args = Vec::with_capacity(*args_c);
                         for _ in 0..*args_c {
-                            args.push(self.stack.pop().unwrap());
+                            let val = self.stack.pop().unwrap();
+                            if let Value::Address(depth, i) = val {
+                                let val = self.locals[depth][i].clone();
+                                args.push(val);
+                            } else {
+                                args.push(val);
+                            }
                         }
                         args.reverse();
                         locals.push(args);
@@ -313,13 +319,7 @@ impl VM {
                         self.ip = *funcip;
                         let mut args = Vec::with_capacity(*args_c);
                         for _ in 0..*args_c {
-                            let val = self.stack.pop().unwrap();
-                            if let Value::Address(i) = val {
-                                let val = self.locals[self.call_depth][i].clone();
-                                args.push(val);
-                            } else {
-                                args.push(val);
-                            }
+                            args.push(self.stack.pop().unwrap());
                         }
                         args.reverse();
                         self.locals.push(args);
@@ -359,20 +359,21 @@ impl VM {
                 }
                 Instruction::Assign(local_idx) => {
                     let val = self.stack.pop().unwrap();
-                    if let Value::Address(addr) = val {
-                        if addr == *local_idx {
+                    if let Value::Address(depth, addr) = val {
+                        if addr == *local_idx && depth == self.call_depth {
                             // Do nothing
+                        } else {
+                            self.locals[self.call_depth][*local_idx] =
+                                self.locals[depth][addr].clone();
                         }
-                        self.locals[self.call_depth][*local_idx] =
-                            self.locals[self.call_depth][addr].clone();
                     } else {
                         self.locals[self.call_depth][*local_idx] = val;
                     }
                 }
                 Instruction::Print => {
                     let val = self.stack.pop().unwrap();
-                    if let Value::Address(addr) = val {
-                        println!("{}", self.locals[self.call_depth][addr]);
+                    if let Value::Address(depth, addr) = val {
+                        println!("{}", self.locals[depth][addr]);
                     } else {
                         println!("{}", val);
                     }
@@ -382,8 +383,8 @@ impl VM {
                     let arr = self.stack.pop().unwrap();
                     let val = self.stack.pop().unwrap();
                     match (idx, arr, val) {
-                        (Value::Int(idx), Value::Address(index), val) => {
-                            if let Value::List(list) = &mut self.locals[self.call_depth][index] {
+                        (Value::Int(idx), Value::Address(depth, index), val) => {
+                            if let Value::List(list) = &mut self.locals[depth][index] {
                                 list[idx as usize] = val;
                             } else {
                                 panic!("Invalid types for store");
@@ -402,12 +403,17 @@ impl VM {
                     list.reverse();
                     self.stack.push(Value::List(list));
                 }
-                Instruction::MakeList(size, def) => {
-                    let mut list = Vec::with_capacity(*size);
-                    for _ in 0..*size {
-                        list.push(def.clone());
+                Instruction::MakeList(def) => {
+                    let len = self.stack.pop().unwrap();
+                    if let Value::Int(len) = len {
+                        let mut list = Vec::with_capacity(len as usize);
+                        for _ in 0..len {
+                            list.push(def.clone());
+                        }
+                        self.stack.push(Value::List(list));
+                    } else {
+                        panic!("Invalid types for make");
                     }
-                    self.stack.push(Value::List(list));
                 }
                 Instruction::Index => {
                     let idx = self.stack.pop().unwrap();
@@ -416,8 +422,8 @@ impl VM {
                         (Value::Int(idx), Value::List(arr)) => {
                             self.stack.push(arr[idx as usize].clone());
                         }
-                        (Value::Int(idx), Value::Address(index)) => {
-                            if let Value::List(arr) = &self.locals[self.call_depth][index] {
+                        (Value::Int(idx), Value::Address(depth, index)) => {
+                            if let Value::List(arr) = &self.locals[depth][index] {
                                 self.stack.push(arr[idx as usize].clone());
                             } else {
                                 panic!("Invalid types for index");
@@ -434,8 +440,8 @@ impl VM {
                         Value::List(arr) => {
                             self.stack.push(Value::Int(arr.len() as i64));
                         }
-                        Value::Address(index) => {
-                            if let Value::List(arr) = &self.locals[self.call_depth][index] {
+                        Value::Address(depth, index) => {
+                            if let Value::List(arr) = &self.locals[depth][index] {
                                 self.stack.push(Value::Int(arr.len() as i64));
                             } else {
                                 panic!("Invalid types for length");
@@ -450,8 +456,8 @@ impl VM {
                     let val = self.stack.pop().unwrap();
                     let arr = self.stack.pop().unwrap();
                     match (val, arr) {
-                        (val, Value::Address(index)) => {
-                            if let Value::List(list) = &mut self.locals[self.call_depth][index] {
+                        (val, Value::Address(depth, index)) => {
+                            if let Value::List(list) = &mut self.locals[depth][index] {
                                 list.push(val);
                             } else {
                                 panic!("Invalid types for append");

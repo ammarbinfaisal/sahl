@@ -55,14 +55,16 @@ fn isreserved(s: &str) -> bool {
 }
 
 fn identifier(input: &str) -> IResult<&str, String> {
-    let (input, id) = take_while_m_n(1, 32, |c: char| c.is_alphabetic() || c == '_')(input)?;
-    if isreserved(id) {
+    let (input, id1) = take_while_m_n(1, 1, |c: char| c.is_alphabetic() || c == '_')(input)?;
+    let (input, id2) = take_while(|c: char| c.is_alphanumeric() || c == '_')(input)?;
+    let id = format!("{}{}", id1, id2);
+    if isreserved(id.as_str()) {
         Err(Err::Error(nom::error::Error {
             input,
             code: ErrorKind::Fail,
         }))
     } else {
-        Ok((input, id.to_string()))
+        Ok((input, id))
     }
 }
 
@@ -126,6 +128,13 @@ fn variable(source: &str) -> IResult<&str, Expr> {
     Ok((source, Expr::Variable(name)))
 }
 
+fn barcexpr(source: &str) -> IResult<&str, Expr> {
+    let (source, _) = tag("(")(source)?;
+    let (source, expr) = delimited(space0, expression, space0)(source)?;
+    let (source, _) = tag(")")(source)?;
+    Ok((source, expr))
+}
+
 fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = alt((
@@ -133,11 +142,12 @@ fn factor(source: &str) -> IResult<&str, Expr> {
         call,
         subscript,
         variable,
+        barcexpr,
     ))(source)?;
     let (source, exs) = many0(tuple((
         delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
-        alt((call, variable, map(natural, Expr::Literal))),
-    )))(source)?;
+        alt((call, variable, map(natural, Expr::Literal), subscript, barcexpr),
+    ))))(source)?;
     let mut res = match unop {
         Some(u) => {
             let res = match u {
@@ -248,16 +258,12 @@ fn make(source: &str) -> IResult<&str, Expr> {
             delimited(space0, tag(","), space0),
             delimited(
                 space0,
-                take_while_m_n(1, 19, |c: char| c.is_digit(10)),
+                aexp,
                 space0,
             ),
         )),
-        |(_, l)| l,
+        |(_, l)| Box::new(l),
     ))(source)?;
-    let len = match len {
-        Some(l) => l.parse::<usize>().unwrap(),
-        None => 0,
-    };
     let (source, _) = tag(")")(source)?;
     Ok((source, Expr::Make(ty, len)))
 }
@@ -399,6 +405,7 @@ fn function(source: &str) -> IResult<&str, Func> {
         args = vec![arg.unwrap()].into_iter().chain(args2).collect();
         source
     } else {
+        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
         source
     };
     let (source, retty) = opt(map(
@@ -417,23 +424,12 @@ fn function(source: &str) -> IResult<&str, Func> {
     ))
 }
 
-fn mainfn(source: &str) -> IResult<&str, Vec<Stmt>> {
-    let (source, _) = delimited(space0, tag("fun"), space0)(source)?;
-    let (source, _) = delimited(space0, tag("main"), space0)(source)?;
-    let (source, _) = delimited(space0, tag("("), space0)(source)?;
-    let (source, _) = delimited(space0, tag(")"), space0)(source)?;
-    let (source, body) = block(source)?;
-    Ok((source, body))
-}
-
 pub fn program(source: &str) -> IResult<&str, Program> {
-    let (source, funcs) = many0(delimited(whitespace, function, whitespace))(source)?;
-    let (source, mainfunc) = delimited(whitespace, mainfn, whitespace)(source)?;
+    let (source, funcs) = many1(delimited(whitespace, function, whitespace))(source)?;
     Ok((
         source,
         Program {
             funcs,
-            main: mainfunc,
         },
     ))
 }

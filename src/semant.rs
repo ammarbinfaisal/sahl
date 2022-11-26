@@ -11,6 +11,9 @@ pub enum Error {
     BreakOutsideLoop,
     IncorrectLHS(Expr),
     NoReturn,
+    NoMain,
+    MainArgs,
+    MainNotVoid,
 }
 
 impl std::fmt::Display for Error {
@@ -44,6 +47,15 @@ impl std::fmt::Display for Error {
             }
             Error::NoReturn => {
                 write!(f, "There is a path in control flow that does not return")
+            }
+            Error::NoMain => {
+                write!(f, "No main function")
+            }
+            Error::MainArgs => {
+                write!(f, "Main function must take no arguments")
+            }
+            Error::MainNotVoid => {
+                write!(f, "Main function must return void")
             }
         }
     }
@@ -114,6 +126,7 @@ impl<'a> Checker<'a> {
     }
 
     fn check_expr(&self, expr: &Expr) -> Result<Type, Error> {
+        // println!("Checking expr: {:?}", expr);
         match expr {
             Expr::Literal(lit) => match lit {
                 Lit::Int(_) => Ok(Type::Int),
@@ -237,10 +250,12 @@ impl<'a> Checker<'a> {
                             Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
-                    _ => Err(Error::TypeMismatch(
+                    _ => {
+                        Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
                         vec![ty],
-                    )),
+                    ))
+                },
                 }
             }
             Expr::ChanRead(chan_name) => {
@@ -258,6 +273,7 @@ impl<'a> Checker<'a> {
     }
 
     fn check_stmt(&mut self, stmt: &Stmt) -> Result<(), Error> {
+        // println!("check_stmt: {:?}", stmt);
         match stmt {
             Stmt::Expr(expr) => {
                 self.check_expr(expr)?;
@@ -267,9 +283,11 @@ impl<'a> Checker<'a> {
                 let ty = self.check_expr(expr)?;
                 if ty == Type::Bool {
                     self.type_env.push(HashMap::new());
+                    self.scope += 1;
                     for stmt in then_block {
                         self.check_stmt(stmt)?;
                     }
+                    self.scope -= 1;
                     self.type_env.pop();
                     if let Some(stmts) = else_block {
                         self.scope += 1;
@@ -479,9 +497,17 @@ pub fn check_program(program: &Program) -> Result<(), Error> {
         }
     }
 
-    let mut checker = Checker::new(&func_env, Type::Void);
-    for stmt in &program.main {
-        checker.check_stmt(stmt)?;
+    let mainfn = func_env.get("main");
+    if mainfn.is_none() {
+        return Err(Error::NoMain);
     }
+    let mainfn = mainfn.unwrap();
+    if mainfn.0.len() != 0 {
+        return Err(Error::MainArgs);
+    }
+    if mainfn.1 != Type::Void {
+        return Err(Error::MainNotVoid);
+    }
+
     Ok(())
 }

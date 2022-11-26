@@ -319,37 +319,13 @@ impl Bytecode {
                 }
             }
             Expr::Make(ty, size) => {
+                if size.is_some() {
+                    panic!("Array size not implemented");
+                }
                 match ty {
-                    Type::List(ty) => {
+                    Type::List(_) => {
                         // create a list of the given size and populate it with the default value
-                        match **ty {
-                            Type::Int => {
-                                for _ in 0..*size {
-                                    self.add_u64(CONST_U64, 0);
-                                }
-                            }
-                            Type::Char => {
-                                for _ in 0..*size {
-                                    self.add_u8(CONST_U8, 0);
-                                }
-                            }
-                            Type::Bool => {
-                                for _ in 0..*size {
-                                    self.add(FALSE);
-                                }
-                            }
-                            Type::Str => {
-                                for _ in 0..*size {
-                                    self.add(STRING);
-                                    self.add_u8(CONST_U32, 0);
-                                }
-                            }
-                            Type::Chan(_) => panic!("Cannot create a list of channels"),
-                            Type::List(_) => panic!("Cannot create a list of lists"),
-                            Type::Void => panic!("Cannot create a list of void"),
-                            Type::Any => panic!("Cannot create a list of any"),
-                        };
-                        self.add_u32(LIST, *size as u32);
+                        self.add_u32(LIST, 0);
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
@@ -504,8 +480,11 @@ impl Bytecode {
                 .map(|arg| arg.name.clone())
                 .collect::<Vec<_>>();
             let body = &func.body;
-            // println!("compiling {} ", func.name);
+            if func.name == "main" {
+                self.start_ip = self.code.len();
+            }
             self.compile_fn(args, body);
+            self.add(RETURN);
         }
         self.locals.clear();
         for func in fns {
@@ -518,9 +497,6 @@ impl Bytecode {
                 self.code[*offset + 3] = func_ip as u8;
             }
         }
-        self.start_ip = self.code.len();
-        self.compile_fn(&[], &program.main);
-        self.add(RETURN);
         println!("start ip: {}", self.start_ip);
         println!("code length: {}", self.code.len());
         // println!("code: {:?}", self.code);

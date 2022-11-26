@@ -28,13 +28,13 @@ pub enum Instruction {
     Index,
     Append,
     Length,
-    MakeList(usize, Value),
+    MakeList(Value),
     List(usize),
     Const(Value),
     DefLocal(usize),
     GetLocal(usize),
     Assign(usize),
-    Call(usize, usize),   // global, num_args
+    Call(usize, usize), // global, num_args
     Coroutine,
     MakeChan,
     ChanRead,
@@ -249,8 +249,9 @@ impl Codegen {
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
                         };
-                        if *size > 0 {
-                            self.add_instruction(Instruction::MakeList(*size, default));
+                        if size.is_some() {
+                            self.compile_expr(size.as_ref().unwrap());
+                            self.add_instruction(Instruction::MakeList(default));
                         } else {
                             self.add_instruction(Instruction::Const(Value::List(Vec::new())));
                         }
@@ -430,14 +431,12 @@ impl Codegen {
                 .map(|arg| arg.name.clone())
                 .collect::<Vec<_>>();
             let body = &func.body;
+            if name == "main" {
+                self.start_ip = self.instructions.len();
+            }
             self.compile_fn(name, args, body);
             self.add_instruction(Instruction::Return);
         }
-        self.locals.clear();
-        self.num_locals = 0;
-        self.start_ip = self.instructions.len();
-        self.compile_fn("main".to_string(), &[], &program.main);
-        self.add_instruction(Instruction::Return);
         // patch calls
         for i in 0..fns.len() {
             for ip in self.calls[i].iter() {

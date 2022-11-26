@@ -56,7 +56,7 @@ pub enum Expr {
     Call(String, Vec<Expr>),
     Subscr(Box<Expr>, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
-    Make(Type, usize),
+    Make(Type, Option<Box<Expr>>),
     ChanRead(String),
 }
 
@@ -92,5 +92,4 @@ pub struct Func {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub funcs: Vec<Func>,
-    pub main: Vec<Stmt>,
 }
