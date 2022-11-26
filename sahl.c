@@ -451,32 +451,32 @@ void run() {
 
         switch (instruction) {
         case ADD: {
-            Value b = pop();
             Value a = pop();
+            Value b = pop();
             push(NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
             break;
         }
         case SUB: {
-            Value b = pop();
             Value a = pop();
+            Value b = pop();
             push(NUMBER_VAL(AS_NUMBER(b) - AS_NUMBER(a)));
             break;
         }
         case MUL: {
-            Value b = pop();
             Value a = pop();
+            Value b = pop();
             push(NUMBER_VAL(AS_NUMBER(b) * AS_NUMBER(a)));
             break;
         }
         case DIV: {
-            Value b = pop();
             Value a = pop();
+            Value b = pop();
             push(NUMBER_VAL(AS_NUMBER(b) / AS_NUMBER(a)));
             break;
         }
         case MOD: {
-            Value b = pop();
             Value a = pop();
+            Value b = pop();
             push(NUMBER_VAL(AS_NUMBER(b) % AS_NUMBER(a)));
             break;
         }
