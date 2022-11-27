@@ -329,6 +329,18 @@ impl VM {
                 }
                 Instruction::Return => {
                     if self.coroutine_depth == 0 {
+                        let val = self.stack.pop();
+                        if let Some(val) = val {
+                            if let Value::Address(depth, i) = val {
+                                if depth == self.call_depth {
+                                    self.stack.push(self.locals[depth][i].clone());
+                                } else {
+                                    self.stack.push(val);
+                                }
+                            } else {
+                                self.stack.push(val);
+                            }
+                        }
                         let ip = self.prev_ips.pop();
                         if let Some(ip) = ip {
                             self.call_depth -= 1;
