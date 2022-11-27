@@ -41,11 +41,12 @@
 #define MAKE_LIST 35
 
 #define MAX_STACK 1024
-#define MAX_CALL_DEPTH 256
+#define MAX_CALL_DEPTH 1024
 
 // #define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
+#define UNSAFE
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
 #define QNAN ((uint64_t)0x7ffc000000000000)
@@ -72,6 +73,7 @@ struct Obj {
             uint64_t capacity;
             uint64_t length;
             Value *items;
+            uint8_t owner;
         } list;
     };
 };
@@ -328,7 +330,6 @@ void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm->locals_count = 1;
     vm->locals_capacity = 4;
     vm->locals = calloc(sizeof(Value *), MAX_CALL_DEPTH);
-    vm->locals[0] = malloc(sizeof(Value) * 4);
     vm->locals_size = calloc(sizeof(int), MAX_CALL_DEPTH);
     vm->prev_ips = calloc(sizeof(uint32_t), MAX_CALL_DEPTH);
     vm->locals_size[0] = 0;
@@ -340,7 +341,6 @@ void free_vm() {
         free_value(vm->stack[i]);
     }
     free(vm->stack);
-    // there is double free here
     for (int i = 0; i < vm->locals_count; ++i) {
         for (int j = 0; j < vm->locals_size[i]; ++j) {
             free_value(vm->locals[i][j]);
@@ -360,9 +360,11 @@ void error(char *msg) {
 }
 
 Value pop() {
+#ifdef UNSAFE
     if (vm->stack_size == 0) {
         error("Stack underflow");
     }
+#endif
     return vm->stack[--vm->stack_size];
 }
 
@@ -374,9 +376,11 @@ Value peek() {
 }
 
 void push(Value value) {
+#ifdef UNSAFE
     if (vm->stack_size == MAX_STACK) {
         error("Stack overflow");
     }
+#endif
     vm->stack[vm->stack_size++] = value;
 }
 
@@ -406,10 +410,7 @@ void free_value(Value value) {
         Obj *obj = AS_OBJ(value);
         if (obj->type == OBJ_STRING) {
             free(obj->string.data);
-        } else if (obj->type == OBJ_LIST) {
-            for (int i = 0; i < obj->list.length; i++) {
-                free_value(obj->list.items[i]);
-            }
+        } else if (obj->type == OBJ_LIST && obj->list.owner) {
             free(obj->list.items);
         }
         free(obj);
@@ -572,6 +573,7 @@ void run() {
                 obj->list.items[i] = pop();
             }
             obj->list.capacity = (length ? length : 2) * 2;
+            obj->list.owner = 1;
             push(OBJ_VAL(obj));
             vm->ip += 4;
             break;
@@ -584,6 +586,7 @@ void run() {
             obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
             obj->list.length = len;
             obj->list.capacity = (len ? len : 2) * 2;
+            obj->list.owner = 1;
             for (int i = 0; i < len; ++i) {
                 obj->list.items[i] = def;
             }
@@ -633,7 +636,25 @@ void run() {
             Value *args = malloc(sizeof(Value) * argc);
             for (int i = argc - 1; i >= 0; --i) {
                 Value val = pop();
-                args[i] = val;
+                if (IS_OBJ(val)) {
+                    Obj *obj = AS_OBJ(val);
+                    Obj *new_obj = malloc(sizeof(Obj));
+                    if (obj->type == OBJ_LIST) {
+                        new_obj->list = obj->list;
+                        new_obj->list.owner = 0;
+                        new_obj->type = OBJ_LIST;
+                    } else {
+                        printf("%d", obj->type);
+                        int len = strlen(obj->string.data) + 1;
+                        new_obj->string.data = malloc(len);
+                        memcpy(new_obj->string.data, obj->string.data, len);
+                        obj->type = OBJ_STRING;
+                    }
+                    Value new_val = OBJ_VAL(new_obj);
+                    args[i] = new_val;
+                } else {
+                    args[i] = val;
+                }
             }
             vm->locals_count++;
             if (vm->locals_count >= MAX_CALL_DEPTH) {
@@ -652,6 +673,30 @@ void run() {
             }
             vm->ip = vm->prev_ips[vm->call_depth - 1] - 1;
             --vm->call_depth;
+            if (vm->stack_size) {
+                Value val = pop();
+                if (IS_OBJ(val)) {
+                    Obj *obj = AS_OBJ(val);
+                    Obj *new_obj = malloc(sizeof(Obj));
+                    if (obj->type == OBJ_LIST) {
+                        new_obj->list.items =
+                            malloc(sizeof(Value) * obj->list.capacity);
+                        memcpy(new_obj->list.items, obj->list.items,
+                               sizeof(Value) * obj->list.length);
+                        new_obj->list.length = obj->list.length;
+                        new_obj->list.capacity = obj->list.capacity;
+                        new_obj->list.owner = 1;
+                        push(OBJ_VAL(new_obj));
+                    } else {
+                        int len = strlen(obj->string.data) + 1;
+                        new_obj->string.data = malloc(len);
+                        memcpy(new_obj->string.data, obj->string.data, len);
+                        push(OBJ_VAL(new_obj));
+                    }
+                } else {
+                    push(val);
+                }
+            }
             for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
                 free_value(vm->locals[vm->locals_count - 1][i]);
             }
