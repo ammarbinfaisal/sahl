@@ -387,9 +387,14 @@ impl Bytecode {
                 }
             }
             Stmt::For(var, expr, body) => {
-                self.compile_expr(expr);
-                let arr_var = self.add_local("<arr>");
-                self.add_u32(DEF_LOCAL, arr_var as u32);
+                let arr_var = if let Expr::Variable(var) = *expr.clone() {
+                    *self.get_local(var.as_str()).unwrap()
+                } else {
+                    self.compile_expr(expr);
+                    let arr = self.add_local("<arr>");
+                    self.add_u32(DEF_LOCAL, arr as u32);
+                    arr
+                };
                 self.add_u32(GET_LOCAL, arr_var as u32);
                 self.add(LENGTH);
                 let len_var = self.add_local("<len>");
