@@ -686,11 +686,13 @@ void run() {
                         new_obj->list.length = obj->list.length;
                         new_obj->list.capacity = obj->list.capacity;
                         new_obj->list.owner = 1;
+                        new_obj->type = OBJ_LIST;
                         push(OBJ_VAL(new_obj));
                     } else {
                         int len = strlen(obj->string.data) + 1;
                         new_obj->string.data = malloc(len);
                         memcpy(new_obj->string.data, obj->string.data, len);
+                        new_obj->type = OBJ_STRING;
                         push(OBJ_VAL(new_obj));
                     }
                 } else {
