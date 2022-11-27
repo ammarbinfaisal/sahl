@@ -360,7 +360,7 @@ void error(char *msg) {
 }
 
 Value pop() {
-#ifdef UNSAFE
+#ifndef UNSAFE
     if (vm->stack_size == 0) {
         error("Stack underflow");
     }
@@ -376,7 +376,7 @@ Value peek() {
 }
 
 void push(Value value) {
-#ifdef UNSAFE
+#ifndef UNSAFE
     if (vm->stack_size == MAX_STACK) {
         error("Stack overflow");
     }
