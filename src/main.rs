@@ -1,10 +1,13 @@
 mod bytecode;
 mod code;
+mod native;
 mod parser;
 mod semant;
 mod syntax;
 mod vm;
 
+use inkwell::context::Context;
+use native::Compiler;
 use parser::*;
 use semant::*;
 use std::fs::*;
@@ -15,6 +18,7 @@ fn usage() {
     println!("Options:");
     println!("  -c: Compile to bytecode");
     println!("  -e: Execute code on rust backend");
+    println!("  -n: Compile to native code");
     println!("Verbose:");
     println!("  -v: Verbose mode");
 }
@@ -25,9 +29,10 @@ fn main() {
     let opt2 = std::env::args().nth(3);
     if filename.is_some() && opt.is_some() {
         let to_exec = opt.clone().unwrap() == "-e";
-        let to_compile = opt.unwrap() == "-c";
+        let to_compile = opt.clone().unwrap() == "-c";
+        let native = opt.unwrap() == "-n";
         let verbose = opt2.is_some() && opt2.unwrap() == "-v";
-        if !to_exec && !to_compile {
+        if !to_exec && !to_compile && !native {
             usage();
             return;
         }
@@ -63,6 +68,11 @@ fn main() {
                             let mut codebyte = bytecode::Bytecode::new();
                             codebyte.compile_program(&p);
                             codebyte.write("exe.bin");
+                        } else {
+                            let context = Context::create();
+                            let mut compiler = Compiler::new(&context, p.funcs.iter().collect());
+                            compiler.compile();
+                            compiler.write("exe.ll");
                         }
                     }
                     Err(e) => {
