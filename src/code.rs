@@ -29,6 +29,7 @@ pub enum Instruction {
     Append,
     Length,
     MakeList(Value),
+    MakeTuple(usize),
     List(usize),
     Const(Value),
     DefLocal(usize),
@@ -248,6 +249,7 @@ impl Codegen {
                             Type::Chan(_) => panic!("Cannot create a list of channels"),
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
+                            Type::Tuple(_) => panic!("Cannot create a list of tuples"),
                         };
                         if size.is_some() {
                             self.compile_expr(size.as_ref().unwrap());
@@ -261,6 +263,12 @@ impl Codegen {
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
+            }
+            Expr::Tuple(exprs) => {
+                for expr in exprs {
+                    self.compile_expr(expr);
+                }
+                self.add_instruction(Instruction::MakeTuple(exprs.len()));
             }
             Expr::ChanRead(e) => {
                 let chan = self.get_local(e).clone();

@@ -16,6 +16,7 @@ pub enum Value {
     Bool(bool),
     Str(Vec<u8>),
     List(Vec<Value>),
+    Tuple(Vec<Value>),
     Chan(Arc<Mutex<VecDeque<Value>>>),
     Address(usize, usize), // local index
 }
@@ -36,6 +37,16 @@ impl std::fmt::Display for Value {
                     }
                 }
                 write!(f, "]")
+            }
+            Value::Tuple(t) => {
+                write!(f, "(")?;
+                for (i, v) in t.iter().enumerate() {
+                    write!(f, "{}", v)?;
+                    if i < t.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")
             }
             Value::Address(depth, index) => write!(f, "<local {}:{}>", depth, index),
             Value::Chan(_) => write!(f, "chan"),
@@ -479,6 +490,14 @@ impl VM {
                             panic!("Invalid types for append");
                         }
                     }
+                }
+                Instruction::MakeTuple(size) => {
+                    let mut tuple = Vec::with_capacity(*size);
+                    for _ in 0..*size {
+                        tuple.push(self.stack.pop().unwrap());
+                    }
+                    tuple.reverse();
+                    self.stack.push(Value::Tuple(tuple));
                 }
                 Instruction::Coroutine => {
                     self.about_to_spawn = true;

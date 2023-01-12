@@ -8,6 +8,7 @@ pub enum Type {
     Any,
     List(Box<Type>),
     Chan(Box<Type>),
+    Tuple(Vec<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +58,7 @@ pub enum Expr {
     Subscr(Box<Expr>, Box<Expr>),
     Assign(Box<Expr>, Box<Expr>),
     Make(Type, Option<Box<Expr>>),
+    Tuple(Vec<Expr>),
     ChanRead(String),
 }
 

@@ -250,12 +250,10 @@ impl<'a> Checker<'a> {
                             Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
-                    _ => {
-                        Err(Error::TypeMismatch(
+                    _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
                         vec![ty],
-                    ))
-                },
+                    )),
                 }
             }
             Expr::ChanRead(chan_name) => {
@@ -269,6 +267,13 @@ impl<'a> Checker<'a> {
                 }
             }
             Expr::Make(ty, _) => Ok(ty.clone()),
+            Expr::Tuple(exprs) => {
+                let tys = exprs
+                    .iter()
+                    .map(|e| self.check_expr(e))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Type::Tuple(tys))
+            }
         }
     }
 

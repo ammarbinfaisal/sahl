@@ -491,6 +491,9 @@ where
             Expr::ChanRead(_) => {
                 panic!("unimplemented");
             }
+            _ => {
+                panic!("unimplemented");
+            }
         }
     }
 

@@ -1,0 +1,11 @@
+fun fn(i: int) -> (int, int) {
+    return (i*i*i, i*i)
+}
+
+fun main() {
+    let i = 0
+    while i < 10000 {
+        print(fn(i))
+        i = i + 1
+    }
+}

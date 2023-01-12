@@ -19,6 +19,7 @@ fn whitespace(input: &str) -> IResult<&str, &str> {
 fn typee(source: &str) -> IResult<&str, Type> {
     let (source, ty) = alt((
         listty,
+        tuplety,
         map(tag("int"), |_| Type::Int),
         map(tag("bool"), |_| Type::Bool),
         map(tag("string"), |_| Type::Str),
@@ -43,6 +44,23 @@ fn listty(source: &str) -> IResult<&str, Type> {
     let (source, ty) = typee(source)?;
     let (source, _) = tag("]")(source)?;
     Ok((source, Type::List(Box::new(ty))))
+}
+
+fn tuplety(source: &str) -> IResult<&str, Type> {
+    let (source, _) = tag("(")(source)?;
+    let (source, mut tys) = many0(map(
+        tuple((space0, typee, space0, tag(","))),
+        |(_, e, _, _)| e,
+    ))(source)?;
+    let (source, last) = opt(map(tuple((space0, typee, space0)), |(_, e, _)| e))(source)?;
+    let (source, _) = tag(")")(source)?;
+    match last {
+        Some(e) => {
+            tys.push(e);
+        }
+        None => {}
+    };
+    Ok((source, Type::Tuple(tys)))
 }
 
 fn isreserved(s: &str) -> bool {
@@ -97,6 +115,23 @@ fn boolean(source: &str) -> IResult<&str, Lit> {
     })(source)
 }
 
+fn tuplee(source: &str) -> IResult<&str, Expr> {
+    let (source, _) = tag("(")(source)?;
+    let (source, mut exprs) = many0(map(
+        tuple((space0, expression, space0, tag(","))),
+        |(_, e, _, _)| e,
+    ))(source)?;
+    let (source, last) = opt(map(tuple((space0, expression, space0)), |(_, e, _)| e))(source)?;
+    let (source, _) = tag(")")(source)?;
+    match last {
+        Some(e) => {
+            exprs.push(e);
+        }
+        None => {}
+    };
+    Ok((source, Expr::Tuple(exprs)))
+}
+
 fn subscript(source: &str) -> IResult<&str, Expr> {
     let (source, name) = identifier(source)?;
     let (source, subscrs) = many0(map(
@@ -146,8 +181,14 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     ))(source)?;
     let (source, exs) = many0(tuple((
         delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
-        alt((call, variable, map(natural, Expr::Literal), subscript, barcexpr),
-    ))))(source)?;
+        alt((
+            call,
+            variable,
+            map(natural, Expr::Literal),
+            subscript,
+            barcexpr,
+        )),
+    )))(source)?;
     let mut res = match unop {
         Some(u) => {
             let res = match u {
@@ -256,11 +297,7 @@ fn make(source: &str) -> IResult<&str, Expr> {
     let (source, len) = opt(map(
         tuple((
             delimited(space0, tag(","), space0),
-            delimited(
-                space0,
-                aexp,
-                space0,
-            ),
+            delimited(space0, aexp, space0),
         )),
         |(_, l)| Box::new(l),
     ))(source)?;
@@ -269,7 +306,7 @@ fn make(source: &str) -> IResult<&str, Expr> {
 }
 
 pub fn expression(source: &str) -> IResult<&str, Expr> {
-    alt((chanread, assignment, aexp, make, list))(source)
+    alt((chanread, assignment, aexp, make, list, tuplee))(source)
 }
 
 fn list(source: &str) -> IResult<&str, Expr> {
@@ -426,10 +463,5 @@ fn function(source: &str) -> IResult<&str, Func> {
 
 pub fn program(source: &str) -> IResult<&str, Program> {
     let (source, funcs) = many1(delimited(whitespace, function, whitespace))(source)?;
-    Ok((
-        source,
-        Program {
-            funcs,
-        },
-    ))
+    Ok((source, Program { funcs }))
 }
