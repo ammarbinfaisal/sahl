@@ -136,9 +136,7 @@ uint64_t read_u64(uint8_t *code, int idx) {
 
 char *read_string(uint8_t *code, int idx, int len) {
     char *str = malloc(len + 1);
-    for (int i = 0; i < len; i++) {
-        str[i] = code[idx + i];
-    }
+    memcpy(str, code + idx, len);
     str[len] = '\0';
     return str;
 }
@@ -239,15 +237,10 @@ int print_opcode(uint8_t *code, int i) {
         i += 1;
         break;
     case STRING: {
-        ++i; // ignore CONST_U32
         // u32 length
-        uint32_t strlength = read_u32(code, i + 1);
-        printf("String len: %u string = ", strlength);
-        i += 4;
-        char *string = read_string(code, i + 1, strlength);
-        printf("%s\n", string);
-        i += strlength;
-        free(string);
+        uint32_t stridx = read_u32(code, i + 1);
+        i += 5;
+        printf("string at index %d\n", stridx);
         break;
     }
     case APPEND:
@@ -296,7 +289,20 @@ int print_opcode(uint8_t *code, int i) {
 void dissassemble(uint8_t *code, int length) {
     int start_ip = read_u32(code, 0);
     printf("Start IP: %u\n", start_ip);
-    for (int i = 4; i < length; i++) {
+    puts("strings:");
+    int i = 4;
+    int strings_count = read_u32(code, i);
+    i += 4;
+    while (strings_count-- && i < length) {
+        uint32_t len = read_u32(code, i);
+        i += 4;
+        char *str = read_string(code, i, len);
+        printf("\t%d ", len);
+        printf("%s\n", str);
+        i += len;
+        free(str);
+    }
+    for (; i < length; i++) {
         printf("%4d: ", i - 4);
         i = print_opcode(code, i);
     }
@@ -314,6 +320,8 @@ struct VM {
     int locals_capacity; // capacity of local lists
     int call_depth;
     uint32_t *prev_ips;
+    int string_count;
+    char **strings;
 };
 
 struct VM *vm;
@@ -323,8 +331,18 @@ void free_value(Value value);
 void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm = malloc(sizeof(struct VM));
     vm->ip = start_ip;
-    vm->code = code;
-    vm->code_length = code_length;
+    vm->string_count = read_u32(code, 0);
+    vm->strings = malloc(sizeof(char *) * vm->string_count);
+    int offset = 4;
+    for (int i = 0; i < vm->string_count; ++i) {
+        uint32_t strlength = read_u32(code, offset);
+        printf("reading string of %d\n", strlength);
+        offset += 4;
+        vm->strings[i] = read_string(code, offset, strlength);
+        offset += strlength;
+    }
+    vm->code = code + offset;
+    vm->code_length = code_length - offset;
     vm->stack_size = 0;
     vm->stack = malloc(sizeof(Value) * 1024);
     vm->locals_count = 1;
@@ -347,6 +365,10 @@ void free_vm() {
         }
         free(vm->locals[i]);
     }
+    for (int i = 0; i < vm->string_count; ++i) {
+        free(vm->strings[i]);
+    }
+    free(vm->strings);
     free(vm->locals);
     free(vm->locals_size);
     free(vm->prev_ips);
@@ -554,13 +576,13 @@ void run() {
             break;
         }
         case STRING: {
-            uint32_t length = read_u32(vm->code, vm->ip + 2);
-            char *string = read_string(vm->code, vm->ip + 6, length);
+            uint32_t stridx = read_u32(vm->code, vm->ip + 1);
+            char *string = vm->strings[stridx];
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_STRING;
             obj->string.data = string;
             push(OBJ_VAL(obj));
-            vm->ip += 5 + length;
+            vm->ip += 4;
             break;
         }
         case LIST: {

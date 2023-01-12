@@ -47,7 +47,12 @@ pub struct Bytecode {
     locals: HashMap<String, usize>,
     func_idx: HashMap<String, usize>,
     calls: Vec<Vec<usize>>, // to be patched after codegen - offset
+    strings: Vec<Vec<u8>>,
     start_ip: usize,
+}
+
+fn u32_to_bytes(n: u32) -> [u8; 4] {
+    [n as u8, (n >> 8) as u8, (n >> 16) as u8, (n >> 24) as u8]
 }
 
 impl Bytecode {
@@ -57,6 +62,7 @@ impl Bytecode {
             locals: HashMap::new(),
             func_idx: HashMap::new(),
             calls: Vec::new(),
+            strings: Vec::new(),
             start_ip: 0,
         }
     }
@@ -128,17 +134,19 @@ impl Bytecode {
 
     // start ip
     fn header(&self) -> [u8; 4] {
-        [
-            self.start_ip as u8,
-            (self.start_ip >> 8) as u8,
-            (self.start_ip >> 16) as u8,
-            (self.start_ip >> 24) as u8,
-        ]
+        u32_to_bytes(self.start_ip as u32)
     }
 
     pub fn write(&self, path: &str) {
         let mut file = File::create(path).unwrap();
         file.write_all(&self.header()).unwrap();
+        // u32 for number of strings
+        file.write_all(&u32_to_bytes(self.strings.len() as u32))
+            .unwrap();
+        for s in &self.strings {
+            file.write_all(&u32_to_bytes(s.len() as u32)).unwrap();
+            file.write_all(&s).unwrap();
+        }
         file.write_all(&self.code).unwrap();
     }
 
@@ -159,11 +167,9 @@ impl Bytecode {
                     }
                 }
                 Lit::Str(s) => {
-                    self.add(STRING);
-                    self.add_u32(CONST_U32, s.len() as u32);
-                    for c in s {
-                        self.add(*c);
-                    }
+                    let idx = self.strings.len();
+                    self.strings.push(s.clone());
+                    self.add_u32(STRING, idx as u32);
                 }
                 Lit::List(l) => {
                     for expr in l {
