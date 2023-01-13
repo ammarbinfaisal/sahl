@@ -39,6 +39,7 @@ const RETURN: u8 = 32;
 const PRINT: u8 = 33;
 const POP: u8 = 34;
 const MAKE_LIST: u8 = 35;
+const MAKE_TUPLE: u8 = 36;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -329,6 +330,12 @@ impl Bytecode {
                     }
                     _ => panic!("Cannot make a non-list"),
                 }
+            }
+            Expr::Tuple(exprs) => {
+                for expr in exprs {
+                    self.compile_expr(expr);
+                }
+                self.add_u32(MAKE_TUPLE, exprs.len() as u32);
             }
             _ => {
                 println!("unimplemented {:?}", expr);

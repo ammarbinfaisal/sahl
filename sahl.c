@@ -39,6 +39,7 @@
 #define PRINT 33
 #define POP 34
 #define MAKE_LIST 35
+#define MAKE_TUPLE 36
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -59,6 +60,7 @@ typedef uint64_t Value;
 enum ObjType {
     OBJ_STRING,
     OBJ_LIST,
+    OBJ_TUPLE,
 };
 
 typedef enum ObjType ObjType;
@@ -75,6 +77,10 @@ struct Obj {
             Value *items;
             uint8_t owner;
         } list;
+        struct {
+            uint64_t length;
+            Value *items;
+        } tuple;
     };
 };
 
@@ -423,6 +429,13 @@ void print_value(Value value) {
                 printf(", ");
             }
             printf("]");
+        } else {
+            printf("(");
+            for (int i = 0; i < obj->tuple.length; i++) {
+                print_value(obj->tuple.items[i]);
+                if (i != obj->tuple.length - 1) printf(", ");
+            }
+            printf(")");
         }
     }
 }
@@ -434,6 +447,8 @@ void free_value(Value value) {
             free(obj->string.data);
         } else if (obj->type == OBJ_LIST && obj->list.owner) {
             free(obj->list.items);
+        } else {
+            free(obj->tuple.items);
         }
         free(obj);
     }
@@ -600,6 +615,19 @@ void run() {
             vm->ip += 4;
             break;
         }
+        case MAKE_TUPLE: {
+            uint32_t len = read_u32(vm->code, vm->ip + 1);
+            Obj *obj = malloc(sizeof(Obj));
+            obj->type = OBJ_TUPLE;
+            obj->tuple.items = malloc(sizeof(Value) * len);
+            obj->tuple.length = len;
+            for (int i = len - 1; i >= 0; --i) {
+                obj->tuple.items[i] = pop();
+            }
+            push(OBJ_VAL(obj));
+            vm->ip += 4;
+            break;
+        }
         case MAKE_LIST: {
             Value def = pop();
             Value len = pop();
@@ -710,11 +738,19 @@ void run() {
                         new_obj->list.owner = 1;
                         new_obj->type = OBJ_LIST;
                         push(OBJ_VAL(new_obj));
-                    } else {
+                    } else if (obj->type == OBJ_STRING) {
                         int len = strlen(obj->string.data) + 1;
                         new_obj->string.data = malloc(len);
                         memcpy(new_obj->string.data, obj->string.data, len);
                         new_obj->type = OBJ_STRING;
+                        push(OBJ_VAL(new_obj));
+                    } else {
+                        new_obj->type = OBJ_TUPLE;
+                        new_obj->tuple.length = obj->tuple.length;
+                        new_obj->tuple.items =
+                            malloc(sizeof(Value) * obj->tuple.length);
+                        memcpy(new_obj->tuple.items, obj->tuple.items,
+                               sizeof(Value) * obj->tuple.length);
                         push(OBJ_VAL(new_obj));
                     }
                 } else {
