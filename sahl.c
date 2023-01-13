@@ -447,7 +447,7 @@ void free_value(Value value) {
             free(obj->string.data);
         } else if (obj->type == OBJ_LIST && obj->list.owner) {
             free(obj->list.items);
-        } else {
+        } else if (obj->type == OBJ_TUPLE) {
             free(obj->tuple.items);
         }
         free(obj);
