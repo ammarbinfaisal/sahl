@@ -97,7 +97,7 @@ impl VM {
                             self.stack.push(Value::Int(b + a));
                         }
                         _ => {
-                            panic!("Invalid types for add");
+                            unreachable!()
                         }
                     }
                 }
@@ -109,7 +109,7 @@ impl VM {
                             self.stack.push(Value::Int(b - a));
                         }
                         _ => {
-                            panic!("Invalid types for sub");
+                            unreachable!()
                         }
                     }
                 }
@@ -121,7 +121,7 @@ impl VM {
                             self.stack.push(Value::Int(b * a));
                         }
                         _ => {
-                            panic!("Invalid types for mul");
+                            unreachable!()
                         }
                     }
                 }
@@ -133,7 +133,7 @@ impl VM {
                             self.stack.push(Value::Int(b / a));
                         }
                         _ => {
-                            panic!("Invalid types for div");
+                            unreachable!()
                         }
                     }
                 }
@@ -145,7 +145,7 @@ impl VM {
                             self.stack.push(Value::Int(b % a));
                         }
                         _ => {
-                            panic!("Invalid types for mod");
+                            unreachable!()
                         }
                     }
                 }
@@ -156,7 +156,7 @@ impl VM {
                             self.stack.push(Value::Int(-a));
                         }
                         _ => {
-                            panic!("Invalid types for neg");
+                            unreachable!()
                         }
                     }
                 }
@@ -176,7 +176,7 @@ impl VM {
                             self.stack.push(Value::Bool(!b));
                         }
                         _ => {
-                            panic!("Invalid type for not");
+                            unreachable!()
                         }
                     }
                 }
@@ -209,7 +209,7 @@ impl VM {
                             self.stack.push(Value::Bool(a != b));
                         }
                         _ => {
-                            panic!("Invalid types for not equal");
+                            unreachable!()
                         }
                     }
                 }
@@ -221,7 +221,7 @@ impl VM {
                             self.stack.push(Value::Bool(b < a));
                         }
                         _ => {
-                            panic!("Invalid types for less than");
+                            unreachable!()
                         }
                     }
                 }
@@ -233,7 +233,7 @@ impl VM {
                             self.stack.push(Value::Bool(b > a));
                         }
                         _ => {
-                            panic!("Invalid types for greater than");
+                            unreachable!()
                         }
                     }
                 }
