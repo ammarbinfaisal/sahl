@@ -14,12 +14,14 @@ hyperfine "python3 samples/append.py" "./sahl exe.bin"
 
 echo "Fibonacci"
 
-hyperfine "python3 samples/fibonacci.py" "./target/release/sahl samples/fibonacci.sahl -e"
+./target/release/sahl "samples/fibonacci.sahl" -c
+hyperfine "python3 samples/fibonacci.py" "./sahl exe.bin"
 
 
 echo "Factorial of 20"
 
-hyperfine "python3 samples/factorial.py" "./target/release/sahl samples/factorial.sahl -c"
+./target/release/sahl "samples/factorial.sahl" -c
+hyperfine "python3 samples/factorial.py" "./sahl exe.bin"
 
 
 echo "Channels"
