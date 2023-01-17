@@ -52,6 +52,8 @@ pub struct Codegen {
     functions: HashMap<String, usize>,
     calls: Vec<Vec<usize>>,
     func_idx: HashMap<String, usize>,
+    breaks: Vec<usize>,
+    loop_start: usize,
     curr_func: usize,
     start_ip: usize,
 }
@@ -65,6 +67,8 @@ impl Codegen {
             instructions: Vec::new(),
             calls: Vec::new(),
             func_idx: HashMap::new(),
+            breaks: Vec::new(),
+            loop_start: 0,
             curr_func: 0,
             start_ip: 0,
         }
@@ -318,23 +322,18 @@ impl Codegen {
             }
             Stmt::While(cond, body) => {
                 let start = self.instructions.len();
+                self.loop_start = start;
                 self.compile_expr(cond);
                 let jump = self.add_instruction(Instruction::JumpIfFalse(0));
-                let mut breaks = Vec::<usize>::new();
                 for stmt in body {
-                    if stmt == &Stmt::Break {
-                        breaks.push(self.add_instruction(Instruction::Jump(start)));
-                    } else if stmt == &Stmt::Continue {
-                        self.add_instruction(Instruction::Jump(start + 1));
-                    } else {
-                        self.compile_stmt(stmt);
-                    }
+                    self.compile_stmt(stmt);
                 }
                 self.add_instruction(Instruction::Jump(start));
                 self.instructions[jump] = Instruction::JumpIfFalse(self.instructions.len());
-                for break_ in breaks {
-                    self.instructions[break_] = Instruction::Jump(self.instructions.len());
+                for break_ in &self.breaks {
+                    self.instructions[*break_] = Instruction::Jump(self.instructions.len());
                 }
+                self.breaks.clear()
             }
             Stmt::For(var, expr, body) => {
                 self.compile_expr(expr);
@@ -381,10 +380,11 @@ impl Codegen {
                 self.add_instruction(Instruction::DefLocal(n));
             }
             Stmt::Break => {
-                panic!("Break outside of loop");
+                let instr = self.add_instruction(Instruction::Jump(self.loop_start));
+                self.breaks.push(instr);
             }
             Stmt::Continue => {
-                panic!("Continue outside of loop");
+                self.add_instruction(Instruction::Jump(self.loop_start));
             }
             Stmt::Comment => {
                 // do nothing
