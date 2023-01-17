@@ -19,7 +19,28 @@ fun contn(i: int, j: int) {
     }
 }
 
+fun brkfor(list: [int]) {
+    for i in list {
+        if i % 5 == 0 {
+            break
+        }
+        print(i)
+    }
+}
+
+fun contnfor(list: [int]) {
+    for i in list {
+        if i % 5 == 0 {
+            continue
+        }
+        print(i)
+    }
+}
+
 fun main() {
+    let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]
     brk(1, 10)
     contn(1, 10)
+    brkfor(list)
+    contnfor(list)
 }
