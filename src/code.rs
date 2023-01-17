@@ -47,18 +47,29 @@ pub enum Instruction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum LoopType {
+pub enum LoopType {
     While,
     For,
     None,
 }
 
 #[derive(Debug, Clone)]
-struct LoopState {
-    loop_type: LoopType,
-    loop_start: Option<usize>,
-    idx_var: Option<usize>,
-    breaks: Vec<usize>,
+pub struct LoopState {
+    pub loop_type: LoopType,
+    pub loop_start: Option<usize>,
+    pub idx_var: Option<usize>,
+    pub breaks: Vec<usize>,
+}
+
+impl LoopState {
+    pub fn new() -> LoopState {
+        LoopState {
+            loop_type: LoopType::None,
+            loop_start: None,
+            idx_var: None,
+            breaks: Vec::new(),
+        }
+    }
 }
 
 pub struct Codegen {
@@ -82,12 +93,7 @@ impl Codegen {
             instructions: Vec::new(),
             calls: Vec::new(),
             func_idx: HashMap::new(),
-            loop_state: LoopState {
-                loop_type: LoopType::None,
-                loop_start: None,
-                idx_var: None,
-                breaks: Vec::new(),
-            },
+            loop_state: LoopState::new(),
             curr_func: 0,
             start_ip: 0,
         }

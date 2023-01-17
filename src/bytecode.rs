@@ -1,3 +1,4 @@
+use crate::code::{LoopState, LoopType};
 use crate::syntax::*;
 use std::collections::HashMap;
 use std::fs::*;
@@ -49,6 +50,7 @@ pub struct Bytecode {
     func_idx: HashMap<String, usize>,
     calls: Vec<Vec<usize>>, // to be patched after codegen - offset
     strings: Vec<Vec<u8>>,
+    loop_state: LoopState,
     start_ip: usize,
 }
 
@@ -64,6 +66,7 @@ impl Bytecode {
             func_idx: HashMap::new(),
             calls: Vec::new(),
             strings: Vec::new(),
+            loop_state: LoopState::new(),
             start_ip: 0,
         }
     }
@@ -382,22 +385,23 @@ impl Bytecode {
             Stmt::While(cond, body) => {
                 let start = self.code.len();
                 self.compile_expr(cond);
+                let parent = self.loop_state.clone();
+                self.loop_state = LoopState {
+                    breaks: vec![],
+                    loop_type: LoopType::While,
+                    loop_start: Some(start),
+                    idx_var: None,
+                };
                 let jump = self.add_u32(JUMP_IF_FALSE, 0);
-                let mut breaks = Vec::<usize>::new();
                 for stmt in body {
-                    if stmt == &Stmt::Break {
-                        breaks.push(self.add_u32(JUMP, 0));
-                    } else if stmt == &Stmt::Continue {
-                        self.add_u32(JUMP, start as u32);
-                    } else {
-                        self.compile_stmt(stmt);
-                    }
+                    self.compile_stmt(stmt);
                 }
                 self.add_u32(JUMP, start as u32);
                 self.patch_u32(jump, self.code.len() as u32);
-                for break_ in breaks {
+                for break_ in self.loop_state.breaks.clone() {
                     self.patch_u32(break_, self.code.len() as u32);
                 }
+                self.loop_state = parent;
             }
             Stmt::For(var, expr, body) => {
                 let arr_var = if let Expr::Variable(var) = *expr.clone() {
@@ -416,6 +420,13 @@ impl Bytecode {
                 self.add_u64(CONST_U64, 0);
                 self.add_u32(DEF_LOCAL, idx_var as u32);
                 let start = self.code.len() - 1;
+                let parent = self.loop_state.clone();
+                self.loop_state = LoopState {
+                    loop_start: Some(start),
+                    loop_type: LoopType::For,
+                    breaks: Vec::new(),
+                    idx_var: Some(idx_var),
+                };
                 self.add_u32(GET_LOCAL, idx_var as u32);
                 self.add_u32(GET_LOCAL, len_var as u32);
                 self.add(LESS);
@@ -425,22 +436,16 @@ impl Bytecode {
                 self.add_u32(GET_LOCAL, idx_var as u32);
                 self.add(INDEX);
                 self.add_u32(DEF_LOCAL, var_var as u32);
-                let mut breaks = Vec::<usize>::new();
                 for stmt in body {
-                    if *stmt == Stmt::Break {
-                        breaks.push(self.add_u32(JUMP, 0));
-                    } else if *stmt == Stmt::Continue {
-                        self.incr_for_loop(arr_var, start);
-                    } else {
-                        self.compile_stmt(stmt);
-                    }
+                    self.compile_stmt(stmt);
                 }
                 self.incr_for_loop(idx_var, start);
                 self.patch_u32(jump, self.code.len() as u32);
                 let len = self.code.len();
-                for break_ in breaks {
+                for break_ in self.loop_state.breaks.clone() {
                     self.patch_u32(break_, len as u32);
                 }
+                self.loop_state = parent;
             }
             Stmt::Decl(name, expr) => {
                 let n = self.add_local(name);
@@ -448,10 +453,24 @@ impl Bytecode {
                 self.add_u32(DEF_LOCAL, n as u32);
             }
             Stmt::Break => {
-                panic!("Break outside of loop");
+                if self.loop_state.loop_type == LoopType::None {
+                    panic!("Break outside of loop");
+                }
+                let jump = self.add_u32(JUMP, 0);
+                self.loop_state.breaks.push(jump);
             }
             Stmt::Continue => {
-                panic!("Continue outside of loop");
+                if self.loop_state.loop_type == LoopType::None {
+                    panic!("Continue outside of loop");
+                } else {
+                    let start = self.loop_state.loop_start.unwrap();
+                    if self.loop_state.loop_type == LoopType::For {
+                        let idx_var = self.loop_state.idx_var.unwrap();
+                        self.incr_for_loop(idx_var, start);
+                    } else {
+                        self.add_u32(JUMP, start as u32);
+                    }
+                }
             }
             Stmt::Comment => {
                 // do nothing
