@@ -1,0 +1,25 @@
+fun brk(i: int, j: int) {
+    while i < j {
+        if i % 5 == 0 {
+            break
+        }
+        print(i)
+        i = i + 1
+    }
+}
+
+fun contn(i: int, j: int) {
+    while i < j {
+        if i % 5 == 0 {
+            i = i + 1
+            continue
+        }
+        print(i)
+        i = i + 1
+    }
+}
+
+fun main() {
+    brk(1, 10)
+    contn(1, 10)
+}
