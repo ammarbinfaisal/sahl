@@ -1,5 +1,6 @@
 use crate::syntax::*;
 use crate::vm::*;
+use core::panic;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -45,6 +46,21 @@ pub enum Instruction {
     Pop,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum LoopType {
+    While,
+    For,
+    None,
+}
+
+#[derive(Debug, Clone)]
+struct LoopState {
+    loop_type: LoopType,
+    loop_start: Option<usize>,
+    idx_var: Option<usize>,
+    breaks: Vec<usize>,
+}
+
 pub struct Codegen {
     num_locals: usize,
     instructions: Vec<Instruction>,
@@ -52,8 +68,7 @@ pub struct Codegen {
     functions: HashMap<String, usize>,
     calls: Vec<Vec<usize>>,
     func_idx: HashMap<String, usize>,
-    breaks: Vec<usize>,
-    loop_start: usize,
+    loop_state: LoopState,
     curr_func: usize,
     start_ip: usize,
 }
@@ -67,8 +82,12 @@ impl Codegen {
             instructions: Vec::new(),
             calls: Vec::new(),
             func_idx: HashMap::new(),
-            breaks: Vec::new(),
-            loop_start: 0,
+            loop_state: LoopState {
+                loop_type: LoopType::None,
+                loop_start: None,
+                idx_var: None,
+                breaks: Vec::new(),
+            },
             curr_func: 0,
             start_ip: 0,
         }
@@ -322,7 +341,14 @@ impl Codegen {
             }
             Stmt::While(cond, body) => {
                 let start = self.instructions.len();
-                self.loop_start = start;
+                let parent = self.loop_state.clone();
+                let loop_state = LoopState {
+                    loop_start: Some(start),
+                    idx_var: None,
+                    loop_type: LoopType::While,
+                    breaks: Vec::new(),
+                };
+                self.loop_state = loop_state;
                 self.compile_expr(cond);
                 let jump = self.add_instruction(Instruction::JumpIfFalse(0));
                 for stmt in body {
@@ -330,10 +356,10 @@ impl Codegen {
                 }
                 self.add_instruction(Instruction::Jump(start));
                 self.instructions[jump] = Instruction::JumpIfFalse(self.instructions.len());
-                for break_ in &self.breaks {
+                for break_ in &self.loop_state.breaks {
                     self.instructions[*break_] = Instruction::Jump(self.instructions.len());
                 }
-                self.breaks.clear()
+                self.loop_state = parent;
             }
             Stmt::For(var, expr, body) => {
                 self.compile_expr(expr);
@@ -347,6 +373,14 @@ impl Codegen {
                 self.add_instruction(Instruction::Const(Value::Int(0)));
                 self.add_instruction(Instruction::DefLocal(idx_var));
                 let start = self.instructions.len() - 1;
+                let parent = self.loop_state.clone();
+                let loop_state = LoopState {
+                    loop_start: Some(start),
+                    idx_var: Some(idx_var),
+                    loop_type: LoopType::For,
+                    breaks: Vec::new(),
+                };
+                self.loop_state = loop_state;
                 self.add_instruction(Instruction::GetLocal(idx_var));
                 self.add_instruction(Instruction::GetLocal(len_var));
                 self.add_instruction(Instruction::Less);
@@ -356,23 +390,17 @@ impl Codegen {
                 self.add_instruction(Instruction::GetLocal(idx_var));
                 self.add_instruction(Instruction::Index);
                 self.add_instruction(Instruction::DefLocal(var_var));
-                let mut breaks = Vec::<usize>::new();
                 for stmt in body {
-                    if *stmt == Stmt::Break {
-                        breaks.push(self.add_instruction(Instruction::Jump(start)));
-                    } else if *stmt == Stmt::Continue {
-                        self.incr_for_loop(arr_var, start);
-                    } else {
-                        self.compile_stmt(stmt);
-                    }
+                    self.compile_stmt(stmt);
                 }
                 self.incr_for_loop(idx_var, start);
                 self.add_instruction(Instruction::Jump(start));
                 let len = self.instructions.len();
                 self.instructions[jump] = Instruction::JumpIfFalse(len);
-                for break_ in breaks {
-                    self.instructions[break_] = Instruction::Jump(len);
+                for break_ in &self.loop_state.breaks {
+                    self.instructions[*break_] = Instruction::Jump(len);
                 }
+                self.loop_state = parent;
             }
             Stmt::Decl(name, expr) => {
                 let n = self.add_local(name.clone());
@@ -380,11 +408,24 @@ impl Codegen {
                 self.add_instruction(Instruction::DefLocal(n));
             }
             Stmt::Break => {
-                let instr = self.add_instruction(Instruction::Jump(self.loop_start));
-                self.breaks.push(instr);
+                if self.loop_state.loop_type == LoopType::None {
+                    panic!("Break outside of loop");
+                }
+                let instr =
+                    self.add_instruction(Instruction::Jump(self.loop_state.loop_start.unwrap()));
+                self.loop_state.breaks.push(instr);
             }
             Stmt::Continue => {
-                self.add_instruction(Instruction::Jump(self.loop_start));
+                if self.loop_state.loop_type == LoopType::None {
+                    panic!("Continue outside of loop");
+                } else {
+                    let loop_start = self.loop_state.loop_start.unwrap();
+                    if self.loop_state.loop_type == LoopType::For {
+                        self.incr_for_loop(self.loop_state.idx_var.unwrap(), loop_start);
+                    } else {
+                        self.add_instruction(Instruction::Jump(loop_start));
+                    }
+                }
             }
             Stmt::Comment => {
                 // do nothing
