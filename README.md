@@ -10,8 +10,9 @@ sahl means easy. This is the easiest statically typed language I could come up w
 
 - statically typed
 - channels with threads
-- merge sort 3x slower on vm than that written in python :(
-- addition from 1 to 1000000 takes 2ms to 15ms when compiled
+- in rust vm merge sort 3x slower than that written in python :(
+- in c vm merge sort almost as fast as that written in python :)
+- c vm beats python in programs not involving arrays - my theory
 
 ## weird stuff
 
