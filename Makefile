@@ -6,4 +6,4 @@ codegen:
 	cargo build --release
 
 vm:
-	gcc sahl.c -o sahl
+	gcc -O2 sahl.c -o sahl
