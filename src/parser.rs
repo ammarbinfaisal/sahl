@@ -234,10 +234,10 @@ fn comparision(source: &str) -> IResult<&str, Expr> {
         delimited(
             space0,
             alt((
-                tag("<"),
-                tag(">"),
                 tag("<="),
                 tag(">="),
+                tag("<"),
+                tag(">"),
                 tag("=="),
                 tag("!="),
             )),
