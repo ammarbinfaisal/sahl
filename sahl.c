@@ -792,6 +792,12 @@ void run(VM *vm) {
             Value arr = pop(vm);
             Value value = pop(vm);
             Obj *obj = AS_OBJ(arr);
+            if (obj->list.length <= index) {
+                char msg[100];
+                memset(msg, 0, 100);
+                sprintf(msg, "Index out of bounds %ld", index);
+                error(vm, msg);
+            }
             obj->list.items[index] = value;
             break;
         }
@@ -812,6 +818,12 @@ void run(VM *vm) {
             Value index = pop(vm);
             Value value = pop(vm);
             Obj *obj = AS_OBJ(value);
+            if (obj->list.length <= index) {
+                char msg[100];
+                memset(msg, 0, 100);
+                sprintf(msg, "Index out of bounds %ld", index);
+                error(vm, msg);
+            }
             push(vm, obj->list.items[index]);
             break;
         }
