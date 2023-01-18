@@ -1,0 +1,17 @@
+fun whl(start: int, end: int) {
+    let i = start
+    let forw = start < end
+    while (forw && i < end) || (!forw && i > end) {
+        print(i)
+        if forw {
+            i = i + 1
+        } else {
+            i = i - 1
+        }
+    }
+}
+
+fun main() {
+    whl(1, 100000)
+    whl(100000, 1)
+}
