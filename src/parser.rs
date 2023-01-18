@@ -148,14 +148,19 @@ fn subscript(source: &str) -> IResult<&str, Expr> {
 fn call(source: &str) -> IResult<&str, Expr> {
     let (source, name) = identifier(source)?;
     let (source, _) = tag("(")(source)?;
-    let (source, arg) = expression(source)?;
-    let (source, args) = many0(map(
+    let (source, arg) = opt(expression)(source)?;
+    let (source, args2) = many0(map(
         tuple((tag(","), space0, expression, space0)),
         |(_, _, e, _)| e,
     ))(source)?;
     let (source, _) = tag(")")(source)?;
-    let args = vec![arg].into_iter().chain(args).collect();
-    Ok((source, Expr::Call(name, args)))
+    if let Some(arg) = arg {
+        let mut args = vec![arg];
+        args.extend(args2);
+        Ok((source, Expr::Call(name, args)))
+    } else {
+        Ok((source, Expr::Call(name, args2)))
+    }
 }
 
 fn variable(source: &str) -> IResult<&str, Expr> {
