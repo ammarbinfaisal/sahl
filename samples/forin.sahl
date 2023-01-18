@@ -1,0 +1,37 @@
+fun forin(start: int, end: int) {
+    for i in start..end {
+        print(i)
+    }
+}
+
+fun forininc(start: int, end: int) {
+    for i in start..=end {
+        print(i)
+    }
+}
+
+fun contnue() {
+    for i in 1..10 {
+        if i % 2 == 0 {
+            continue
+        }
+        print(i)
+    }
+}
+
+fun brek() {
+    for i in 1..10 {
+        if i == 5 {
+            break
+        }
+        print(i)
+    }
+}
+
+fun main() {
+    # contnue()
+    # brek()
+    forin(1, 100000)
+    forin(100000, 1)
+    # forininc(1, 1000)
+}
