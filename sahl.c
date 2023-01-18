@@ -330,12 +330,12 @@ struct VM {
     char **strings;
 };
 
-struct VM *vm;
+typedef struct VM VM;
 
 void free_value(Value value);
 
-void new_vm(uint8_t *code, int code_length, int start_ip) {
-    vm = malloc(sizeof(struct VM));
+VM *new_vm(uint8_t *code, int code_length, int start_ip) {
+    VM *vm = malloc(sizeof(struct VM));
     vm->ip = start_ip;
     vm->string_count = read_u32(code, 0);
     vm->strings = malloc(sizeof(char *) * vm->string_count);
@@ -358,9 +358,10 @@ void new_vm(uint8_t *code, int code_length, int start_ip) {
     vm->prev_ips = calloc(sizeof(uint32_t), MAX_CALL_DEPTH);
     vm->locals_size[0] = 0;
     vm->call_depth = 0;
+    return vm;
 }
 
-void free_vm() {
+void free_vm(VM *vm) {
     for (int i = 0; i < vm->stack_size; ++i) {
         free_value(vm->stack[i]);
     }
@@ -371,42 +372,48 @@ void free_vm() {
         }
         free(vm->locals[i]);
     }
+    uint64_t string_lengths = 0;
     for (int i = 0; i < vm->string_count; ++i) {
+        string_lengths += strlen(vm->strings[i]);
         free(vm->strings[i]);
     }
     free(vm->strings);
     free(vm->locals);
     free(vm->locals_size);
     free(vm->prev_ips);
+    // vm->code points to the start of the code, so we need to subtract the
+    // 4 bytes (start ip) + 4 bytes (string count) + string_lengths + 4 * string_count
+    uint8_t* code_ptr = vm->code - 8 - string_lengths - 4 * vm->string_count;
+    free(code_ptr);
     free(vm);
 }
 
-void error(char *msg) {
+void error(VM *vm, char *msg) {
     printf("Error: %s", msg);
-    free_vm();
+    free_vm(vm);
     exit(1);
 }
 
-Value pop() {
+Value pop(VM *vm) {
 #ifndef UNSAFE
     if (vm->stack_size == 0) {
-        error("Stack underflow");
+        error(vm, "Stack underflow");
     }
 #endif
     return vm->stack[--vm->stack_size];
 }
 
-Value peek() {
+Value peek(VM *vm) {
     if (vm->stack_size == 0) {
-        error("Stack underflow");
+        error(vm, "Stack underflow");
     }
     return vm->stack[vm->stack_size - 1];
 }
 
-void push(Value value) {
+void push(VM *vm, Value value) {
 #ifndef UNSAFE
     if (vm->stack_size == MAX_STACK) {
-        error("Stack overflow");
+        error(vm, "Stack overflow");
     }
 #endif
     vm->stack[vm->stack_size++] = value;
@@ -454,7 +461,7 @@ void free_value(Value value) {
     }
 }
 
-void run() {
+void run(VM *vm) {
     while (vm->ip < vm->code_length) {
         uint8_t instruction = vm->code[vm->ip];
 
@@ -483,111 +490,111 @@ void run() {
 
         switch (instruction) {
         case ADD: {
-            Value a = pop();
-            Value b = pop();
-            push(a + b);
+            Value a = pop(vm);
+            Value b = pop(vm);
+            push(vm, a + b);
             break;
         }
         case SUB: {
-            Value a = pop();
-            Value b = pop();
-            push(b - a);
+            Value a = pop(vm);
+            Value b = pop(vm);
+            push(vm, b - a);
             break;
         }
         case MUL: {
-            Value a = pop();
-            Value b = pop();
-            push(b * a);
+            Value a = pop(vm);
+            Value b = pop(vm);
+            push(vm, b * a);
             break;
         }
         case DIV: {
-            Value a = pop();
-            Value b = pop();
-            push(b / a);
+            Value a = pop(vm);
+            Value b = pop(vm);
+            push(vm, b / a);
             break;
         }
         case MOD: {
-            Value a = pop();
-            Value b = pop();
-            push(b % a);
+            Value a = pop(vm);
+            Value b = pop(vm);
+            push(vm, b % a);
             break;
         }
         case NEG: {
-            Value a = pop();
-            push(-a);
+            Value a = pop(vm);
+            push(vm, -a);
             break;
         }
         case CONST_U32: {
             uint64_t value = read_u32(vm->code, vm->ip + 1);
-            push(value);
+            push(vm, value);
             vm->ip += 4;
             break;
         }
         case CONST_U64: {
             uint64_t value = read_u64(vm->code, vm->ip + 1);
-            push(value);
+            push(vm, value);
             vm->ip += 8;
             break;
         }
         case TRUE: {
-            push(TRUE_VAL);
+            push(vm, TRUE_VAL);
             break;
         }
         case FALSE: {
-            push(FALSE_VAL);
+            push(vm, FALSE_VAL);
             break;
         }
         case NOT: {
-            Value a = pop();
-            push(BOOL_VAL(!AS_BOOL(a)));
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(!AS_BOOL(a)));
             break;
         }
         case AND: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(AS_BOOL(a) && AS_BOOL(b)));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(AS_BOOL(a) && AS_BOOL(b)));
             break;
         }
         case OR: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(AS_BOOL(a) || AS_BOOL(b)));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(AS_BOOL(a) || AS_BOOL(b)));
             break;
         }
         case EQUAL: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a == b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a == b));
             break;
         }
         case NOT_EQUAL: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a != b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a != b));
             break;
         }
         case LESS: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a < b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a < b));
             break;
         }
         case LESS_EQUAL: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a <= b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a <= b));
             break;
         }
         case GREATER: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a > b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a > b));
             break;
         }
         case GREATER_EQUAL: {
-            Value b = pop();
-            Value a = pop();
-            push(BOOL_VAL(a >= b));
+            Value b = pop(vm);
+            Value a = pop(vm);
+            push(vm, BOOL_VAL(a >= b));
             break;
         }
         case STRING: {
@@ -596,7 +603,7 @@ void run() {
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_STRING;
             obj->string.data = string;
-            push(OBJ_VAL(obj));
+            push(vm, OBJ_VAL(obj));
             vm->ip += 4;
             break;
         }
@@ -607,11 +614,11 @@ void run() {
             obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
             obj->list.length = length;
             for (int i = length - 1; i >= 0; --i) {
-                obj->list.items[i] = pop();
+                obj->list.items[i] = pop(vm);
             }
             obj->list.capacity = (length ? length : 2) * 2;
             obj->list.owner = 1;
-            push(OBJ_VAL(obj));
+            push(vm, OBJ_VAL(obj));
             vm->ip += 4;
             break;
         }
@@ -622,15 +629,15 @@ void run() {
             obj->tuple.items = malloc(sizeof(Value) * len);
             obj->tuple.length = len;
             for (int i = len - 1; i >= 0; --i) {
-                obj->tuple.items[i] = pop();
+                obj->tuple.items[i] = pop(vm);
             }
-            push(OBJ_VAL(obj));
+            push(vm, OBJ_VAL(obj));
             vm->ip += 4;
             break;
         }
         case MAKE_LIST: {
-            Value def = pop();
-            Value len = pop();
+            Value def = pop(vm);
+            Value len = pop(vm);
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_LIST;
             obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
@@ -640,18 +647,18 @@ void run() {
             for (int i = 0; i < len; ++i) {
                 obj->list.items[i] = def;
             }
-            push(OBJ_VAL(obj));
+            push(vm, OBJ_VAL(obj));
             break;
         }
         case PRINT: {
-            Value value = pop();
+            Value value = pop(vm);
             print_value(value);
             putchar('\n');
             break;
         }
         case GET_LOCAL: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
-            push(vm->locals[vm->locals_count - 1][index]);
+            push(vm, vm->locals[vm->locals_count - 1][index]);
             vm->ip += 4;
             break;
         }
@@ -667,7 +674,7 @@ void run() {
                                 sizeof(Value) * index * 2);
                 }
             }
-            Value val = pop();
+            Value val = pop(vm);
             vm->locals[vm->locals_count - 1][index] = val;
             vm->locals_size[vm->locals_count - 1] = index + 1;
             vm->ip += 4;
@@ -675,7 +682,7 @@ void run() {
         }
         case ASSIGN: {
             uint32_t index = read_u32(vm->code, vm->ip + 1);
-            Value val = pop();
+            Value val = pop(vm);
             vm->locals[vm->locals_count - 1][index] = val;
             vm->ip += 4;
             break;
@@ -685,7 +692,7 @@ void run() {
             uint32_t argc = read_u32(vm->code, vm->ip + 5);
             Value *args = malloc(sizeof(Value) * argc);
             for (int i = argc - 1; i >= 0; --i) {
-                Value val = pop();
+                Value val = pop(vm);
                 if (IS_OBJ(val)) {
                     Obj *obj = AS_OBJ(val);
                     Obj *new_obj = malloc(sizeof(Obj));
@@ -708,7 +715,7 @@ void run() {
             }
             vm->locals_count++;
             if (vm->locals_count >= MAX_CALL_DEPTH) {
-                error("Maximum call depth exceeded");
+                error(vm, "Maximum call depth exceeded");
             }
             vm->locals[vm->locals_count - 1] = args;
             vm->locals_size[vm->locals_count - 1] = argc;
@@ -724,7 +731,7 @@ void run() {
             vm->ip = vm->prev_ips[vm->call_depth - 1] - 1;
             --vm->call_depth;
             if (vm->stack_size) {
-                Value val = pop();
+                Value val = pop(vm);
                 if (IS_OBJ(val)) {
                     Obj *obj = AS_OBJ(val);
                     Obj *new_obj = malloc(sizeof(Obj));
@@ -737,13 +744,13 @@ void run() {
                         new_obj->list.capacity = obj->list.capacity;
                         new_obj->list.owner = 1;
                         new_obj->type = OBJ_LIST;
-                        push(OBJ_VAL(new_obj));
+                        push(vm, OBJ_VAL(new_obj));
                     } else if (obj->type == OBJ_STRING) {
                         int len = strlen(obj->string.data) + 1;
                         new_obj->string.data = malloc(len);
                         memcpy(new_obj->string.data, obj->string.data, len);
                         new_obj->type = OBJ_STRING;
-                        push(OBJ_VAL(new_obj));
+                        push(vm, OBJ_VAL(new_obj));
                     } else {
                         new_obj->type = OBJ_TUPLE;
                         new_obj->tuple.length = obj->tuple.length;
@@ -751,10 +758,10 @@ void run() {
                             malloc(sizeof(Value) * obj->tuple.length);
                         memcpy(new_obj->tuple.items, obj->tuple.items,
                                sizeof(Value) * obj->tuple.length);
-                        push(OBJ_VAL(new_obj));
+                        push(vm, OBJ_VAL(new_obj));
                     }
                 } else {
-                    push(val);
+                    push(vm, val);
                 }
             }
             for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
@@ -772,7 +779,7 @@ void run() {
         }
         case JUMP_IF_FALSE: {
             uint32_t ip = read_u32(vm->code, vm->ip + 1);
-            Value value = pop();
+            Value value = pop(vm);
             if (!AS_BOOL(value)) {
                 vm->ip = ip - 1;
             } else {
@@ -781,16 +788,16 @@ void run() {
             break;
         }
         case STORE: {
-            Value index = pop();
-            Value arr = pop();
-            Value value = pop();
+            Value index = pop(vm);
+            Value arr = pop(vm);
+            Value value = pop(vm);
             Obj *obj = AS_OBJ(arr);
             obj->list.items[index] = value;
             break;
         }
         case APPEND: {
-            Value value = pop();
-            Value list = pop();
+            Value value = pop(vm);
+            Value list = pop(vm);
             Obj *obj = AS_OBJ(list);
             if (obj->list.length >= obj->list.capacity) {
                 obj->list.capacity *= 2;
@@ -802,26 +809,26 @@ void run() {
             break;
         }
         case INDEX: {
-            Value index = pop();
-            Value value = pop();
+            Value index = pop(vm);
+            Value value = pop(vm);
             Obj *obj = AS_OBJ(value);
-            push(obj->list.items[index]);
+            push(vm, obj->list.items[index]);
             break;
         }
         case LENGTH: {
-            Value value = pop();
+            Value value = pop(vm);
             Obj *obj = AS_OBJ(value);
-            push(obj->list.length);
+            push(vm, obj->list.length);
             break;
         }
         case POP: {
-            pop();
+            pop(vm);
             break;
         }
         default: {
             char msg[100];
             sprintf(msg, "Unknown opcode %d", vm->code[vm->ip]);
-            error(msg);
+            error(vm, msg);
         }
         }
         ++vm->ip;
@@ -837,9 +844,9 @@ int main(int argc, char **argv) {
     printf("length %ld\n", code->length);
     dissassemble(code->bytes, code->length);
     puts("\n\n\n");
-    new_vm(code->bytes + 4, code->length - 4, read_u32(code->bytes, 0));
-    run();
-    free(code->bytes);
+    VM *vm =
+        new_vm(code->bytes + 4, code->length - 4, read_u32(code->bytes, 0));
     free(code);
-    free_vm();
+    run(vm);
+    free_vm(vm);
 }
