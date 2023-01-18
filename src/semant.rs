@@ -274,6 +274,17 @@ impl<'a> Checker<'a> {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(Type::Tuple(tys))
             }
+            Expr::Range(ex1, ex2, _) => {
+                let ty1 = self.check_expr(ex1)?;
+                let ty2 = self.check_expr(ex2)?;
+                match (&ty1, &ty2) {
+                    (Type::Int, Type::Int) => Ok(Type::Range),
+                    _ => Err(Error::TypeMismatch(
+                        vec![Type::Int, Type::Int],
+                        vec![ty1, ty2],
+                    )),
+                }
+            }
         }
     }
 
@@ -343,6 +354,7 @@ impl<'a> Checker<'a> {
                         self.scope -= 1;
                         Ok(())
                     }
+                    Type::Range => Ok(()),
                     _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
                         vec![in_ex_ty],

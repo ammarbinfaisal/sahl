@@ -354,6 +354,22 @@ impl Bytecode {
         self.add_u32(JUMP, (start + 1) as u32);
     }
 
+    fn step_range_loop(&mut self, idx: usize, start: usize, end_var: usize, forw_var: usize) {
+        self.add_u32(GET_LOCAL, forw_var as u32);
+        let jump = self.add_u32(JUMP_IF_FALSE, 0);
+        self.add_u32(GET_LOCAL, idx as u32);
+        self.add_u64(CONST_U64, 1);
+        self.add(ADD);
+        self.add_u32(ASSIGN, idx as u32);
+        self.add_u32(JUMP, start as u32);
+        self.patch_u32(jump, self.code.len() as u32);
+        self.add_u32(GET_LOCAL, idx as u32);
+        self.add_u64(CONST_U64, 1);
+        self.add(SUB);
+        self.add_u32(ASSIGN, idx as u32);
+        self.add_u32(JUMP, start as u32);
+    }
+
     fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Expr(expr) => {
@@ -390,6 +406,8 @@ impl Bytecode {
                     breaks: vec![],
                     loop_type: LoopType::While,
                     loop_start: Some(start),
+                    loop_end_var: None,
+                    loop_forw_var: None,
                     idx_var: None,
                 };
                 let jump = self.add_u32(JUMP_IF_FALSE, 0);
@@ -404,48 +422,100 @@ impl Bytecode {
                 self.loop_state = parent;
             }
             Stmt::For(var, expr, body) => {
-                let arr_var = if let Expr::Variable(var) = *expr.clone() {
-                    *self.get_local(var.as_str()).unwrap()
+                if let Expr::Range(start, end, equal) = *expr.clone() {
+                    self.compile_expr(&start);
+                    let start_var = self.add_local("<start>");
+                    self.add_u32(DEF_LOCAL, start_var as u32);
+                    self.compile_expr(&end);
+                    if equal {
+                        self.add_u64(CONST_U64, 1);
+                        self.add(ADD);
+                    }
+                    let end_var = self.add_local("<end>");
+                    self.add_u32(DEF_LOCAL, end_var as u32);
+                    self.add_u32(GET_LOCAL, start_var as u32);
+                    let idx_var = self.add_local(var.as_str());
+                    self.add_u32(DEF_LOCAL, idx_var as u32);
+                    let forw_var = self.add_local("<forw>");
+                    self.add_u32(GET_LOCAL, start_var as u32);
+                    self.add_u32(GET_LOCAL, end_var as u32);
+                    if equal {
+                        self.add(LESS);
+                    } else {
+                        self.add(LESS_EQUAL);
+                    }
+                    self.add_u32(DEF_LOCAL, forw_var as u32);
+                    self.add_u32(GET_LOCAL, idx_var as u32);
+                    self.add_u32(GET_LOCAL, end_var as u32);
+                    let start = self.code.len();
+                    let parent = self.loop_state.clone();
+                    self.loop_state = LoopState {
+                        breaks: vec![],
+                        loop_type: LoopType::For,
+                        loop_start: Some(start),
+                        loop_end_var: Some(end_var),
+                        loop_forw_var: Some(forw_var),
+                        idx_var: Some(idx_var),
+                    };
+                    self.add_u32(GET_LOCAL, idx_var as u32);
+                    self.add_u32(GET_LOCAL, end_var as u32);
+                    self.add(NOT_EQUAL);
+                    let jump = self.add_u32(JUMP_IF_FALSE, 0);
+                    for stmt in body {
+                        self.compile_stmt(stmt);
+                    }
+                    self.step_range_loop(idx_var, start, end_var, forw_var);
+                    self.patch_u32(jump, self.code.len() as u32);
+                    for break_ in self.loop_state.breaks.clone() {
+                        self.patch_u32(break_, self.code.len() as u32);
+                    }
+                    self.loop_state = parent;
                 } else {
-                    self.compile_expr(expr);
-                    let arr = self.add_local("<arr>");
-                    self.add_u32(DEF_LOCAL, arr as u32);
-                    arr
-                };
-                self.add_u32(GET_LOCAL, arr_var as u32);
-                self.add(LENGTH);
-                let len_var = self.add_local("<len>");
-                self.add_u32(DEF_LOCAL, len_var as u32);
-                let idx_var = self.add_local("<idx>");
-                self.add_u64(CONST_U64, 0);
-                self.add_u32(DEF_LOCAL, idx_var as u32);
-                let start = self.code.len() - 1;
-                let parent = self.loop_state.clone();
-                self.loop_state = LoopState {
-                    loop_start: Some(start),
-                    loop_type: LoopType::For,
-                    breaks: Vec::new(),
-                    idx_var: Some(idx_var),
-                };
-                self.add_u32(GET_LOCAL, idx_var as u32);
-                self.add_u32(GET_LOCAL, len_var as u32);
-                self.add(LESS);
-                let jump = self.add_u32(JUMP_IF_FALSE, 0);
-                let var_var = self.add_local(&var.clone());
-                self.add_u32(GET_LOCAL, arr_var as u32);
-                self.add_u32(GET_LOCAL, idx_var as u32);
-                self.add(INDEX);
-                self.add_u32(DEF_LOCAL, var_var as u32);
-                for stmt in body {
-                    self.compile_stmt(stmt);
+                    let arr_var = if let Expr::Variable(var) = *expr.clone() {
+                        *self.get_local(var.as_str()).unwrap()
+                    } else {
+                        self.compile_expr(expr);
+                        let arr = self.add_local("<arr>");
+                        self.add_u32(DEF_LOCAL, arr as u32);
+                        arr
+                    };
+                    self.add_u32(GET_LOCAL, arr_var as u32);
+                    self.add(LENGTH);
+                    let len_var = self.add_local("<len>");
+                    self.add_u32(DEF_LOCAL, len_var as u32);
+                    let idx_var = self.add_local("<idx>");
+                    self.add_u64(CONST_U64, 0);
+                    self.add_u32(DEF_LOCAL, idx_var as u32);
+                    let start = self.code.len() - 1;
+                    let parent = self.loop_state.clone();
+                    self.loop_state = LoopState {
+                        loop_start: Some(start),
+                        loop_type: LoopType::For,
+                        breaks: Vec::new(),
+                        loop_end_var: None,
+                        loop_forw_var: None,
+                        idx_var: Some(idx_var),
+                    };
+                    self.add_u32(GET_LOCAL, idx_var as u32);
+                    self.add_u32(GET_LOCAL, len_var as u32);
+                    self.add(LESS);
+                    let jump = self.add_u32(JUMP_IF_FALSE, 0);
+                    let var_var = self.add_local(&var.clone());
+                    self.add_u32(GET_LOCAL, arr_var as u32);
+                    self.add_u32(GET_LOCAL, idx_var as u32);
+                    self.add(INDEX);
+                    self.add_u32(DEF_LOCAL, var_var as u32);
+                    for stmt in body {
+                        self.compile_stmt(stmt);
+                    }
+                    self.incr_for_loop(idx_var, start);
+                    self.patch_u32(jump, self.code.len() as u32);
+                    let len = self.code.len();
+                    for break_ in self.loop_state.breaks.clone() {
+                        self.patch_u32(break_, len as u32);
+                    }
+                    self.loop_state = parent;
                 }
-                self.incr_for_loop(idx_var, start);
-                self.patch_u32(jump, self.code.len() as u32);
-                let len = self.code.len();
-                for break_ in self.loop_state.breaks.clone() {
-                    self.patch_u32(break_, len as u32);
-                }
-                self.loop_state = parent;
             }
             Stmt::Decl(name, expr) => {
                 let n = self.add_local(name);
@@ -467,6 +537,11 @@ impl Bytecode {
                     if self.loop_state.loop_type == LoopType::For {
                         let idx_var = self.loop_state.idx_var.unwrap();
                         self.incr_for_loop(idx_var, start);
+                    } else if self.loop_state.loop_type == LoopType::Range {
+                        let idx_var = self.loop_state.idx_var.unwrap();
+                        let end_var = self.loop_state.loop_end_var.unwrap();
+                        let forw_var = self.loop_state.loop_forw_var.unwrap();
+                        self.step_range_loop(idx_var, start, end_var, forw_var);
                     } else {
                         self.add_u32(JUMP, start as u32);
                     }

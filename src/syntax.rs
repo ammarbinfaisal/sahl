@@ -9,6 +9,7 @@ pub enum Type {
     List(Box<Type>),
     Chan(Box<Type>),
     Tuple(Vec<Type>),
+    Range,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +52,7 @@ pub enum Expr {
     Variable(String),
     Neg(Box<Expr>),
     Not(Box<Expr>),
+    Range(Box<Expr>, Box<Expr>, bool),
     Arith(ArithOp, Box<Expr>, Box<Expr>),
     BoolOp(BoolOp, Box<Expr>, Box<Expr>),
     CmpOp(CmpOp, Box<Expr>, Box<Expr>),

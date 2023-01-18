@@ -306,7 +306,7 @@ fn make(source: &str) -> IResult<&str, Expr> {
 }
 
 pub fn expression(source: &str) -> IResult<&str, Expr> {
-    alt((chanread, assignment, aexp, make, list, tuplee))(source)
+    alt((chanread, assignment, range, make, list, tuplee))(source)
 }
 
 fn list(source: &str) -> IResult<&str, Expr> {
@@ -317,6 +317,23 @@ fn list(source: &str) -> IResult<&str, Expr> {
     ))(source)?;
     let (source, _) = tag("]")(source)?;
     Ok((source, Expr::Literal(Lit::List(args))))
+}
+
+fn range(source: &str) -> IResult<&str, Expr> {
+    let (source, start) = aexp(source)?;
+    let (source, rest) = opt(tuple((
+        delimited(space0, tag(".."), space0),
+        delimited(space0, opt(tag("=")), space0),
+        delimited(space0, aexp, space0),
+    )))(source)?;
+    if let Some((_, equal, end)) = rest {
+        Ok((
+            source,
+            Expr::Range(Box::new(start), Box::new(end), equal.is_some()),
+        ))
+    } else {
+        Ok((source, start))
+    }
 }
 
 fn declaration(source: &str) -> IResult<&str, Stmt> {

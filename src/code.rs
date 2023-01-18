@@ -50,6 +50,7 @@ pub enum Instruction {
 pub enum LoopType {
     While,
     For,
+    Range,
     None,
 }
 
@@ -57,6 +58,8 @@ pub enum LoopType {
 pub struct LoopState {
     pub loop_type: LoopType,
     pub loop_start: Option<usize>,
+    pub loop_end_var: Option<usize>,
+    pub loop_forw_var: Option<usize>,
     pub idx_var: Option<usize>,
     pub breaks: Vec<usize>,
 }
@@ -66,6 +69,8 @@ impl LoopState {
         LoopState {
             loop_type: LoopType::None,
             loop_start: None,
+            loop_end_var: None,
+            loop_forw_var: None,
             idx_var: None,
             breaks: Vec::new(),
         }
@@ -279,6 +284,7 @@ impl Codegen {
                             Type::Void => panic!("Cannot create a list of void"),
                             Type::Any => panic!("Cannot create a list of any"),
                             Type::Tuple(_) => panic!("Cannot create a list of tuples"),
+                            Type::Range => unimplemented!("list of ranges is unimplemented"),
                         };
                         if size.is_some() {
                             self.compile_expr(size.as_ref().unwrap());
@@ -309,6 +315,7 @@ impl Codegen {
                     panic!("Unknown channel: {}", e);
                 }
             }
+            _ => unimplemented!("Expression not implemented"),
         }
     }
 
@@ -350,9 +357,11 @@ impl Codegen {
                 let parent = self.loop_state.clone();
                 let loop_state = LoopState {
                     loop_start: Some(start),
-                    idx_var: None,
                     loop_type: LoopType::While,
+                    loop_forw_var: None,
+                    loop_end_var: None,
                     breaks: Vec::new(),
+                    idx_var: None,
                 };
                 self.loop_state = loop_state;
                 self.compile_expr(cond);
@@ -383,6 +392,8 @@ impl Codegen {
                 let loop_state = LoopState {
                     loop_start: Some(start),
                     idx_var: Some(idx_var),
+                    loop_forw_var: None,
+                    loop_end_var: None,
                     loop_type: LoopType::For,
                     breaks: Vec::new(),
                 };
