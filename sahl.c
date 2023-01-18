@@ -65,6 +65,25 @@ enum ObjType {
 
 typedef enum ObjType ObjType;
 
+struct Func {
+    uint8_t *code;
+    int code_length;
+};
+
+typedef struct Func Func;
+
+struct CallFrame {
+    uint32_t ip;
+    Func *func;
+    int locals_count;
+    int locals_capacity;
+    Value *locals;
+    struct CallFrame *prev;
+    int depth;
+};
+
+typedef struct CallFrame CallFrame;
+
 struct Obj {
     ObjType type;
     union {
@@ -81,6 +100,9 @@ struct Obj {
             uint64_t length;
             Value *items;
         } tuple;
+        struct {
+            CallFrame *frame;
+        } closure;
     };
 };
 
@@ -293,8 +315,7 @@ int print_opcode(uint8_t *code, int i) {
 }
 
 void dissassemble(uint8_t *code, int length) {
-    int start_ip = read_u32(code, 0);
-    printf("Start IP: %u\n", start_ip);
+    int start_ = read_u32(code, 0);
     puts("strings:");
     int i = 4;
     int strings_count = read_u32(code, i);
@@ -308,38 +329,67 @@ void dissassemble(uint8_t *code, int length) {
         i += len;
         free(str);
     }
-    for (; i < length; i++) {
-        printf("%4d: ", i - 4);
-        i = print_opcode(code, i);
+    // read func count
+    // read func length
+    // then read those bytes and print opcode
+    int func_count = read_u32(code, i);
+    i += 4;
+    for (int j = 0; j < func_count; j++) {
+        int func_length = read_u32(code, i);
+        i += 4;
+        printf("func %d - length %d\n", j, func_length);
+        int start_ = i;
+        int end = i + func_length;
+        while (i < end) {
+            printf("%4d ", i - start_);
+            i = print_opcode(code, i);
+            ++i;
+        }
     }
 }
 
 struct VM {
-    int ip;
-    uint8_t *code;
-    int code_length;
     Value *stack;
     int stack_size;
-    Value **locals;      // list of local for each function in the call stack
-    int *locals_size;    // size of each local list
-    int locals_count;    // number of local lists
-    int locals_capacity; // capacity of local lists
-    int call_depth;
-    uint32_t *prev_ips;
+    Func *funcs;
+    int funcs_count;
     int string_count;
     char **strings;
+    uint8_t *code_ptr;
+    CallFrame *call_frame;
+    int start_func;
 };
 
 typedef struct VM VM;
 
 void free_value(Value value);
 
-VM *new_vm(uint8_t *code, int code_length, int start_ip) {
+CallFrame *new_call_frame(Func *func, CallFrame *prev) {
+    CallFrame *frame = malloc(sizeof(CallFrame));
+    frame->ip = 0;
+    frame->func = func;
+    frame->locals_count = 0;
+    frame->locals_capacity = 0;
+    frame->locals = NULL;
+    frame->prev = prev;
+    frame->depth = prev ? prev->depth + 1 : 0;
+    return frame;
+}
+
+void free_call_frame(CallFrame *frame) {
+    for (int i = 0; i < frame->locals_count; ++i) {
+        free_value(frame->locals[i]);
+    }
+    free(frame->locals);
+    free(frame);
+}
+
+VM *new_vm(uint8_t *code, int code_length) {
     VM *vm = malloc(sizeof(struct VM));
-    vm->ip = start_ip;
-    vm->string_count = read_u32(code, 0);
+    vm->start_func = read_u32(code, 0);
+    vm->string_count = read_u32(code, 4);
     vm->strings = malloc(sizeof(char *) * vm->string_count);
-    int offset = 4;
+    int offset = 8;
     for (int i = 0; i < vm->string_count; ++i) {
         uint32_t strlength = read_u32(code, offset);
         printf("reading string of %d\n", strlength);
@@ -347,17 +397,20 @@ VM *new_vm(uint8_t *code, int code_length, int start_ip) {
         vm->strings[i] = read_string(code, offset, strlength);
         offset += strlength;
     }
-    vm->code = code + offset;
-    vm->code_length = code_length - offset;
+    int func_count = read_u32(code, offset);
+    offset += 4;
+    vm->funcs = malloc(sizeof(Func) * func_count);
+    vm->funcs_count = func_count;
+    for (int i = 0; i < func_count; ++i) {
+        uint32_t func_length = read_u32(code, offset);
+        offset += 4;
+        vm->funcs[i].code = code + offset;
+        vm->funcs[i].code_length = func_length;
+        offset += func_length;
+    }
     vm->stack_size = 0;
     vm->stack = malloc(sizeof(Value) * 1024);
-    vm->locals_count = 1;
-    vm->locals_capacity = 4;
-    vm->locals = calloc(sizeof(Value *), MAX_CALL_DEPTH);
-    vm->locals_size = calloc(sizeof(int), MAX_CALL_DEPTH);
-    vm->prev_ips = calloc(sizeof(uint32_t), MAX_CALL_DEPTH);
-    vm->locals_size[0] = 0;
-    vm->call_depth = 0;
+    vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
     return vm;
 }
 
@@ -366,25 +419,17 @@ void free_vm(VM *vm) {
         free_value(vm->stack[i]);
     }
     free(vm->stack);
-    for (int i = 0; i < vm->locals_count; ++i) {
-        for (int j = 0; j < vm->locals_size[i]; ++j) {
-            free_value(vm->locals[i][j]);
-        }
-        free(vm->locals[i]);
+    CallFrame *frame = vm->call_frame;
+    while (frame) {
+        CallFrame *prev = frame->prev;
+        free_call_frame(frame);
+        frame = prev;
     }
-    uint64_t string_lengths = 0;
     for (int i = 0; i < vm->string_count; ++i) {
-        string_lengths += strlen(vm->strings[i]);
         free(vm->strings[i]);
     }
     free(vm->strings);
-    free(vm->locals);
-    free(vm->locals_size);
-    free(vm->prev_ips);
-    // vm->code points to the start of the code, so we need to subtract the
-    // 4 bytes (start ip) + 4 bytes (string count) + string_lengths + 4 * string_count
-    uint8_t* code_ptr = vm->code - 8 - string_lengths - 4 * vm->string_count;
-    free(code_ptr);
+    free(vm->code_ptr);
     free(vm);
 }
 
@@ -462,12 +507,12 @@ void free_value(Value value) {
 }
 
 void run(VM *vm) {
-    while (vm->ip < vm->code_length) {
-        uint8_t instruction = vm->code[vm->ip];
+    while (vm->call_frame->ip < vm->call_frame->func->code_length) {
+        uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
 
 #ifdef PRINT_OPCODES
-        printf("%d ", vm->ip);
-        print_opcode(vm->code, vm->ip);
+        printf("%d ", vm->call_frame->ip);
+        print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
 #endif
 
 #ifdef PRINT_STACK
@@ -481,11 +526,11 @@ void run(VM *vm) {
 
 #ifdef PRINT_LOCALS
         printf("Locals: ");
-        for (int j = 0; j < vm->locals_size[vm->locals_count - 1]; ++j) {
-            print_value(vm->locals[vm->locals_count - 1][j]);
+        for (int j = 0; j < vm->call_frame->locals_count; ++j) {
+            print_value(vm->call_frame->locals[j]);
             printf(" ");
         }
-        printf(" (size: %d)\n", vm->locals_size[vm->locals_count - 1]);
+        printf(" (size: %d)\n", vm->call_frame->locals_count);
 #endif
 
         switch (instruction) {
@@ -525,15 +570,17 @@ void run(VM *vm) {
             break;
         }
         case CONST_U32: {
-            uint64_t value = read_u32(vm->code, vm->ip + 1);
+            uint64_t value =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             push(vm, value);
-            vm->ip += 4;
+            vm->call_frame->ip += 4;
             break;
         }
         case CONST_U64: {
-            uint64_t value = read_u64(vm->code, vm->ip + 1);
+            uint64_t value =
+                read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
             push(vm, value);
-            vm->ip += 8;
+            vm->call_frame->ip += 8;
             break;
         }
         case TRUE: {
@@ -598,17 +645,19 @@ void run(VM *vm) {
             break;
         }
         case STRING: {
-            uint32_t stridx = read_u32(vm->code, vm->ip + 1);
+            uint32_t stridx =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             char *string = vm->strings[stridx];
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_STRING;
             obj->string.data = string;
             push(vm, OBJ_VAL(obj));
-            vm->ip += 4;
+            vm->call_frame->ip += 4;
             break;
         }
         case LIST: {
-            uint32_t length = read_u32(vm->code, vm->ip + 1);
+            uint32_t length =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_LIST;
             obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
@@ -619,11 +668,12 @@ void run(VM *vm) {
             obj->list.capacity = (length ? length : 2) * 2;
             obj->list.owner = 1;
             push(vm, OBJ_VAL(obj));
-            vm->ip += 4;
+            vm->call_frame->ip += 4;
             break;
         }
         case MAKE_TUPLE: {
-            uint32_t len = read_u32(vm->code, vm->ip + 1);
+            uint32_t len =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             Obj *obj = malloc(sizeof(Obj));
             obj->type = OBJ_TUPLE;
             obj->tuple.items = malloc(sizeof(Value) * len);
@@ -632,7 +682,7 @@ void run(VM *vm) {
                 obj->tuple.items[i] = pop(vm);
             }
             push(vm, OBJ_VAL(obj));
-            vm->ip += 4;
+            vm->call_frame->ip += 4;
             break;
         }
         case MAKE_LIST: {
@@ -657,39 +707,49 @@ void run(VM *vm) {
             break;
         }
         case GET_LOCAL: {
-            uint32_t index = read_u32(vm->code, vm->ip + 1);
-            push(vm, vm->locals[vm->locals_count - 1][index]);
-            vm->ip += 4;
+            uint32_t index =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+            push(vm, vm->call_frame->locals[index]);
+            vm->call_frame->ip += 4;
             break;
         }
         case DEF_LOCAL: {
-            uint32_t index = read_u32(vm->code, vm->ip + 1);
-            if (index >= vm->locals_size[vm->locals_count - 1]) {
-                if (vm->locals_size[vm->locals_count - 1] == 0) {
-                    vm->locals[vm->locals_count - 1] =
-                        malloc(sizeof(Value) * (index ? index * 2 : 2));
+            uint32_t index =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+            if (index >= vm->call_frame->locals_capacity) {
+                if (vm->call_frame->locals_capacity == 0) {
+                    int newsize = (index ? index * 2 : 2);
+                    vm->call_frame->locals = malloc(sizeof(Value) * newsize);
+                    vm->call_frame->locals_capacity = newsize;
                 } else {
-                    vm->locals[vm->locals_count - 1] =
-                        realloc(vm->locals[vm->locals_count - 1],
-                                sizeof(Value) * index * 2);
+                    vm->call_frame->locals = realloc(
+                        vm->call_frame->locals,
+                        sizeof(Value) * vm->call_frame->locals_capacity * 2);
+                    vm->call_frame->locals_capacity *= 2;
                 }
             }
             Value val = pop(vm);
-            vm->locals[vm->locals_count - 1][index] = val;
-            vm->locals_size[vm->locals_count - 1] = index + 1;
-            vm->ip += 4;
+            vm->call_frame->locals[index] = val;
+            vm->call_frame->locals_count = index + 1;
+            vm->call_frame->ip += 4;
             break;
         }
         case ASSIGN: {
-            uint32_t index = read_u32(vm->code, vm->ip + 1);
+            uint32_t index =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             Value val = pop(vm);
-            vm->locals[vm->locals_count - 1][index] = val;
-            vm->ip += 4;
+            vm->call_frame->locals[index] = val;
+            vm->call_frame->ip += 4;
             break;
         }
         case CALL: {
-            uint32_t funcip = read_u32(vm->code, vm->ip + 1);
-            uint32_t argc = read_u32(vm->code, vm->ip + 5);
+            if (vm->call_frame->depth == MAX_CALL_DEPTH) {
+                error(vm, "Maximum call depth exceeded");
+            }
+            uint32_t funcidx =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+            uint32_t argc =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 5);
             Value *args = malloc(sizeof(Value) * argc);
             for (int i = argc - 1; i >= 0; --i) {
                 Value val = pop(vm);
@@ -713,23 +773,22 @@ void run(VM *vm) {
                     args[i] = val;
                 }
             }
-            vm->locals_count++;
-            if (vm->locals_count >= MAX_CALL_DEPTH) {
-                error(vm, "Maximum call depth exceeded");
-            }
-            vm->locals[vm->locals_count - 1] = args;
-            vm->locals_size[vm->locals_count - 1] = argc;
-            ++vm->call_depth;
-            vm->prev_ips[vm->call_depth - 1] = vm->ip + 9;
-            vm->ip = funcip - 1;
+            CallFrame *curr = vm->call_frame;
+            curr->ip += 8;
+            CallFrame *newframe = new_call_frame(vm->funcs + funcidx, curr);
+            newframe->locals_capacity = argc;
+            newframe->locals_count = argc;
+            newframe->locals = args;
+            newframe->depth = curr->depth + 1;
+            newframe->func = vm->funcs + funcidx;
+            vm->call_frame = newframe;
+            vm->call_frame->ip = -1;
             break;
         }
         case RETURN: {
-            if (vm->call_depth == 0) {
+            if (vm->call_frame->depth == 0) {
                 return;
             }
-            vm->ip = vm->prev_ips[vm->call_depth - 1] - 1;
-            --vm->call_depth;
             if (vm->stack_size) {
                 Value val = pop(vm);
                 if (IS_OBJ(val)) {
@@ -764,26 +823,25 @@ void run(VM *vm) {
                     push(vm, val);
                 }
             }
-            for (int i = 0; i < vm->locals_size[vm->locals_count - 1]; ++i) {
-                free_value(vm->locals[vm->locals_count - 1][i]);
-            }
-            free(vm->locals[vm->locals_count - 1]);
-            vm->locals_size[vm->locals_count - 1] = 0;
-            --vm->locals_count;
+            CallFrame *call_frame = vm->call_frame->prev;
+            free_call_frame(vm->call_frame);
+            vm->call_frame = call_frame;
             break;
         }
         case JUMP: {
-            uint32_t ip = read_u32(vm->code, vm->ip + 1);
-            vm->ip = ip - 1;
+            uint32_t ip =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+            vm->call_frame->ip = ip - 1;
             break;
         }
         case JUMP_IF_FALSE: {
-            uint32_t ip = read_u32(vm->code, vm->ip + 1);
+            uint32_t ip =
+                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
             Value value = pop(vm);
             if (!AS_BOOL(value)) {
-                vm->ip = ip - 1;
+                vm->call_frame->ip = ip - 1;
             } else {
-                vm->ip += 4;
+                vm->call_frame->ip += 4;
             }
             break;
         }
@@ -839,11 +897,12 @@ void run(VM *vm) {
         }
         default: {
             char msg[100];
-            sprintf(msg, "Unknown opcode %d", vm->code[vm->ip]);
+            sprintf(msg, "Unknown opcode %d",
+                    vm->call_frame->func->code[vm->call_frame->ip]);
             error(vm, msg);
         }
         }
-        ++vm->ip;
+        ++vm->call_frame->ip;
     }
 }
 
@@ -856,8 +915,7 @@ int main(int argc, char **argv) {
     printf("length %ld\n", code->length);
     dissassemble(code->bytes, code->length);
     puts("\n\n\n");
-    VM *vm =
-        new_vm(code->bytes + 4, code->length - 4, read_u32(code->bytes, 0));
+    VM *vm = new_vm(code->bytes, code->length);
     free(code);
     run(vm);
     free_vm(vm);

@@ -48,10 +48,12 @@ pub struct Bytecode {
     code: Vec<u8>,
     locals: HashMap<String, usize>,
     func_idx: HashMap<String, usize>,
-    calls: Vec<Vec<usize>>, // to be patched after codegen - offset
+    calls: Vec<Vec<(usize, usize)>>, // to be patched after codegen - offset, func_idx of call site
     strings: Vec<Vec<u8>>,
+    func_code: Vec<Vec<u8>>,
     loop_state: LoopState,
-    start_ip: usize,
+    start_func_idx: usize,
+    curr_func: usize,
 }
 
 fn u32_to_bytes(n: u32) -> [u8; 4] {
@@ -67,7 +69,9 @@ impl Bytecode {
             calls: Vec::new(),
             strings: Vec::new(),
             loop_state: LoopState::new(),
-            start_ip: 0,
+            func_code: Vec::new(),
+            start_func_idx: 0,
+            curr_func: 0,
         }
     }
 
@@ -138,7 +142,7 @@ impl Bytecode {
 
     // start ip
     fn header(&self) -> [u8; 4] {
-        u32_to_bytes(self.start_ip as u32)
+        u32_to_bytes(self.start_func_idx as u32)
     }
 
     pub fn write(&self, path: &str) {
@@ -151,7 +155,12 @@ impl Bytecode {
             file.write_all(&u32_to_bytes(s.len() as u32)).unwrap();
             file.write_all(&s).unwrap();
         }
-        file.write_all(&self.code).unwrap();
+        file.write_all(&u32_to_bytes(self.func_code.len() as u32))
+            .unwrap();
+        for f in &self.func_code {
+            file.write_all(&u32_to_bytes(f.len() as u32)).unwrap();
+            file.write_all(&f).unwrap();
+        }
     }
 
     fn compile_expr(&mut self, expr: &Expr) {
@@ -274,7 +283,7 @@ impl Bytecode {
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);
                     let (call_offset, _) = self.add_2_u32(CALL, 0, args.len() as u32);
-                    self.calls[func_idx].push(call_offset);
+                    self.calls[func_idx].push((call_offset, self.curr_func));
                 }
             }
             Expr::Subscr(e1, e2) => {
@@ -576,9 +585,10 @@ impl Bytecode {
             self.func_idx.insert(func.name.clone(), idx);
             idx += 1;
         }
-        let mut func_ips = Vec::<usize>::new();
+        idx = 0;
+        let mut func_code = Vec::new();
         for func in fns {
-            func_ips.push(self.code.len());
+            self.curr_func = idx;
             self.locals.clear();
             let args = &func
                 .args
@@ -587,24 +597,24 @@ impl Bytecode {
                 .collect::<Vec<_>>();
             let body = &func.body;
             if func.name == "main" {
-                self.start_ip = self.code.len();
+                self.start_func_idx = idx;
             }
             self.compile_fn(args, body);
             self.add(RETURN);
+            func_code.push(self.code.clone());
+            self.code.clear();
+            idx += 1;
         }
+        self.func_code = func_code;
         self.locals.clear();
         for func in fns {
             let func_idx = self.func_idx[&func.name];
-            let func_ip = func_ips[func_idx];
-            for offset in &self.calls[func_idx] {
-                self.code[*offset + 3] = (func_ip >> 24) as u8;
-                self.code[*offset + 2] = (func_ip >> 16) as u8;
-                self.code[*offset + 1] = (func_ip >> 8) as u8;
-                self.code[*offset] = func_ip as u8;
+            for (offset, calling_fn) in &self.calls[func_idx] {
+                self.func_code[*calling_fn][*offset + 3] = (func_idx >> 24) as u8;
+                self.func_code[*calling_fn][*offset + 2] = (func_idx >> 16) as u8;
+                self.func_code[*calling_fn][*offset + 1] = (func_idx >> 8) as u8;
+                self.func_code[*calling_fn][*offset] = func_idx as u8;
             }
         }
-        println!("start ip: {}", self.start_ip);
-        println!("code length: {}", self.code.len());
-        // println!("code: {:?}", self.code);
     }
 }
