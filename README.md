@@ -6,6 +6,12 @@ a statically typed programming language
 
 sahl means easy. This is the easiest statically typed language I could come up with.
 
+## usage
+
+- `make` to build the frontend and the virtual machine
+- `./target/release/sahl <file.sahl> -c` to compile to bytecode
+- `./sahl exe.bin` to run the bytecode
+
 ## features
 
 - statically typed
