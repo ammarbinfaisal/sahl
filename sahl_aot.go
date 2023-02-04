@@ -483,6 +483,10 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
 			c.AddLine(merge+":", false)
 			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case TRUE:
+			stack = append(stack, Value{VALUE_CONST, "1", TYPE_BOOL})
+		case FALSE:
+			stack = append(stack, Value{VALUE_CONST, "0", TYPE_BOOL})
 		case AND:
 			binop1("and")
 			stack[len(stack)-1].Type = TYPE_BOOL
