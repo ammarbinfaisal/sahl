@@ -228,7 +228,6 @@ type ValueType uint
 
 const (
 	VALUE_REG ValueType = iota
-	VALUE_CONST
 	VALUE_STACK
 )
 
@@ -293,32 +292,35 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		case ADD:
 			r1 := stack[len(stack)-1]
 			r2 := stack[len(stack)-2]
-			if r1.Type == VALUE_CONST && r2.Type == VALUE_CONST {
+			if r1.Type == VALUE_REG || r2.Type == VALUE_REG {
+				// one is register
+				var reg Value
+				var st Value
+				if r1.Type == VALUE_REG {
+					reg = r1
+					st = r2
+				} else {
+					reg = r2
+					st = r1
+				}
+				c.AddLine(fmt.Sprintf("add %s, %s", reg.Value, st.Value), true)
+				stack = stack[:len(stack)-2]
+				stack = append(stack, reg)
+			} else {
+				// both are stack
 				r := _unused()
 				c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
 				c.AddLine(fmt.Sprintf("add %s, %s", r, r2.Value), true)
 				stack = stack[:len(stack)-2]
 				stack = append(stack, Value{VALUE_REG, r})
-			} else if r1.Type == VALUE_CONST || r2.Type == VALUE_CONST {
-				r := _unused()
-				if r1.Type == VALUE_CONST {
-					c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
-					c.AddLine(fmt.Sprintf("add %s, %s", r, r2.Value), true)
-				} else {
-					c.AddLine(fmt.Sprintf("mov %s, %s", r, r2.Value), true)
-					c.AddLine(fmt.Sprintf("add %s, %s", r, r1.Value), true)
-				}
-				stack = stack[:len(stack)-2]
-				stack = append(stack, Value{VALUE_REG, r})
-			} else if r1.Type == VALUE_REG && r2.Type == VALUE_REG {
-				c.AddLine(fmt.Sprintf("add %s, %s", r1.Value, r2.Value), true)
-				stack = stack[:len(stack)-2]
-				stack = append(stack, Value{VALUE_REG, r1.Value})
-			} else {
-				panic("invalid add")
 			}
 		case CONST_U64:
-			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", ReadInt64(fn.Instructions, i+1))})
+			val := ReadInt64(fn.Instructions, i+1)
+			// move to program stack
+			stack_size += 8
+			asm_val := fmt.Sprintf("qword [rbp-%d]", stack_size)
+			c.AddLine(fmt.Sprintf("mov %s, %d", asm_val, val), true)
+			stack = append(stack, Value{VALUE_STACK, asm_val})
 			i += 8
 		case PRINT:
 			r := stack[len(stack)-1]
@@ -328,7 +330,7 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			c.AddLine("call printf", true)
 		case RETURN:
 			r := stack[len(stack)-1]
-			if r.Type == VALUE_CONST || r.Type == VALUE_REG {
+			if r.Type == VALUE_REG {
 				c.AddLine(fmt.Sprintf("mov rax, %s", r.Value), true)
 			} else {
 				panic("invalid return")
@@ -346,7 +348,7 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 
 	c.AddLine(fmt.Sprintf("%s_ret:", name), false)
 	c.AddLine("pop rbp", true)
-	c.AddLine(fmt.Sprintf("sub rsp, %d", stack_size), true)
+	c.AddLine(fmt.Sprintf("add rsp, %d", stack_size), true)
 	c.AddLine("ret", true)
 }
 
