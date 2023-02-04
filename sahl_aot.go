@@ -604,6 +604,23 @@ func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 				arg := ArgsReg[i]
 				c.AddLine(fmt.Sprintf("mov %s, %s", arg, args[i].Value), true)
 			}
+			if idx == func_idx {
+				// recursive call
+				// save all registers
+				new_stack := make([]Value, 0)
+				for _, r := range stack {
+					if r.Loc == VALUE_STACK {
+						new_stack = append(new_stack, r)
+					} else {
+						stack_space := (stack_size + 8)
+						stack_size = max(stack_size, stack_space)
+						dest := fmt.Sprintf("qword [rbp-%d]", stack_space)
+						c.AddLine(fmt.Sprintf("mov %s, %s", dest, r.Value), true)
+						new_stack = append(new_stack, Value{VALUE_STACK, dest, TYPE_U64})
+					}
+				}
+				stack = new_stack
+			}
 			c.AddLine(fmt.Sprintf("call %s", c.fn_labels[idx]), true)
 			stack = append(stack, Value{VALUE_REG, "rax", TYPE_U64})
 		case RETURN:
@@ -625,8 +642,8 @@ func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 	c.lines[idx_sub] = fmt.Sprintf("\tsub rsp, %d", stack_size)
 
 	c.AddLine(fmt.Sprintf("%s_ret:", name), false)
+	c.AddLine("mov rsp, rbp", true)
 	c.AddLine("pop rbp", true)
-	c.AddLine(fmt.Sprintf("add rsp, %d", stack_size), true)
 	c.AddLine("ret", true)
 }
 
