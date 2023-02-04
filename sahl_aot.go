@@ -53,6 +53,13 @@ type Function struct {
 	Instructions []uint8
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func ReadInt32(buffer []uint8, offset int) int {
 	return int(buffer[offset]) | int(buffer[offset+1])<<8 | int(buffer[offset+2])<<16 | int(buffer[offset+3])<<24
 }
@@ -190,19 +197,25 @@ func PrintOpcode(code []byte, i int) int {
 }
 
 // also returns jump targets
-func disassemble(code []byte) map[int]string {
+func disassemble(code []byte) (map[int]string, map[int]int) {
 	i := 0
 	jumps := make(map[int]string)
+	func_argc := make(map[int]int)
 	for i < len(code) {
 		fmt.Printf("%5d\t", i)
 		if code[i] == JUMP || code[i] == JUMP_IF_FALSE {
 			idx := ReadInt32(code, i+1)
 			jumps[idx] = rand_str()
 		}
+		if code[i] == CALL {
+			idx := ReadInt32(code, i+1)
+			argc := ReadInt32(code, i+5)
+			func_argc[idx] = int(argc)
+		}
 		i = PrintOpcode(code, i)
 		i++
 	}
-	return jumps
+	return jumps, func_argc
 }
 
 // ------------------------------
@@ -212,7 +225,9 @@ func disassemble(code []byte) map[int]string {
 type Compiler struct {
 	lines      []string
 	code       *Code
-	jmp_labels map[int]string
+	jmp_labels []map[int]string
+	fn_labels  map[int]string
+	func_argc  map[int]int
 }
 
 func (c *Compiler) WriteData(strings []string) {
@@ -273,8 +288,10 @@ func (c *Compiler) AddLine(line string, indent bool) {
 	fmt.Println(line)
 }
 
+var ArgsReg = []string{"rdi", "rsi", "rdx", "rcx", "r8", "r9"}
+
 // convert bytecodes to assembly
-func (c *Compiler) CompileFunc(fn *Function, name string) {
+func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 	stack := make([]Value, 0)
 	stack_size := 0
 
@@ -294,12 +311,21 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		return ""
 	}
 
-	c.AddLine(name+": ", false)
+	c.AddLine(name+":", false)
 	c.AddLine("push rbp", true)
 	c.AddLine("mov rbp, rsp", true)
 	c.AddLine("", false) // space for stack size
-
 	idx_sub := len(c.lines) - 1
+
+	locals := make(map[int]string)
+
+	// move args from registers to stack
+	for i := 0; i < c.func_argc[func_idx]; i++ {
+		stack_size += 8
+		stack_space := fmt.Sprintf("qword [rbp-%d]", stack_size)
+		c.AddLine(fmt.Sprintf("mov %s, %s", stack_space, ArgsReg[i]), true)
+		locals[i] = stack_space
+	}
 
 	binop1 := func(op string) {
 		r1 := stack[len(stack)-1]
@@ -393,15 +419,13 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		}
 	}
 
-	locals := make(map[int]string)
-
 	for i := 0; i < len(fn.Instructions); i++ {
 		instr := fn.Instructions[i]
 
 		PrintOpcode(fn.Instructions, i)
 
-		if _, ok := c.jmp_labels[i]; ok {
-			c.AddLine(c.jmp_labels[i]+":", false)
+		if _, ok := c.jmp_labels[func_idx][i]; ok {
+			c.AddLine(c.jmp_labels[func_idx][i]+":", false)
 		}
 
 		switch instr {
@@ -504,14 +528,14 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		case JUMP:
 			instr_idx := ReadInt32(fn.Instructions, i+1)
 			i += 4
-			c.AddLine(fmt.Sprintf("jmp %s", c.jmp_labels[instr_idx]), true)
+			c.AddLine(fmt.Sprintf("jmp %s", c.jmp_labels[func_idx][instr_idx]), true)
 		case JUMP_IF_FALSE:
 			instr_idx := ReadInt32(fn.Instructions, i+1)
 			i += 4
 			r := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			c.AddLine(fmt.Sprintf("cmp %s, 0", r.Value), true)
-			c.AddLine(fmt.Sprintf("je %s", c.jmp_labels[instr_idx]), true)
+			c.AddLine(fmt.Sprintf("je %s", c.jmp_labels[func_idx][instr_idx]), true)
 		case PRINT:
 			r := stack[len(stack)-1]
 			c.AddLine(fmt.Sprintf("mov rdi, %s", r.Value), true)
@@ -527,9 +551,10 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			}
 		case DEF_LOCAL:
 			idx := ReadInt32(fn.Instructions, i+1)
-			val := stack[idx]
-			stack_size += 8
-			dest := fmt.Sprintf("qword [rbp-%d]", stack_size)
+			val := stack[len(stack)-1]
+			stack_space := (idx + 1) * 8
+			stack_size = max(stack_size, stack_space)
+			dest := fmt.Sprintf("qword [rbp-%d]", stack_space)
 			c.AddLine(fmt.Sprintf("mov %s, %s", dest, val.Value), true)
 			locals[idx] = dest
 			i += 4
@@ -550,11 +575,31 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			idx := ReadInt32(fn.Instructions, i+1)
 			val := stack[len(stack)-1]
 			c.AddLine(fmt.Sprintf("mov %s, %s", locals[idx], val.Value), true)
+			stack = stack[:len(stack)-1]
 			i += 4
+		case CALL:
+			idx := ReadInt32(fn.Instructions, i+1)
+			i += 4
+			argc := ReadInt32(fn.Instructions, i+1)
+			i += 4
+			if argc > len(ArgsReg) {
+				fmt.Println("too many arguments")
+				os.Exit(1)
+			}
+			args := stack[len(stack)-int(argc):]
+			stack = stack[:len(stack)-int(argc)]
+			for i, _ := range args {
+				arg := ArgsReg[i]
+				c.AddLine(fmt.Sprintf("mov %s, %s", arg, args[i].Value), true)
+			}
+			c.AddLine(fmt.Sprintf("call %s", c.fn_labels[idx]), true)
+			stack = append(stack, Value{VALUE_REG, "rax", TYPE_U64})
 		case RETURN:
-			r := stack[len(stack)-1]
-			if r.Loc == VALUE_REG {
-				c.AddLine(fmt.Sprintf("mov rax, %s", r.Value), true)
+			if len(stack) > 0 {
+				r := stack[len(stack)-1]
+				if r.Loc == VALUE_REG {
+					c.AddLine(fmt.Sprintf("mov rax, %s", r.Value), true)
+				}
 			}
 			c.AddLine(fmt.Sprintf("jmp %s_ret", name), true)
 		default:
@@ -580,11 +625,16 @@ func (c *Compiler) Compile(code *Code) {
 	c.AddLine("extern print_char", false)
 	c.AddLine("extern print_bool", false)
 	c.AddLine("global main", false)
+	c.AddLine("\n", false)
 
-	fn_name := rand_str()
-	c.CompileFunc(&code.Functions[code.Start], fn_name)
+	for i, fn := range code.Functions {
+		c.AddLine("\n", false)
+		c.CompileFunc(&fn, c.fn_labels[i], i)
+	}
+	c.AddLine("\n", false)
+
 	c.AddLine("main:", false)
-	c.AddLine(fmt.Sprintf("call %s", fn_name), true)
+	c.AddLine(fmt.Sprintf("call %s", c.fn_labels[c.code.Start]), true)
 	// exit
 	c.AddLine("mov rax, 60", true)
 	c.AddLine("mov rdi, 0", true)
@@ -610,19 +660,28 @@ func main() {
 	}
 	file := args[1]
 	code := ReadCode(file)
-	var jmp_labels map[int]string
+	jmp_labels := make([]map[int]string, len(code.Functions))
+	fn_labels := make(map[int]string)
+	func_argc := make(map[int]int)
 	for i := 0; i < len(code.Functions); i++ {
 		if i == code.Start {
 			fmt.Println("Start function")
 		} else {
 			fmt.Printf("Function %d\n", i)
 		}
-		jmp_labels = disassemble(code.Functions[i].Instructions)
+		jmps, funargc := disassemble(code.Functions[i].Instructions)
+		jmp_labels[i] = jmps
+		fn_labels[i] = rand_str()
+		for idx, argc := range funargc {
+			func_argc[idx] = argc
+		}
 	}
 	compiler := Compiler{
 		code:       code,
 		lines:      make([]string, 0),
 		jmp_labels: jmp_labels,
+		fn_labels:  fn_labels,
+		func_argc:  func_argc,
 	}
 	compiler.Compile(code)
 	compiler.Write("exe.asm")
