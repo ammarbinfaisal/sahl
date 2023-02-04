@@ -6,8 +6,6 @@ import (
 	"os"
 )
 
-// convert sahl bytecode to assembly
-
 const ADD = 0
 const SUB = 1
 const MUL = 2
@@ -222,12 +220,14 @@ func (c *Compiler) WriteData(strings []string) {
 }
 
 // x86-64 registers
-var Registers = []string{"rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"}
+// rdi and rsi are not included
+var Registers = []string{"rax", "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"}
 
 type ValueType uint
 
 const (
 	VALUE_REG ValueType = iota
+	VALUE_CONST
 	VALUE_STACK
 )
 
@@ -252,11 +252,13 @@ func (c *Compiler) AddLine(line string, indent bool) {
 		c.lines = append(c.lines, "")
 	}
 	c.lines[len(c.lines)-1] += line
+	fmt.Println(line)
 }
 
 // convert bytecodes to assembly
 func (c *Compiler) CompileFunc(fn *Function, name string) {
 	stack := make([]Value, 0)
+	stack_size := 0
 
 	_unused := func() string {
 		for _, reg := range Registers {
@@ -271,10 +273,8 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 				return reg
 			}
 		}
-		panic("no unused registers")
+		return ""
 	}
-
-	stack_size := 0
 
 	c.AddLine(name+": ", false)
 	c.AddLine("push rbp", true)
@@ -283,6 +283,56 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 
 	idx_sub := len(c.lines) - 1
 
+	binop1 := func(op string) {
+		r1 := stack[len(stack)-1]
+		r2 := stack[len(stack)-2]
+		if r1.Type == VALUE_CONST && r2.Type == VALUE_CONST {
+			// both are constants
+			r := _unused()
+			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
+			stack = stack[:len(stack)-2]
+			stack = append(stack, Value{VALUE_CONST, r})
+		} else if r1.Type == VALUE_CONST || r2.Type == VALUE_CONST {
+			// one is constant
+			var cnst Value
+			var other Value
+			if r1.Type == VALUE_CONST {
+				cnst = r1
+				other = r2
+			} else {
+				cnst = r2
+				other = r1
+			}
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, other.Value, cnst.Value), true)
+			stack = stack[:len(stack)-2]
+			stack = append(stack, other)
+		} else if r1.Type == VALUE_REG || r2.Type == VALUE_REG {
+			// one is register
+			var reg Value
+			var st Value
+			if r1.Type == VALUE_REG {
+				reg = r1
+				st = r2
+			} else {
+				reg = r2
+				st = r1
+			}
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, reg.Value, st.Value), true)
+			stack = stack[:len(stack)-2]
+			stack = append(stack, reg)
+		} else {
+			// both are stack
+			r := _unused()
+			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
+			stack = stack[:len(stack)-2]
+			stack = append(stack, Value{VALUE_REG, r})
+		}
+	}
+
+	locals := make(map[int]string)
+
 	for i := 0; i < len(fn.Instructions); i++ {
 		instr := fn.Instructions[i]
 
@@ -290,50 +340,51 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 
 		switch instr {
 		case ADD:
-			r1 := stack[len(stack)-1]
-			r2 := stack[len(stack)-2]
-			if r1.Type == VALUE_REG || r2.Type == VALUE_REG {
-				// one is register
-				var reg Value
-				var st Value
-				if r1.Type == VALUE_REG {
-					reg = r1
-					st = r2
-				} else {
-					reg = r2
-					st = r1
-				}
-				c.AddLine(fmt.Sprintf("add %s, %s", reg.Value, st.Value), true)
-				stack = stack[:len(stack)-2]
-				stack = append(stack, reg)
-			} else {
-				// both are stack
-				r := _unused()
-				c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
-				c.AddLine(fmt.Sprintf("add %s, %s", r, r2.Value), true)
-				stack = stack[:len(stack)-2]
-				stack = append(stack, Value{VALUE_REG, r})
-			}
+			binop1("add")
+		case SUB:
+			binop1("sub")
+		case MUL:
+			binop1("imul")
 		case CONST_U64:
 			val := ReadInt64(fn.Instructions, i+1)
-			// move to program stack
-			stack_size += 8
-			asm_val := fmt.Sprintf("qword [rbp-%d]", stack_size)
-			c.AddLine(fmt.Sprintf("mov %s, %d", asm_val, val), true)
-			stack = append(stack, Value{VALUE_STACK, asm_val})
 			i += 8
+			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val)})
 		case PRINT:
 			r := stack[len(stack)-1]
 			c.AddLine(fmt.Sprintf("mov rdi, string%d", len(c.code.Strings)), true)
 			c.AddLine(fmt.Sprintf("mov rsi, %s", r.Value), true)
 			c.AddLine("mov rax, 0", true)
 			c.AddLine("call printf", true)
+		case DEF_LOCAL:
+			idx := ReadInt32(fn.Instructions, i+1)
+			val := stack[idx]
+			stack_size += 8
+			dest := fmt.Sprintf("qword [rbp-%d]", stack_size)
+			c.AddLine(fmt.Sprintf("mov %s, %s", dest, val.Value), true)
+			locals[idx] = dest
+			i += 4
+		case GET_LOCAL:
+			idx := ReadInt32(fn.Instructions, i+1)
+			r := _unused()
+			var ty ValueType
+			if r == "" {
+				r = locals[idx]
+				ty = VALUE_STACK
+			} else {
+				c.AddLine(fmt.Sprintf("mov %s, %s", r, locals[idx]), true)
+				ty = VALUE_REG
+			}
+			stack = append(stack, Value{Type: ty, Value: r})
+			i += 4
+		case ASSIGN:
+			idx := ReadInt32(fn.Instructions, i+1)
+			val := stack[len(stack)-1]
+			c.AddLine(fmt.Sprintf("mov %s, %s", locals[idx], val.Value), true)
+			i += 4
 		case RETURN:
 			r := stack[len(stack)-1]
 			if r.Type == VALUE_REG {
 				c.AddLine(fmt.Sprintf("mov rax, %s", r.Value), true)
-			} else {
-				panic("invalid return")
 			}
 			c.AddLine(fmt.Sprintf("jmp %s_ret", name), true)
 		default:
