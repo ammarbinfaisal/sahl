@@ -220,17 +220,29 @@ func (c *Compiler) WriteData(strings []string) {
 // rdi and rsi are not included
 var Registers = []string{"rax", "rbx", "rcx", "rdx", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"}
 
-type ValueType uint
+type ValueLoc uint8
+
+type ValueType uint8
 
 const (
-	VALUE_REG ValueType = iota
+	VALUE_REG ValueLoc = iota
 	VALUE_CONST
 	VALUE_STACK
 )
 
+const (
+	TYPE_U8 ValueType = iota
+	TYPE_U32
+	TYPE_U64
+	TYPE_BOOL
+	TYPE_STRING
+	TYPE_INT_ARR
+)
+
 type Value struct {
-	Type  ValueType
+	Loc   ValueLoc
 	Value string
+	Type  ValueType
 }
 
 func rand_str() string {
@@ -283,18 +295,18 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 	binop1 := func(op string) {
 		r1 := stack[len(stack)-1]
 		r2 := stack[len(stack)-2]
-		if r1.Type == VALUE_CONST && r2.Type == VALUE_CONST {
+		if r1.Loc == VALUE_CONST && r2.Loc == VALUE_CONST {
 			// both are constants
 			r := _unused()
 			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
 			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
 			stack = stack[:len(stack)-2]
-			stack = append(stack, Value{VALUE_CONST, r})
-		} else if r1.Type == VALUE_CONST || r2.Type == VALUE_CONST {
+			stack = append(stack, Value{VALUE_REG, r, TYPE_U64})
+		} else if r1.Loc == VALUE_CONST || r2.Loc == VALUE_CONST {
 			// one is constant
 			var cnst Value
 			var other Value
-			if r1.Type == VALUE_CONST {
+			if r1.Loc == VALUE_CONST {
 				cnst = r1
 				other = r2
 			} else {
@@ -304,11 +316,11 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			c.AddLine(fmt.Sprintf("%s %s, %s", op, other.Value, cnst.Value), true)
 			stack = stack[:len(stack)-2]
 			stack = append(stack, other)
-		} else if r1.Type == VALUE_REG || r2.Type == VALUE_REG {
+		} else if r1.Loc == VALUE_REG || r2.Loc == VALUE_REG {
 			// one is register
 			var reg Value
 			var st Value
-			if r1.Type == VALUE_REG {
+			if r1.Loc == VALUE_REG {
 				reg = r1
 				st = r2
 			} else {
@@ -324,7 +336,7 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
 			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
 			stack = stack[:len(stack)-2]
-			stack = append(stack, Value{VALUE_REG, r})
+			stack = append(stack, Value{VALUE_REG, r, TYPE_U64})
 		}
 	}
 
@@ -345,7 +357,7 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		case CONST_U64:
 			val := ReadInt64(fn.Instructions, i+1)
 			i += 8
-			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val)})
+			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val), TYPE_U64})
 		case PRINT:
 			r := stack[len(stack)-1]
 			c.AddLine(fmt.Sprintf("mov rdi, string%d", len(c.code.Strings)), true)
@@ -363,15 +375,15 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		case GET_LOCAL:
 			idx := ReadInt32(fn.Instructions, i+1)
 			r := _unused()
-			var ty ValueType
+			var loc ValueLoc
 			if r == "" {
 				r = locals[idx]
-				ty = VALUE_STACK
+				loc = VALUE_STACK
 			} else {
 				c.AddLine(fmt.Sprintf("mov %s, %s", r, locals[idx]), true)
-				ty = VALUE_REG
+				loc = VALUE_REG
 			}
-			stack = append(stack, Value{Type: ty, Value: r})
+			stack = append(stack, Value{loc, r, TYPE_U64})
 			i += 4
 		case ASSIGN:
 			idx := ReadInt32(fn.Instructions, i+1)
@@ -380,7 +392,7 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			i += 4
 		case RETURN:
 			r := stack[len(stack)-1]
-			if r.Type == VALUE_REG {
+			if r.Loc == VALUE_REG {
 				c.AddLine(fmt.Sprintf("mov rax, %s", r.Value), true)
 			}
 			c.AddLine(fmt.Sprintf("jmp %s_ret", name), true)
