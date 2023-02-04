@@ -136,15 +136,12 @@ func PrintOpcode(code []byte, i int) int {
 	case FALSE:
 		fmt.Println("False")
 	case JUMP:
-		// u64 code
 		fmt.Printf("Jump %d\n", ReadInt32(code, i+1))
 		i += 4
 	case JUMP_IF_FALSE:
-		// u64 code
 		fmt.Printf("JumpIfFalse %d\n", ReadInt32(code, i+1))
 		i += 4
 	case STORE:
-		// u8 index
 		fmt.Println("Store")
 	case INDEX:
 		fmt.Println("Index")
