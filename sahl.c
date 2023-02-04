@@ -569,6 +569,12 @@ void run(VM *vm) {
             push(vm, -a);
             break;
         }
+        case CONST_U8: {
+            uint64_t value = vm->call_frame->func->code[vm->call_frame->ip + 1];
+            push(vm, value);
+            vm->call_frame->ip += 1;
+            break;
+        }
         case CONST_U32: {
             uint64_t value =
                 read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
