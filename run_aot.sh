@@ -13,4 +13,4 @@ if [ ! -f $1 ]; then
 fi
 
 ./target/debug/sahl $1 -c
-./sahl_aot exe.bin && nasm -f elf64 -o exe.o exe.asm&& gcc -static -lc -o exe exe.o&& echo "compiled to ./exe"
+./sahl_aot exe.bin && nasm -f elf64 -o exe.o exe.asm&& gcc -static -lc -o exe exe.o sahl_rts.c && echo "compiled to ./exe"
