@@ -189,13 +189,20 @@ func PrintOpcode(code []byte, i int) int {
 	return i
 }
 
-func disassemble(code []byte) {
+// also returns jump targets
+func disassemble(code []byte) map[int]string {
 	i := 0
+	jumps := make(map[int]string)
 	for i < len(code) {
 		fmt.Printf("%5d\t", i)
+		if code[i] == JUMP || code[i] == JUMP_IF_FALSE {
+			idx := ReadInt32(code, i+1)
+			jumps[idx] = rand_str()
+		}
 		i = PrintOpcode(code, i)
 		i++
 	}
+	return jumps
 }
 
 // ------------------------------
@@ -203,8 +210,9 @@ func disassemble(code []byte) {
 // ------------------------------
 
 type Compiler struct {
-	lines []string
-	code  *Code
+	lines      []string
+	code       *Code
+	jmp_labels map[int]string
 }
 
 func (c *Compiler) WriteData(strings []string) {
@@ -247,8 +255,9 @@ type Value struct {
 
 func rand_str() string {
 	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, 8)
-	for i := range b {
+	b := make([]byte, 12)
+	b[0] = '_'
+	for i := 1; i < 12; i++ {
 		b[i] = chars[rand.Intn(len(chars))]
 	}
 	return string(b)
@@ -391,6 +400,10 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 
 		PrintOpcode(fn.Instructions, i)
 
+		if _, ok := c.jmp_labels[i]; ok {
+			c.AddLine(c.jmp_labels[i]+":", false)
+		}
+
 		switch instr {
 		case ADD:
 			binop1("add")
@@ -484,6 +497,17 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			val := fn.Instructions[i+1]
 			i += 1
 			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val), TYPE_U8})
+		case JUMP:
+			instr_idx := ReadInt32(fn.Instructions, i+1)
+			i += 4
+			c.AddLine(fmt.Sprintf("jmp %s", c.jmp_labels[instr_idx]), true)
+		case JUMP_IF_FALSE:
+			instr_idx := ReadInt32(fn.Instructions, i+1)
+			i += 4
+			r := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			c.AddLine(fmt.Sprintf("cmp %s, 0", r.Value), true)
+			c.AddLine(fmt.Sprintf("je %s", c.jmp_labels[instr_idx]), true)
 		case PRINT:
 			r := stack[len(stack)-1]
 			c.AddLine(fmt.Sprintf("mov rdi, %s", r.Value), true)
@@ -582,17 +606,19 @@ func main() {
 	}
 	file := args[1]
 	code := ReadCode(file)
+	var jmp_labels map[int]string
 	for i := 0; i < len(code.Functions); i++ {
 		if i == code.Start {
 			fmt.Println("Start function")
 		} else {
 			fmt.Printf("Function %d\n", i)
 		}
-		disassemble(code.Functions[i].Instructions)
+		jmp_labels = disassemble(code.Functions[i].Instructions)
 	}
 	compiler := Compiler{
-		code:  code,
-		lines: make([]string, 0),
+		code:       code,
+		lines:      make([]string, 0),
+		jmp_labels: jmp_labels,
 	}
 	compiler.Compile(code)
 	compiler.Write("exe.asm")
