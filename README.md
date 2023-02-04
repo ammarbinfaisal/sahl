@@ -19,7 +19,7 @@ sahl means easy. This is the easiest statically typed language I could come up w
 
 ## history
 
-Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust tuples and the run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I have started writing `sahl_aot.go` to convert the bytecode to assembly. Let's see how this turns out.
+Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I have started writing `sahl_aot.go` to convert the bytecode to assembly. Let's see how this turns out.
 
 ## todo
 
