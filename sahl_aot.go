@@ -358,12 +358,21 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			val := ReadInt64(fn.Instructions, i+1)
 			i += 8
 			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val), TYPE_U64})
+		case CONST_U8:
+			val := fn.Instructions[i+1]
+			i += 1
+			stack = append(stack, Value{VALUE_CONST, fmt.Sprintf("%d", val), TYPE_U8})
 		case PRINT:
 			r := stack[len(stack)-1]
-			c.AddLine(fmt.Sprintf("mov rdi, string%d", len(c.code.Strings)), true)
-			c.AddLine(fmt.Sprintf("mov rsi, %s", r.Value), true)
-			c.AddLine("mov rax, 0", true)
-			c.AddLine("call printf", true)
+			c.AddLine(fmt.Sprintf("mov rdi, %s", r.Value), true)
+			if r.Type == TYPE_U64 {
+				c.AddLine("call print_int", true)
+			} else if r.Type == TYPE_U8 {
+				c.AddLine("call print_char", true)
+			} else {
+				fmt.Println("cannot print type", r.Type)
+				os.Exit(1)
+			}
 		case DEF_LOCAL:
 			idx := ReadInt32(fn.Instructions, i+1)
 			val := stack[idx]
@@ -415,7 +424,8 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 func (c *Compiler) Compile(code *Code) {
 	c.WriteData(code.Strings)
 	c.AddLine("section .text", false)
-	c.AddLine("extern printf", false)
+	c.AddLine("extern print_int", false)
+	c.AddLine("extern print_char", false)
 	c.AddLine("global main", false)
 
 	fn_name := rand_str()
