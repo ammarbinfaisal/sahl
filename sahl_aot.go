@@ -340,6 +340,50 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 		}
 	}
 
+	cmpops := func(op string) {
+		r1 := stack[len(stack)-1]
+		r2 := stack[len(stack)-2]
+		if r1.Loc == VALUE_CONST && r2.Loc == VALUE_CONST {
+			// both are constants
+			r := _unused()
+			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
+			stack = stack[:len(stack)-2]
+		} else if r1.Loc == VALUE_CONST || r2.Loc == VALUE_CONST {
+			// one is constant
+			var cnst Value
+			var other Value
+			if r1.Loc == VALUE_CONST {
+				cnst = r1
+				other = r2
+			} else {
+				cnst = r2
+				other = r1
+			}
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, other.Value, cnst.Value), true)
+			stack = stack[:len(stack)-2]
+		} else if r1.Loc == VALUE_REG || r2.Loc == VALUE_REG {
+			// one is register
+			var reg Value
+			var st Value
+			if r1.Loc == VALUE_REG {
+				reg = r1
+				st = r2
+			} else {
+				reg = r2
+				st = r1
+			}
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, reg.Value, st.Value), true)
+			stack = stack[:len(stack)-2]
+		} else {
+			// both are stack
+			r := _unused()
+			c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
+			c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
+			stack = stack[:len(stack)-2]
+		}
+	}
+
 	locals := make(map[int]string)
 
 	for i := 0; i < len(fn.Instructions); i++ {
@@ -354,6 +398,84 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 			binop1("sub")
 		case MUL:
 			binop1("imul")
+		case EQUAL:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("je %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case NOT_EQUAL:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("jne %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case LESS:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("jl %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case LESS_EQUAL:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("jle %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case GREATER:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("jg %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case GREATER_EQUAL:
+			cmpops("cmp")
+			r := _unused()
+			eqlabel := rand_str()
+			merge := rand_str()
+			c.AddLine(fmt.Sprintf("jge %s", eqlabel), true)
+			c.AddLine(fmt.Sprintf("mov %s, 0", r), true)
+			c.AddLine(fmt.Sprintf("jmp %s", merge), true)
+			c.AddLine(eqlabel+":", false)
+			c.AddLine(fmt.Sprintf("mov %s, 1", r), true)
+			c.AddLine(merge+":", false)
+			stack = append(stack, Value{VALUE_REG, r, TYPE_BOOL})
+		case AND:
+			binop1("and")
+			stack[len(stack)-1].Type = TYPE_BOOL
+		case OR:
+			binop1("or")
+			stack[len(stack)-1].Type = TYPE_BOOL
 		case CONST_U64:
 			val := ReadInt64(fn.Instructions, i+1)
 			i += 8
@@ -369,6 +491,8 @@ func (c *Compiler) CompileFunc(fn *Function, name string) {
 				c.AddLine("call print_int", true)
 			} else if r.Type == TYPE_U8 {
 				c.AddLine("call print_char", true)
+			} else if r.Type == TYPE_BOOL {
+				c.AddLine("call print_bool", true)
 			} else {
 				fmt.Println("cannot print type", r.Type)
 				os.Exit(1)
@@ -426,6 +550,7 @@ func (c *Compiler) Compile(code *Code) {
 	c.AddLine("section .text", false)
 	c.AddLine("extern print_int", false)
 	c.AddLine("extern print_char", false)
+	c.AddLine("extern print_bool", false)
 	c.AddLine("global main", false)
 
 	fn_name := rand_str()
