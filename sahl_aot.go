@@ -376,8 +376,8 @@ func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 	}
 
 	cmpops := func(op string) {
-		r1 := stack[len(stack)-1]
-		r2 := stack[len(stack)-2]
+		r1 := stack[len(stack)-2]
+		r2 := stack[len(stack)-1]
 		if r1.Loc == VALUE_CONST && r2.Loc == VALUE_CONST {
 			// both are constants
 			r := _unused()
@@ -399,17 +399,14 @@ func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 			stack = stack[:len(stack)-2]
 		} else if r1.Loc == VALUE_REG || r2.Loc == VALUE_REG {
 			// one is register
-			var reg Value
-			var st Value
-			if r1.Loc == VALUE_REG {
-				reg = r1
-				st = r2
+			if r1.Loc != VALUE_REG {
+				// move r1 to register
+				r := _unused()
+				c.AddLine(fmt.Sprintf("mov %s, %s", r, r1.Value), true)
+				c.AddLine(fmt.Sprintf("%s %s, %s", op, r, r2.Value), true)
 			} else {
-				reg = r2
-				st = r1
+				c.AddLine(fmt.Sprintf("%s %s, %s", op, r1.Value, r2.Value), true)
 			}
-			c.AddLine(fmt.Sprintf("%s %s, %s", op, reg.Value, st.Value), true)
-			stack = stack[:len(stack)-2]
 		} else {
 			// both are stack
 			r := _unused()
@@ -435,6 +432,21 @@ func (c *Compiler) CompileFunc(fn *Function, name string, func_idx int) {
 			binop1("sub")
 		case MUL:
 			binop1("imul")
+		case NOT:
+			r := stack[len(stack)-1]
+			if r.Loc == VALUE_CONST {
+				r2 := _unused()
+				c.AddLine(fmt.Sprintf("mov %s, %s", r2, r.Value), true)
+				c.AddLine(fmt.Sprintf("not %s", r2), true)
+			} else if r.Loc == VALUE_REG {
+				c.AddLine(fmt.Sprintf("not %s", r.Value), true)
+			} else {
+				r := _unused()
+				c.AddLine(fmt.Sprintf("mov %s, %s", r, stack[len(stack)-1].Value), true)
+				c.AddLine(fmt.Sprintf("not %s", r), true)
+				stack = stack[:len(stack)-1]
+				stack = append(stack, Value{VALUE_REG, r, TYPE_U64})
+			}
 		case EQUAL:
 			cmpops("cmp")
 			r := _unused()
