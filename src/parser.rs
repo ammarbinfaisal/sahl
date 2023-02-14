@@ -3,7 +3,7 @@ extern crate nom;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while_m_n},
-    character::complete::space0,
+    character::complete::{space0, none_of},
     combinator::{map, opt},
     error::ErrorKind,
     multi::{many0, many1},
@@ -86,11 +86,25 @@ fn identifier(input: &str) -> IResult<&str, String> {
     }
 }
 
+fn parse_escape(source: &str) -> IResult<&str, u8> {
+    let (source, _) = tag("\\")(source)?;
+    let (source, esc) = alt((
+        map(tag("n"), |_| '\n'),
+        map(tag("r"), |_| '\r'),
+        map(tag("t"), |_| '\t'),
+        map(tag("\\"), |_| '\\'),
+    ))(source)?;
+    Ok((source, esc as u8))
+}
+
 fn string(source: &str) -> IResult<&str, Lit> {
-    map(
-        delimited(tag("\""), take_while(|c: char| c != '"'), tag("\"")),
-        |s: &str| Lit::Str(s.as_bytes().to_vec()),
-    )(source)
+    let (source, _) = tag("\"")(source)?;
+    let (source, chars) = many0(alt((
+        parse_escape,
+        map(none_of("\""), |c| c as u8),
+    )))(source)?;
+    let (source, _) = tag("\"")(source)?;
+    Ok((source, Lit::Str(chars)))
 }
 
 fn charr(source: &str) -> IResult<&str, Lit> {
