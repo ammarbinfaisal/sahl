@@ -623,9 +623,9 @@ void handle_greater_equal(VM *vm) {
 }
 
 void handle_jump(VM *vm) {
-    uint64_t offset =
+    uint64_t ip =
         read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    vm->call_frame->ip += offset;
+    vm->call_frame->ip = ip - 1;
 }
 
 void handle_jump_if_false(VM *vm) {
