@@ -472,7 +472,11 @@ void print_value(Value value) {
         printf("%ld", value);
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
-        printf("%p ", obj);
+
+#ifdef PRINT_STACK
+// printf("%p ", obj);
+#endif
+
         if (obj->type == OBJ_STRING) {
             printf("%s", obj->string.data);
         } else if (obj->type == OBJ_LIST) {
@@ -623,8 +627,7 @@ void handle_greater_equal(VM *vm) {
 }
 
 void handle_jump(VM *vm) {
-    uint64_t ip =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    uint64_t ip = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
     vm->call_frame->ip = ip - 1;
 }
 
