@@ -938,9 +938,11 @@ void run(VM *vm) {
         printf(" (size: %d)\n", vm->call_frame->locals_count);
 #endif
 
+#ifndef UNSAFE
         if (instruction >= NUM_OPCODES) {
             error(vm, "Invalid opcode");
         }
+#endif
 
         opcode_handlers[instruction](vm);
 
