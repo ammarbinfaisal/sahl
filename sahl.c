@@ -40,6 +40,7 @@
 #define POP 34
 #define MAKE_LIST 35
 #define MAKE_TUPLE 36
+#define NUM_OPCODES 37
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -505,6 +506,407 @@ void free_value(Value value) {
         free(obj);
     }
 }
+// Define function pointer type for opcodes
+typedef void (*OpcodeHandler)(VM *);
+
+// Define opcode handler functions
+void handle_add(VM *vm) {
+    Value a = pop(vm);
+    Value b = pop(vm);
+    push(vm, a + b);
+}
+
+void handle_sub(VM *vm) {
+    Value a = pop(vm);
+    Value b = pop(vm);
+    push(vm, b - a);
+}
+
+void handle_mul(VM *vm) {
+    Value a = pop(vm);
+    Value b = pop(vm);
+    push(vm, b * a);
+}
+
+void handle_div(VM *vm) {
+    Value a = pop(vm);
+    Value b = pop(vm);
+    push(vm, b / a);
+}
+
+void handle_mod(VM *vm) {
+    Value a = pop(vm);
+    Value b = pop(vm);
+    push(vm, b % a);
+}
+
+void handle_neg(VM *vm) {
+    Value a = pop(vm);
+    push(vm, -a);
+}
+
+void handle_const_u8(VM *vm) {
+    uint64_t value = vm->call_frame->func->code[vm->call_frame->ip + 1];
+    push(vm, value);
+    vm->call_frame->ip += 1;
+}
+
+void handle_const_u32(VM *vm) {
+    uint64_t value =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, value);
+    vm->call_frame->ip += 4;
+}
+
+void handle_const_u64(VM *vm) {
+    uint64_t value =
+        read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, value);
+    vm->call_frame->ip += 8;
+}
+
+void handle_true(VM *vm) { push(vm, TRUE_VAL); }
+
+void handle_false(VM *vm) { push(vm, FALSE_VAL); }
+
+void handle_not(VM *vm) {
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(!AS_BOOL(a)));
+}
+
+void handle_and(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_BOOL(a) && AS_BOOL(b)));
+}
+
+void handle_or(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_BOOL(a) || AS_BOOL(b)));
+}
+
+void handle_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a == b));
+}
+
+void handle_not_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a != b));
+}
+
+void handle_less(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a < b));
+}
+
+void handle_less_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a <= b));
+}
+
+void handle_greater(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a > b));
+}
+
+void handle_greater_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(a >= b));
+}
+
+void handle_jump(VM *vm) {
+    uint64_t offset =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    vm->call_frame->ip += offset;
+}
+
+void handle_jump_if_false(VM *vm) {
+    uint32_t ip = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    Value value = pop(vm);
+    if (!AS_BOOL(value)) {
+        vm->call_frame->ip = ip - 1;
+    } else {
+        vm->call_frame->ip += 4;
+    }
+}
+
+void handle_pop(VM *vm) { pop(vm); }
+
+void handle_get_local(VM *vm) {
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, vm->call_frame->locals[index]);
+    vm->call_frame->ip += 4;
+}
+
+void handle_def_local(VM *vm) {
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    if (index >= vm->call_frame->locals_capacity) {
+        if (vm->call_frame->locals_capacity == 0) {
+            int newsize = (index ? index * 2 : 2);
+            vm->call_frame->locals = malloc(sizeof(Value) * newsize);
+            vm->call_frame->locals_capacity = newsize;
+        } else {
+            vm->call_frame->locals =
+                realloc(vm->call_frame->locals,
+                        sizeof(Value) * vm->call_frame->locals_capacity * 2);
+            vm->call_frame->locals_capacity *= 2;
+        }
+    }
+    Value val = pop(vm);
+    vm->call_frame->locals[index] = val;
+    vm->call_frame->locals_count = index + 1;
+    vm->call_frame->ip += 4;
+}
+
+void handle_list(VM *vm) {
+    uint32_t length =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    Obj *obj = malloc(sizeof(Obj));
+    obj->type = OBJ_LIST;
+    obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
+    obj->list.length = length;
+    for (int i = length - 1; i >= 0; --i) {
+        obj->list.items[i] = pop(vm);
+    }
+    obj->list.capacity = (length ? length : 2) * 2;
+    obj->list.owner = 1;
+    push(vm, OBJ_VAL(obj));
+    vm->call_frame->ip += 4;
+}
+
+void handle_store(VM *vm) {
+    Value index = pop(vm);
+    Value arr = pop(vm);
+    Value value = pop(vm);
+    Obj *obj = AS_OBJ(arr);
+    if (obj->list.length <= index) {
+        char msg[100];
+        memset(msg, 0, 100);
+        sprintf(msg, "Index out of bounds %ld", index);
+        error(vm, msg);
+    }
+    obj->list.items[index] = value;
+}
+
+void handle_append(VM *vm) {
+    Value value = pop(vm);
+    Value list = pop(vm);
+    Obj *obj = AS_OBJ(list);
+    if (obj->list.length >= obj->list.capacity) {
+        obj->list.capacity *= 2;
+        obj->list.items =
+            realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
+    }
+    obj->list.items[obj->list.length] = value;
+    obj->list.length++;
+}
+
+void handle_length(VM *vm) {
+    Value value = pop(vm);
+    Obj *obj = AS_OBJ(value);
+    push(vm, obj->list.length);
+}
+
+void handle_index(VM *vm) {
+    Value index = pop(vm);
+    Value value = pop(vm);
+    Obj *obj = AS_OBJ(value);
+    if (obj->list.length <= index) {
+        char msg[100];
+        memset(msg, 0, 100);
+        sprintf(msg, "Index out of bounds %ld", index);
+        error(vm, msg);
+    }
+    push(vm, obj->list.items[index]);
+}
+
+void handle_print(VM *vm) {
+    Value value = pop(vm);
+    print_value(value);
+    putchar('\n');
+}
+
+void handle_string(VM *vm) {
+    uint32_t stridx =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    char *string = vm->strings[stridx];
+    Obj *obj = malloc(sizeof(Obj));
+    obj->type = OBJ_STRING;
+    obj->string.data = string;
+    push(vm, OBJ_VAL(obj));
+    vm->call_frame->ip += 4;
+}
+
+void handle_make_tuple(VM *vm) {
+    uint32_t len = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    Obj *obj = malloc(sizeof(Obj));
+    obj->type = OBJ_TUPLE;
+    obj->tuple.items = malloc(sizeof(Value) * len);
+    obj->tuple.length = len;
+    for (int i = len - 1; i >= 0; --i) {
+        obj->tuple.items[i] = pop(vm);
+    }
+    push(vm, OBJ_VAL(obj));
+    vm->call_frame->ip += 4;
+}
+
+void handle_make_list(VM *vm) {
+    Value def = pop(vm);
+    Value len = pop(vm);
+    Obj *obj = malloc(sizeof(Obj));
+    obj->type = OBJ_LIST;
+    obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
+    obj->list.length = len;
+    obj->list.capacity = (len ? len : 2) * 2;
+    obj->list.owner = 1;
+    for (int i = 0; i < len; ++i) {
+        obj->list.items[i] = def;
+    }
+    push(vm, OBJ_VAL(obj));
+}
+
+void handle_local(VM *vm) {
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, vm->call_frame->locals[index]);
+    vm->call_frame->ip += 4;
+}
+
+void handle_assign(VM *vm) {
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    Value val = pop(vm);
+    vm->call_frame->locals[index] = val;
+    vm->call_frame->ip += 4;
+}
+
+void handle_return(VM *vm) {
+    if (vm->call_frame->depth == 0) {
+        return;
+    }
+    if (vm->stack_size) {
+        Value val = pop(vm);
+        if (IS_OBJ(val)) {
+            Obj *obj = AS_OBJ(val);
+            Obj *new_obj = malloc(sizeof(Obj));
+            if (obj->type == OBJ_LIST) {
+                new_obj->list.items =
+                    malloc(sizeof(Value) * obj->list.capacity);
+                memcpy(new_obj->list.items, obj->list.items,
+                       sizeof(Value) * obj->list.length);
+                new_obj->list.length = obj->list.length;
+                new_obj->list.capacity = obj->list.capacity;
+                new_obj->list.owner = 1;
+                new_obj->type = OBJ_LIST;
+                push(vm, OBJ_VAL(new_obj));
+            } else if (obj->type == OBJ_STRING) {
+                int len = strlen(obj->string.data) + 1;
+                new_obj->string.data = malloc(len);
+                memcpy(new_obj->string.data, obj->string.data, len);
+                new_obj->type = OBJ_STRING;
+                push(vm, OBJ_VAL(new_obj));
+            } else {
+                new_obj->type = OBJ_TUPLE;
+                new_obj->tuple.length = obj->tuple.length;
+                new_obj->tuple.items =
+                    malloc(sizeof(Value) * obj->tuple.length);
+                memcpy(new_obj->tuple.items, obj->tuple.items,
+                       sizeof(Value) * obj->tuple.length);
+                push(vm, OBJ_VAL(new_obj));
+            }
+        } else {
+            push(vm, val);
+        }
+    }
+    CallFrame *call_frame = vm->call_frame->prev;
+    free_call_frame(vm->call_frame);
+    vm->call_frame = call_frame;
+}
+
+void handle_call(VM *vm) {
+    if (vm->call_frame->depth == MAX_CALL_DEPTH) {
+        error(vm, "Maximum call depth exceeded");
+    }
+    uint32_t funcidx =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    uint32_t argc =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 5);
+    Value *args = malloc(sizeof(Value) * argc);
+    for (int i = argc - 1; i >= 0; --i) {
+        Value val = pop(vm);
+        if (IS_OBJ(val)) {
+            Obj *obj = AS_OBJ(val);
+            Obj *new_obj = malloc(sizeof(Obj));
+            if (obj->type == OBJ_LIST) {
+                new_obj->list = obj->list;
+                new_obj->list.owner = 0;
+                new_obj->type = OBJ_LIST;
+            } else {
+                printf("%d", obj->type);
+                int len = strlen(obj->string.data) + 1;
+                new_obj->string.data = malloc(len);
+                memcpy(new_obj->string.data, obj->string.data, len);
+                obj->type = OBJ_STRING;
+            }
+            Value new_val = OBJ_VAL(new_obj);
+            args[i] = new_val;
+        } else {
+            args[i] = val;
+        }
+    }
+    CallFrame *curr = vm->call_frame;
+    curr->ip += 8;
+    CallFrame *newframe = new_call_frame(vm->funcs + funcidx, curr);
+    newframe->locals_capacity = argc;
+    newframe->locals_count = argc;
+    newframe->locals = args;
+    newframe->depth = curr->depth + 1;
+    newframe->func = vm->funcs + funcidx;
+    vm->call_frame = newframe;
+    vm->call_frame->ip = -1;
+}
+
+void handle_const_64(VM *vm) {
+    uint64_t val = read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, val);
+    vm->call_frame->ip += 8;
+}
+
+void handle_const_32(VM *vm) {
+    uint32_t val = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, val);
+    vm->call_frame->ip += 4;
+}
+
+void handle_const_8(VM *vm) {
+    uint8_t val = vm->call_frame->func->code[vm->call_frame->ip + 1];
+    push(vm, val);
+    vm->call_frame->ip += 2;
+}
+
+// Create function pointer table for opcodes
+static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
+    handle_add,        handle_sub,       handle_mul,           handle_div,
+    handle_mod,        handle_neg,       handle_not,           handle_and,
+    handle_or,         handle_equal,     handle_not_equal,     handle_less,
+    handle_less_equal, handle_greater,   handle_greater_equal, handle_true,
+    handle_false,      handle_jump,      handle_jump_if_false, handle_store,
+    handle_index,      handle_append,    handle_length,        handle_list,
+    handle_const_64,   handle_const_32,  handle_const_8,       handle_string,
+    handle_def_local,  handle_get_local, handle_assign,        handle_call,
+    handle_return,     handle_print,     handle_pop,           handle_make_list,
+    handle_make_tuple,
+};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {
@@ -533,381 +935,12 @@ void run(VM *vm) {
         printf(" (size: %d)\n", vm->call_frame->locals_count);
 #endif
 
-        switch (instruction) {
-        case ADD: {
-            Value a = pop(vm);
-            Value b = pop(vm);
-            push(vm, a + b);
-            break;
+        if (instruction >= NUM_OPCODES) {
+            error(vm, "Invalid opcode");
         }
-        case SUB: {
-            Value a = pop(vm);
-            Value b = pop(vm);
-            push(vm, b - a);
-            break;
-        }
-        case MUL: {
-            Value a = pop(vm);
-            Value b = pop(vm);
-            push(vm, b * a);
-            break;
-        }
-        case DIV: {
-            Value a = pop(vm);
-            Value b = pop(vm);
-            push(vm, b / a);
-            break;
-        }
-        case MOD: {
-            Value a = pop(vm);
-            Value b = pop(vm);
-            push(vm, b % a);
-            break;
-        }
-        case NEG: {
-            Value a = pop(vm);
-            push(vm, -a);
-            break;
-        }
-        case CONST_U8: {
-            uint64_t value = vm->call_frame->func->code[vm->call_frame->ip + 1];
-            push(vm, value);
-            vm->call_frame->ip += 1;
-            break;
-        }
-        case CONST_U32: {
-            uint64_t value =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            push(vm, value);
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case CONST_U64: {
-            uint64_t value =
-                read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            push(vm, value);
-            vm->call_frame->ip += 8;
-            break;
-        }
-        case TRUE: {
-            push(vm, TRUE_VAL);
-            break;
-        }
-        case FALSE: {
-            push(vm, FALSE_VAL);
-            break;
-        }
-        case NOT: {
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(!AS_BOOL(a)));
-            break;
-        }
-        case AND: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(AS_BOOL(a) && AS_BOOL(b)));
-            break;
-        }
-        case OR: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(AS_BOOL(a) || AS_BOOL(b)));
-            break;
-        }
-        case EQUAL: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a == b));
-            break;
-        }
-        case NOT_EQUAL: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a != b));
-            break;
-        }
-        case LESS: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a < b));
-            break;
-        }
-        case LESS_EQUAL: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a <= b));
-            break;
-        }
-        case GREATER: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a > b));
-            break;
-        }
-        case GREATER_EQUAL: {
-            Value b = pop(vm);
-            Value a = pop(vm);
-            push(vm, BOOL_VAL(a >= b));
-            break;
-        }
-        case STRING: {
-            uint32_t stridx =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            char *string = vm->strings[stridx];
-            Obj *obj = malloc(sizeof(Obj));
-            obj->type = OBJ_STRING;
-            obj->string.data = string;
-            push(vm, OBJ_VAL(obj));
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case LIST: {
-            uint32_t length =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            Obj *obj = malloc(sizeof(Obj));
-            obj->type = OBJ_LIST;
-            obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
-            obj->list.length = length;
-            for (int i = length - 1; i >= 0; --i) {
-                obj->list.items[i] = pop(vm);
-            }
-            obj->list.capacity = (length ? length : 2) * 2;
-            obj->list.owner = 1;
-            push(vm, OBJ_VAL(obj));
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case MAKE_TUPLE: {
-            uint32_t len =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            Obj *obj = malloc(sizeof(Obj));
-            obj->type = OBJ_TUPLE;
-            obj->tuple.items = malloc(sizeof(Value) * len);
-            obj->tuple.length = len;
-            for (int i = len - 1; i >= 0; --i) {
-                obj->tuple.items[i] = pop(vm);
-            }
-            push(vm, OBJ_VAL(obj));
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case MAKE_LIST: {
-            Value def = pop(vm);
-            Value len = pop(vm);
-            Obj *obj = malloc(sizeof(Obj));
-            obj->type = OBJ_LIST;
-            obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
-            obj->list.length = len;
-            obj->list.capacity = (len ? len : 2) * 2;
-            obj->list.owner = 1;
-            for (int i = 0; i < len; ++i) {
-                obj->list.items[i] = def;
-            }
-            push(vm, OBJ_VAL(obj));
-            break;
-        }
-        case PRINT: {
-            Value value = pop(vm);
-            print_value(value);
-            putchar('\n');
-            break;
-        }
-        case GET_LOCAL: {
-            uint32_t index =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            push(vm, vm->call_frame->locals[index]);
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case DEF_LOCAL: {
-            uint32_t index =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            if (index >= vm->call_frame->locals_capacity) {
-                if (vm->call_frame->locals_capacity == 0) {
-                    int newsize = (index ? index * 2 : 2);
-                    vm->call_frame->locals = malloc(sizeof(Value) * newsize);
-                    vm->call_frame->locals_capacity = newsize;
-                } else {
-                    vm->call_frame->locals = realloc(
-                        vm->call_frame->locals,
-                        sizeof(Value) * vm->call_frame->locals_capacity * 2);
-                    vm->call_frame->locals_capacity *= 2;
-                }
-            }
-            Value val = pop(vm);
-            vm->call_frame->locals[index] = val;
-            vm->call_frame->locals_count = index + 1;
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case ASSIGN: {
-            uint32_t index =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            Value val = pop(vm);
-            vm->call_frame->locals[index] = val;
-            vm->call_frame->ip += 4;
-            break;
-        }
-        case CALL: {
-            if (vm->call_frame->depth == MAX_CALL_DEPTH) {
-                error(vm, "Maximum call depth exceeded");
-            }
-            uint32_t funcidx =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            uint32_t argc =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 5);
-            Value *args = malloc(sizeof(Value) * argc);
-            for (int i = argc - 1; i >= 0; --i) {
-                Value val = pop(vm);
-                if (IS_OBJ(val)) {
-                    Obj *obj = AS_OBJ(val);
-                    Obj *new_obj = malloc(sizeof(Obj));
-                    if (obj->type == OBJ_LIST) {
-                        new_obj->list = obj->list;
-                        new_obj->list.owner = 0;
-                        new_obj->type = OBJ_LIST;
-                    } else {
-                        printf("%d", obj->type);
-                        int len = strlen(obj->string.data) + 1;
-                        new_obj->string.data = malloc(len);
-                        memcpy(new_obj->string.data, obj->string.data, len);
-                        obj->type = OBJ_STRING;
-                    }
-                    Value new_val = OBJ_VAL(new_obj);
-                    args[i] = new_val;
-                } else {
-                    args[i] = val;
-                }
-            }
-            CallFrame *curr = vm->call_frame;
-            curr->ip += 8;
-            CallFrame *newframe = new_call_frame(vm->funcs + funcidx, curr);
-            newframe->locals_capacity = argc;
-            newframe->locals_count = argc;
-            newframe->locals = args;
-            newframe->depth = curr->depth + 1;
-            newframe->func = vm->funcs + funcidx;
-            vm->call_frame = newframe;
-            vm->call_frame->ip = -1;
-            break;
-        }
-        case RETURN: {
-            if (vm->call_frame->depth == 0) {
-                return;
-            }
-            if (vm->stack_size) {
-                Value val = pop(vm);
-                if (IS_OBJ(val)) {
-                    Obj *obj = AS_OBJ(val);
-                    Obj *new_obj = malloc(sizeof(Obj));
-                    if (obj->type == OBJ_LIST) {
-                        new_obj->list.items =
-                            malloc(sizeof(Value) * obj->list.capacity);
-                        memcpy(new_obj->list.items, obj->list.items,
-                               sizeof(Value) * obj->list.length);
-                        new_obj->list.length = obj->list.length;
-                        new_obj->list.capacity = obj->list.capacity;
-                        new_obj->list.owner = 1;
-                        new_obj->type = OBJ_LIST;
-                        push(vm, OBJ_VAL(new_obj));
-                    } else if (obj->type == OBJ_STRING) {
-                        int len = strlen(obj->string.data) + 1;
-                        new_obj->string.data = malloc(len);
-                        memcpy(new_obj->string.data, obj->string.data, len);
-                        new_obj->type = OBJ_STRING;
-                        push(vm, OBJ_VAL(new_obj));
-                    } else {
-                        new_obj->type = OBJ_TUPLE;
-                        new_obj->tuple.length = obj->tuple.length;
-                        new_obj->tuple.items =
-                            malloc(sizeof(Value) * obj->tuple.length);
-                        memcpy(new_obj->tuple.items, obj->tuple.items,
-                               sizeof(Value) * obj->tuple.length);
-                        push(vm, OBJ_VAL(new_obj));
-                    }
-                } else {
-                    push(vm, val);
-                }
-            }
-            CallFrame *call_frame = vm->call_frame->prev;
-            free_call_frame(vm->call_frame);
-            vm->call_frame = call_frame;
-            break;
-        }
-        case JUMP: {
-            uint32_t ip =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            vm->call_frame->ip = ip - 1;
-            break;
-        }
-        case JUMP_IF_FALSE: {
-            uint32_t ip =
-                read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-            Value value = pop(vm);
-            if (!AS_BOOL(value)) {
-                vm->call_frame->ip = ip - 1;
-            } else {
-                vm->call_frame->ip += 4;
-            }
-            break;
-        }
-        case STORE: {
-            Value index = pop(vm);
-            Value arr = pop(vm);
-            Value value = pop(vm);
-            Obj *obj = AS_OBJ(arr);
-            if (obj->list.length <= index) {
-                char msg[100];
-                memset(msg, 0, 100);
-                sprintf(msg, "Index out of bounds %ld", index);
-                error(vm, msg);
-            }
-            obj->list.items[index] = value;
-            break;
-        }
-        case APPEND: {
-            Value value = pop(vm);
-            Value list = pop(vm);
-            Obj *obj = AS_OBJ(list);
-            if (obj->list.length >= obj->list.capacity) {
-                obj->list.capacity *= 2;
-                obj->list.items = realloc(obj->list.items,
-                                          sizeof(Value) * obj->list.capacity);
-            }
-            obj->list.items[obj->list.length] = value;
-            obj->list.length++;
-            break;
-        }
-        case INDEX: {
-            Value index = pop(vm);
-            Value value = pop(vm);
-            Obj *obj = AS_OBJ(value);
-            if (obj->list.length <= index) {
-                char msg[100];
-                memset(msg, 0, 100);
-                sprintf(msg, "Index out of bounds %ld", index);
-                error(vm, msg);
-            }
-            push(vm, obj->list.items[index]);
-            break;
-        }
-        case LENGTH: {
-            Value value = pop(vm);
-            Obj *obj = AS_OBJ(value);
-            push(vm, obj->list.length);
-            break;
-        }
-        case POP: {
-            pop(vm);
-            break;
-        }
-        default: {
-            char msg[100];
-            sprintf(msg, "Unknown opcode %d",
-                    vm->call_frame->func->code[vm->call_frame->ip]);
-            error(vm, msg);
-        }
-        }
+
+        opcode_handlers[instruction](vm);
+
         ++vm->call_frame->ip;
     }
 }
