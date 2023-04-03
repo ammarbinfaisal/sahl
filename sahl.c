@@ -851,12 +851,12 @@ void handle_call(VM *vm) {
                 new_obj->list = obj->list;
                 new_obj->list.owner = 0;
                 new_obj->type = OBJ_LIST;
+            } else if (obj->type == OBJ_STRING) {
+                new_obj->string = obj->string;
+                new_obj->type = OBJ_STRING;
             } else {
-                printf("%d", obj->type);
-                int len = strlen(obj->string.data) + 1;
-                new_obj->string.data = malloc(len);
-                memcpy(new_obj->string.data, obj->string.data, len);
-                obj->type = OBJ_STRING;
+                new_obj->tuple = obj->tuple;
+                new_obj->type = OBJ_TUPLE;
             }
             Value new_val = OBJ_VAL(new_obj);
             args[i] = new_val;
