@@ -49,7 +49,7 @@
 // #define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
-// #define DEBUG
+#define DEBUG
 #define UNSAFE
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
@@ -647,9 +647,9 @@ void *allocate(VM *vm, size_t size) {
     return ptr;
 }
 
-void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
+void* reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     vm->allocated += newSize - oldSize;
-    ptr = realloc(ptr, newSize);
+    void *new_ptr = realloc(ptr, newSize);
 
 #ifdef DEBUG
     printf("reallocating %p from %ld to %ld\n", ptr, oldSize, newSize);
@@ -658,6 +658,8 @@ void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     if (vm->allocated > vm->nextGC) {
         collect_garbage(vm);
     }
+
+    return new_ptr;
 }
 
 Obj *new_obj(VM *vm, ObjType type) {
@@ -868,12 +870,12 @@ void handle_append(VM *vm) {
     Obj *obj = AS_OBJ(list);
     if (obj->list.length >= obj->list.capacity) {
         size_t old_capacity = obj->list.capacity;
-        obj->list.capacity *= 2;
-        reallocate(vm, obj->list.items, old_capacity,
-                   sizeof(Value) * obj->list.capacity);
+        obj->list.capacity = GROW_CAPACITY(old_capacity);
+        obj->list.items = reallocate(
+            vm, obj->list.items, sizeof(Value) * old_capacity,
+            sizeof(Value) * obj->list.capacity);
     }
-    obj->list.items[obj->list.length] = value;
-    obj->list.length++;
+    obj->list.items[obj->list.length++] = value;
 }
 
 void handle_length(VM *vm) {
