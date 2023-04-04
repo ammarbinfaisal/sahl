@@ -429,6 +429,8 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->grayCount = 0;
     vm->grayCapacity = 0;
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
+    vm->allocated = 0;
+    vm->nextGC = 1024 * 1024;
 
     return vm;
 }
