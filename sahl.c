@@ -59,7 +59,7 @@
 #define TAG_TRUE 3  // 11.
 
 #define GC_HEAP_GROW_FACTOR 2
-#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*2)
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
 typedef uint64_t Value;
 
@@ -451,6 +451,7 @@ void free_vm(VM *vm) {
     }
     free(vm->strings);
     free(vm->code_ptr);
+    free(vm->grayStack);
     free(vm);
 }
 
