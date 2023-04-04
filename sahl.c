@@ -536,15 +536,6 @@ void free_value(Value value) {
     }
 }
 
-Obj *new_obj(VM *vm, ObjType type) {
-    Obj *obj = malloc(sizeof(Obj));
-    obj->type = type;
-    obj->next = vm->objects;
-    vm->objects = obj;
-    obj->marked = false;
-    return obj;
-}
-
 void mark_obj(VM *vm, Obj *obj) {
     if (obj->marked) return;
     obj->marked = true;
@@ -636,6 +627,17 @@ void collect_garbage(VM *vm) {
     vm->nextGC = vm->allocated * GC_HEAP_GROW_FACTOR;
 }
 
+void *allocate(VM *vm, size_t size) {
+    vm->allocated += size;
+    void *ptr = malloc(size);
+
+    if (vm->allocated > vm->nextGC) {
+        collect_garbage(vm);
+    }
+
+    return ptr;
+}
+
 void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     vm->allocated += newSize - oldSize;
     ptr = realloc(ptr, newSize);
@@ -643,6 +645,15 @@ void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     if (vm->allocated > vm->nextGC) {
         collect_garbage(vm);
     }
+}
+
+Obj *new_obj(VM *vm, ObjType type) {
+    Obj *obj = allocate(vm, type);
+    obj->type = type;
+    obj->next = vm->objects;
+    vm->objects = obj;
+    obj->marked = false;
+    return obj;
 }
 
 // Define function pointer type for opcodes
@@ -812,7 +823,7 @@ void handle_list(VM *vm) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     obj->type = OBJ_LIST;
     int lenn = GROW_CAPACITY(length);
-    obj->list.items = malloc(sizeof(Value) * lenn);
+    obj->list.items = allocate(vm, sizeof(Value) * lenn);
     obj->list.length = length;
     for (int i = length - 1; i >= 0; --i) {
         obj->list.items[i] = pop(vm);
@@ -891,7 +902,7 @@ void handle_make_tuple(VM *vm) {
     uint32_t len = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_TUPLE);
     obj->type = OBJ_TUPLE;
-    obj->tuple.items = malloc(sizeof(Value) * len);
+    obj->tuple.items = allocate(vm, sizeof(Value) * len);
     obj->tuple.length = len;
     for (int i = len - 1; i >= 0; --i) {
         obj->tuple.items[i] = pop(vm);
@@ -905,7 +916,7 @@ void handle_make_list(VM *vm) {
     Value len = pop(vm);
     Obj *obj = new_obj(vm, OBJ_LIST);
     obj->type = OBJ_LIST;
-    obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
+    obj->list.items = allocate(vm, sizeof(Value) * (len ? len : 2) * 2);
     obj->list.length = len;
     obj->list.capacity = (len ? len : 2) * 2;
     obj->list.owner = 1;
@@ -952,7 +963,7 @@ void handle_call(VM *vm) {
     uint32_t funcidx = read_u32(code, ip + 1);
     uint32_t argc = read_u32(code, ip + 5);
 
-    Value *args = malloc(sizeof(Value) * argc);
+    Value *args = allocate(vm, sizeof(Value) * argc);
     for (int i = argc - 1; i >= 0; --i) {
         Value val = pop(vm);
         args[i] = val;
