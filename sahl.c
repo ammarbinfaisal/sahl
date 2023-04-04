@@ -518,6 +518,10 @@ void print_value(Value value) {
 }
 
 void free_obj(Obj *obj) {
+#ifdef DEBUG
+    printf("freeing %p\n\n", obj);
+#endif
+
     if (obj->type == OBJ_LIST) {
         free(obj->list.items);
     } else if (obj->type == OBJ_TUPLE) {
@@ -525,7 +529,7 @@ void free_obj(Obj *obj) {
     }
 
 #ifdef DEBUG
-    printf("freeing %p\n\n", obj);
+    printf("freed %p payload\n", obj);
 #endif
 
     free(obj);
@@ -632,6 +636,10 @@ void *allocate(VM *vm, size_t size) {
     vm->allocated += size;
     void *ptr = malloc(size);
 
+#ifdef DEBUG
+    printf("allocating %p of size %ld\n", ptr, size);
+#endif
+
     if (vm->allocated > vm->nextGC) {
         collect_garbage(vm);
     }
@@ -643,13 +651,17 @@ void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     vm->allocated += newSize - oldSize;
     ptr = realloc(ptr, newSize);
 
+#ifdef DEBUG
+    printf("reallocating %p from %ld to %ld\n", ptr, oldSize, newSize);
+#endif
+
     if (vm->allocated > vm->nextGC) {
         collect_garbage(vm);
     }
 }
 
 Obj *new_obj(VM *vm, ObjType type) {
-    Obj *obj = allocate(vm, type);
+    Obj *obj = allocate(vm, sizeof(Obj));
     obj->type = type;
     obj->next = vm->objects;
     vm->objects = obj;
@@ -822,13 +834,16 @@ void handle_list(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t length = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_LIST);
-    int lenn = GROW_CAPACITY(length);
-    obj->list.items = allocate(vm, sizeof(Value) * lenn);
+    push(vm, OBJ_VAL(obj)); // Prevent GC
+    int cap = GROW_CAPACITY(length);
+    obj->list.items = allocate(vm, sizeof(Value) * cap);
     obj->list.length = length;
+    obj->list.capacity = cap;
+    pop(vm); // Remove GC protection
     for (int i = length - 1; i >= 0; --i) {
         obj->list.items[i] = pop(vm);
     }
-    obj->list.capacity = lenn;
+    obj->list.capacity = cap;
     push(vm, OBJ_VAL(obj));
     frame->ip += 4;
 }
@@ -852,9 +867,10 @@ void handle_append(VM *vm) {
     Value list = pop(vm);
     Obj *obj = AS_OBJ(list);
     if (obj->list.length >= obj->list.capacity) {
+        size_t old_capacity = obj->list.capacity;
         obj->list.capacity *= 2;
-        obj->list.items =
-            realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
+        reallocate(vm, obj->list.items, old_capacity,
+                   sizeof(Value) * obj->list.capacity);
     }
     obj->list.items[obj->list.length] = value;
     obj->list.length++;
@@ -914,15 +930,14 @@ void handle_make_list(VM *vm) {
     Value def = pop(vm);
     Value len = pop(vm);
     Obj *obj = new_obj(vm, OBJ_LIST);
-    push(vm, OBJ_VAL(obj)); // Prevent GC
-    obj->list.items = allocate(vm, sizeof(Value) * (len ? len : 2) * 2);
+    push(vm, OBJ_VAL(obj)); // premptive GC prevention
+    size_t cap = GROW_CAPACITY(len);
+    obj->list.items = allocate(vm, sizeof(Value) * cap);
     obj->list.length = len;
-    obj->list.capacity = (len ? len : 2) * 2;
-    pop(vm);
+    obj->list.capacity = cap;
     for (int i = 0; i < len; ++i) {
         obj->list.items[i] = def;
     }
-    push(vm, OBJ_VAL(obj));
 }
 
 void handle_local(VM *vm) {
