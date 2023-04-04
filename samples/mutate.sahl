@@ -1,0 +1,29 @@
+fun mul_by_2 (x : int) -> int {
+    return x * 2
+}
+
+fun map_mul_by_2 (xs : [int], len : int) -> [int] {
+    print("map_mul_by_2")
+    let i = 0
+    while i < len {
+        xs[i] = xs[i] * 2
+        i = i + 1
+    }
+    return xs
+}
+
+fun range (start : int, end : int) -> [int] {
+    let i = start
+    let xs = make([int])
+    while i < end {
+        append(xs, i)
+        i = i + 1
+    }
+    return xs
+}
+
+fun main () {
+    let xs = range(0, 10000)
+    map_mul_by_2(xs, 10000)
+    print(xs)
+}
