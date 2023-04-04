@@ -427,7 +427,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     // garbage collection
     vm->objects = NULL;
     vm->grayCount = 0;
-    vm->grayCapacity = 0;
+    vm->grayCapacity = 1024;
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
     vm->allocated = 0;
     vm->nextGC = 1024 * 1024;
