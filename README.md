@@ -15,7 +15,7 @@ sahl means easy. This is the easiest statically typed language I could come up w
 ## features
 
 - statically typed
-- channels with threads
+- garbage collected
 
 ## history
 
@@ -43,4 +43,3 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
 ## undecided
 
 - closures
-- garbage collection

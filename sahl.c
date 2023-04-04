@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +49,7 @@
 // #define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
+// #define DEBUG
 #define UNSAFE
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
@@ -55,6 +57,9 @@
 
 #define TAG_FALSE 2 // 10.
 #define TAG_TRUE 3  // 11.
+
+#define GC_HEAP_GROW_FACTOR 2
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*2)
 
 typedef uint64_t Value;
 
@@ -86,7 +91,9 @@ struct CallFrame {
 typedef struct CallFrame CallFrame;
 
 struct Obj {
+    bool marked;
     ObjType type;
+    struct Obj *next;
     union {
         struct {
             char *data;
@@ -359,6 +366,14 @@ struct VM {
     uint8_t *code_ptr;
     CallFrame *call_frame;
     int start_func;
+
+    // garbage collection
+    Obj *objects;
+    int grayCount;
+    int grayCapacity;
+    Obj **grayStack;
+    uint64_t allocated;
+    uint64_t nextGC;
 };
 
 typedef struct VM VM;
@@ -378,9 +393,6 @@ CallFrame *new_call_frame(Func *func, CallFrame *prev) {
 }
 
 void free_call_frame(CallFrame *frame) {
-    for (int i = 0; i < frame->locals_count; ++i) {
-        free_value(frame->locals[i]);
-    }
     free(frame->locals);
     free(frame);
 }
@@ -412,6 +424,13 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->stack_size = 0;
     vm->stack = malloc(sizeof(Value) * 1024);
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
+
+    // garbage collection
+    vm->objects = NULL;
+    vm->grayCount = 0;
+    vm->grayCapacity = 0;
+    vm->grayStack = malloc(sizeof(Obj *) * 1024);
+
     return vm;
 }
 
@@ -473,8 +492,8 @@ void print_value(Value value) {
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
 
-#ifdef PRINT_STACK
-// printf("%p ", obj);
+#ifdef DEBUG
+        printf("%p ", obj);
 #endif
 
         if (obj->type == OBJ_STRING) {
@@ -486,7 +505,7 @@ void print_value(Value value) {
                 printf(", ");
             }
             printf("]");
-        } else {
+        } else if (obj->type == OBJ_TUPLE) {
             printf("(");
             for (int i = 0; i < obj->tuple.length; i++) {
                 print_value(obj->tuple.items[i]);
@@ -498,19 +517,131 @@ void print_value(Value value) {
 }
 
 void free_obj(Obj *obj) {
-    if (obj->type == OBJ_STRING) {
-        free(obj->string.data);
-    } else if (obj->type == OBJ_LIST && obj->list.owner) {
+    if (obj->type == OBJ_LIST && obj->list.owner) {
         free(obj->list.items);
     } else if (obj->type == OBJ_TUPLE) {
         free(obj->tuple.items);
     }
+
+#ifdef DEBUG
+    printf("freeing %p\n\n", obj);
+#endif
+
     free(obj);
 }
 
 void free_value(Value value) {
     if (IS_OBJ(value)) {
         free_obj(AS_OBJ(value));
+    }
+}
+
+Obj *new_obj(VM *vm, ObjType type) {
+    Obj *obj = malloc(sizeof(Obj));
+    obj->type = type;
+    obj->next = vm->objects;
+    vm->objects = obj;
+    obj->marked = false;
+    return obj;
+}
+
+void mark_obj(VM *vm, Obj *obj) {
+    if (obj->marked) return;
+    obj->marked = true;
+
+    if (vm->grayCapacity < vm->grayCount + 1) {
+        vm->grayCapacity = GROW_CAPACITY(vm->grayCapacity);
+        vm->grayStack =
+            (Obj **)realloc(vm->grayStack, sizeof(Obj *) * vm->grayCapacity);
+    }
+
+    vm->grayStack[vm->grayCount++] = obj;
+}
+
+void mark_value(VM *vm, Value value) {
+    if (IS_OBJ(value)) {
+        mark_obj(vm, AS_OBJ(value));
+    }
+}
+
+static void blacken_object(VM *vm, Obj *obj) {
+    switch (obj->type) {
+    case OBJ_STRING: {
+        break;
+    }
+    case OBJ_LIST: {
+        for (int i = 0; i < obj->list.length; i++) {
+            mark_value(vm, obj->list.items[i]);
+        }
+        break;
+    }
+    case OBJ_TUPLE: {
+        for (int i = 0; i < obj->tuple.length; i++) {
+            mark_value(vm, obj->tuple.items[i]);
+        }
+        break;
+    }
+    }
+}
+
+static void trace_references(VM *vm) {
+    while (vm->grayCount > 0) {
+        Obj *object = vm->grayStack[--vm->grayCount];
+        blacken_object(vm, object);
+    }
+}
+
+static void sweep(VM *vm) {
+    Obj *previous = NULL;
+    Obj *object = vm->objects;
+    while (object != NULL) {
+        if (object->marked) {
+            object->marked = false;
+#ifdef DEBUG
+            printf("unmarking %p\n", object);
+#endif
+            previous = object;
+            object = object->next;
+        } else {
+            Obj *unreached = object;
+            object = object->next;
+            if (previous != NULL) {
+                previous->next = object;
+            } else {
+                vm->objects = object;
+            }
+
+            free_obj(unreached);
+        }
+    }
+}
+
+void mark_roots(VM *vm) {
+    for (Value *slot = vm->stack; slot < vm->stack + vm->stack_size; slot++) {
+        mark_value(vm, *slot);
+    }
+
+    // current call frame
+    CallFrame *frame = vm->call_frame;
+    for (int i = 0; i < frame->locals_count; i++) {
+        mark_value(vm, frame->locals[i]);
+    }
+}
+
+void collect_garbage(VM *vm) {
+    // printf("Collecting garbage...
+    mark_roots(vm);
+    trace_references(vm);
+    sweep(vm);
+    vm->nextGC = vm->allocated * GC_HEAP_GROW_FACTOR;
+}
+
+void reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
+    vm->allocated += newSize - oldSize;
+    ptr = realloc(ptr, newSize);
+
+    if (vm->allocated > vm->nextGC) {
+        collect_garbage(vm);
     }
 }
 
@@ -662,10 +793,7 @@ void handle_def_local(VM *vm) {
     if (index >= frame->locals_capacity) {
         uint32_t new_capacity = (index + 1) * 2; // Exponential growth
         if (new_capacity <= 16) { // Small arrays can use stack-based allocation
-            Value *local_arr = malloc(sizeof(Value) * 16);
-            memcpy(local_arr, frame->locals,
-                   sizeof(Value) * frame->locals_count);
-            frame->locals = local_arr;
+            frame->locals = realloc(frame->locals, sizeof(Value) * 16);
             frame->locals_capacity = 16;
         } else {
             frame->locals =
@@ -681,14 +809,15 @@ void handle_def_local(VM *vm) {
 void handle_list(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t length = read_u32(frame->func->code, frame->ip + 1);
-    Obj *obj = malloc(sizeof(Obj));
+    Obj *obj = new_obj(vm, OBJ_LIST);
     obj->type = OBJ_LIST;
-    obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
+    int lenn = GROW_CAPACITY(length);
+    obj->list.items = malloc(sizeof(Value) * lenn);
     obj->list.length = length;
     for (int i = length - 1; i >= 0; --i) {
         obj->list.items[i] = pop(vm);
     }
-    obj->list.capacity = (length ? length : 2) * 2;
+    obj->list.capacity = lenn;
     obj->list.owner = 1;
     push(vm, OBJ_VAL(obj));
     frame->ip += 4;
@@ -750,7 +879,7 @@ void handle_string(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t stridx = read_u32(frame->func->code, frame->ip + 1);
     char *string = vm->strings[stridx];
-    Obj *obj = malloc(sizeof(Obj));
+    Obj *obj = new_obj(vm, OBJ_STRING);
     obj->type = OBJ_STRING;
     obj->string.data = string;
     push(vm, OBJ_VAL(obj));
@@ -760,7 +889,7 @@ void handle_string(VM *vm) {
 void handle_make_tuple(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t len = read_u32(frame->func->code, frame->ip + 1);
-    Obj *obj = malloc(sizeof(Obj));
+    Obj *obj = new_obj(vm, OBJ_TUPLE);
     obj->type = OBJ_TUPLE;
     obj->tuple.items = malloc(sizeof(Value) * len);
     obj->tuple.length = len;
@@ -774,7 +903,7 @@ void handle_make_tuple(VM *vm) {
 void handle_make_list(VM *vm) {
     Value def = pop(vm);
     Value len = pop(vm);
-    Obj *obj = malloc(sizeof(Obj));
+    Obj *obj = new_obj(vm, OBJ_LIST);
     obj->type = OBJ_LIST;
     obj->list.items = malloc(sizeof(Value) * (len ? len : 2) * 2);
     obj->list.length = len;
@@ -806,51 +935,8 @@ void handle_return(VM *vm) {
         return;
     }
 
-    if (vm->stack_size) {
-        Value val = pop(vm);
-        if (IS_OBJ(val)) {
-            Obj *obj = AS_OBJ(val);
-            Obj *new_obj = malloc(sizeof(Obj));
-            switch (obj->type) {
-            case OBJ_LIST: {
-                new_obj->list.items =
-                    malloc(sizeof(Value) * obj->list.capacity);
-                memcpy(new_obj->list.items, obj->list.items,
-                       sizeof(Value) * obj->list.length);
-                new_obj->list.length = obj->list.length;
-                new_obj->list.capacity = obj->list.capacity;
-                new_obj->list.owner = 1;
-                new_obj->type = OBJ_LIST;
-                push(vm, OBJ_VAL(new_obj));
-                break;
-            }
-            case OBJ_STRING: {
-                int len = strlen(obj->string.data) + 1;
-                new_obj->string.data = malloc(len);
-                memcpy(new_obj->string.data, obj->string.data, len);
-                new_obj->type = OBJ_STRING;
-                push(vm, OBJ_VAL(new_obj));
-                break;
-            }
-            default: {
-                new_obj->type = OBJ_TUPLE;
-                new_obj->tuple.length = obj->tuple.length;
-                new_obj->tuple.items =
-                    malloc(sizeof(Value) * obj->tuple.length);
-                memcpy(new_obj->tuple.items, obj->tuple.items,
-                       sizeof(Value) * obj->tuple.length);
-                push(vm, OBJ_VAL(new_obj));
-            }
-            }
-
-            free_obj(obj);
-        } else {
-            push(vm, val);
-        }
-    }
-
     CallFrame *call_frame = vm->call_frame->prev;
-    free_call_frame(vm->call_frame);
+    free(vm->call_frame);
     vm->call_frame = call_frame;
 }
 
@@ -869,26 +955,9 @@ void handle_call(VM *vm) {
     Value *args = malloc(sizeof(Value) * argc);
     for (int i = argc - 1; i >= 0; --i) {
         Value val = pop(vm);
-        if (IS_OBJ(val)) {
-            Obj *obj = AS_OBJ(val);
-            Obj *new_obj = malloc(sizeof(Obj));
-            if (obj->type == OBJ_LIST) {
-                new_obj->list = obj->list;
-                new_obj->list.owner = 0;
-                new_obj->type = OBJ_LIST;
-            } else if (obj->type == OBJ_STRING) {
-                new_obj->string = obj->string;
-                new_obj->type = OBJ_STRING;
-            } else {
-                new_obj->tuple = obj->tuple;
-                new_obj->type = OBJ_TUPLE;
-            }
-            Value new_val = OBJ_VAL(new_obj);
-            args[i] = new_val;
-        } else {
-            args[i] = val;
-        }
+        args[i] = val;
     }
+
     CallFrame *curr = vm->call_frame;
     curr->ip += 8;
     CallFrame *newframe = new_call_frame(vm->funcs + funcidx, curr);
@@ -970,6 +1039,10 @@ void run(VM *vm) {
 
         ++vm->call_frame->ip;
     }
+
+    // clear call frame
+    vm->call_frame->locals_count = 0;
+    collect_garbage(vm);
 }
 
 int main(int argc, char **argv) {
