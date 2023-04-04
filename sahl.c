@@ -102,7 +102,6 @@ struct Obj {
             uint64_t capacity;
             uint64_t length;
             Value *items;
-            uint8_t owner;
         } list;
         struct {
             uint64_t length;
@@ -517,7 +516,7 @@ void print_value(Value value) {
 }
 
 void free_obj(Obj *obj) {
-    if (obj->type == OBJ_LIST && obj->list.owner) {
+    if (obj->type == OBJ_LIST) {
         free(obj->list.items);
     } else if (obj->type == OBJ_TUPLE) {
         free(obj->tuple.items);
@@ -829,7 +828,6 @@ void handle_list(VM *vm) {
         obj->list.items[i] = pop(vm);
     }
     obj->list.capacity = lenn;
-    obj->list.owner = 1;
     push(vm, OBJ_VAL(obj));
     frame->ip += 4;
 }
@@ -919,7 +917,6 @@ void handle_make_list(VM *vm) {
     obj->list.items = allocate(vm, sizeof(Value) * (len ? len : 2) * 2);
     obj->list.length = len;
     obj->list.capacity = (len ? len : 2) * 2;
-    obj->list.owner = 1;
     for (int i = 0; i < len; ++i) {
         obj->list.items[i] = def;
     }
