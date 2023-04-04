@@ -899,8 +899,10 @@ void handle_make_tuple(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t len = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_TUPLE);
+    push(vm, OBJ_VAL(obj)); // Prevent GC
     obj->tuple.items = allocate(vm, sizeof(Value) * len);
     obj->tuple.length = len;
+    pop(vm);
     for (int i = len - 1; i >= 0; --i) {
         obj->tuple.items[i] = pop(vm);
     }
@@ -912,9 +914,11 @@ void handle_make_list(VM *vm) {
     Value def = pop(vm);
     Value len = pop(vm);
     Obj *obj = new_obj(vm, OBJ_LIST);
+    push(vm, OBJ_VAL(obj)); // Prevent GC
     obj->list.items = allocate(vm, sizeof(Value) * (len ? len : 2) * 2);
     obj->list.length = len;
     obj->list.capacity = (len ? len : 2) * 2;
+    pop(vm);
     for (int i = 0; i < len; ++i) {
         obj->list.items[i] = def;
     }
