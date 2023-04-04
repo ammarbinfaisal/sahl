@@ -497,19 +497,23 @@ void print_value(Value value) {
     }
 }
 
+void free_obj(Obj *obj) {
+    if (obj->type == OBJ_STRING) {
+        free(obj->string.data);
+    } else if (obj->type == OBJ_LIST && obj->list.owner) {
+        free(obj->list.items);
+    } else if (obj->type == OBJ_TUPLE) {
+        free(obj->tuple.items);
+    }
+    free(obj);
+}
+
 void free_value(Value value) {
     if (IS_OBJ(value)) {
-        Obj *obj = AS_OBJ(value);
-        if (obj->type == OBJ_STRING) {
-            free(obj->string.data);
-        } else if (obj->type == OBJ_LIST && obj->list.owner) {
-            free(obj->list.items);
-        } else if (obj->type == OBJ_TUPLE) {
-            free(obj->tuple.items);
-        }
-        free(obj);
+        free_obj(AS_OBJ(value));
     }
 }
+
 // Define function pointer type for opcodes
 typedef void (*OpcodeHandler)(VM *);
 
@@ -627,53 +631,56 @@ void handle_greater_equal(VM *vm) {
 }
 
 void handle_jump(VM *vm) {
-    uint64_t ip = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    vm->call_frame->ip = ip - 1;
+    CallFrame *frame = vm->call_frame;
+    uint64_t ip = read_u32(frame->func->code, frame->ip + 1);
+    frame->ip = ip - 1;
 }
 
 void handle_jump_if_false(VM *vm) {
-    uint32_t ip = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    CallFrame *frame = vm->call_frame;
+    uint32_t ip = read_u32(frame->func->code, frame->ip + 1);
     Value value = pop(vm);
     if (!AS_BOOL(value)) {
-        vm->call_frame->ip = ip - 1;
+        frame->ip = ip - 1;
     } else {
-        vm->call_frame->ip += 4;
+        frame->ip += 4;
     }
 }
 
 void handle_pop(VM *vm) { pop(vm); }
 
 void handle_get_local(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, vm->call_frame->locals[index]);
-    vm->call_frame->ip += 4;
+    CallFrame *frame = vm->call_frame;
+    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
+    push(vm, frame->locals[index]);
+    frame->ip += 4;
 }
 
 void handle_def_local(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    if (index >= vm->call_frame->locals_capacity) {
-        if (vm->call_frame->locals_capacity == 0) {
-            int newsize = (index ? index * 2 : 2);
-            vm->call_frame->locals = malloc(sizeof(Value) * newsize);
-            vm->call_frame->locals_capacity = newsize;
+    CallFrame *frame = vm->call_frame;
+    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
+    if (index >= frame->locals_capacity) {
+        uint32_t new_capacity = (index + 1) * 2; // Exponential growth
+        if (new_capacity <= 16) { // Small arrays can use stack-based allocation
+            Value *local_arr = malloc(sizeof(Value) * 16);
+            memcpy(local_arr, frame->locals,
+                   sizeof(Value) * frame->locals_count);
+            frame->locals = local_arr;
+            frame->locals_capacity = 16;
         } else {
-            vm->call_frame->locals =
-                realloc(vm->call_frame->locals,
-                        sizeof(Value) * vm->call_frame->locals_capacity * 2);
-            vm->call_frame->locals_capacity *= 2;
+            frame->locals =
+                realloc(frame->locals, sizeof(Value) * new_capacity);
+            frame->locals_capacity = new_capacity;
         }
     }
-    Value val = pop(vm);
-    vm->call_frame->locals[index] = val;
-    vm->call_frame->locals_count = index + 1;
-    vm->call_frame->ip += 4;
+    frame->locals[index] = pop(vm);
+    frame->locals_count = index + 1;
+    frame->ip += 4;
 }
 
 void handle_list(VM *vm) {
-    uint32_t length =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    CallFrame *frame = vm->call_frame;
+    uint32_t length = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = malloc(sizeof(Obj));
     obj->type = OBJ_LIST;
     obj->list.items = malloc(sizeof(Value) * (length ? length : 2) * 2);
@@ -684,7 +691,7 @@ void handle_list(VM *vm) {
     obj->list.capacity = (length ? length : 2) * 2;
     obj->list.owner = 1;
     push(vm, OBJ_VAL(obj));
-    vm->call_frame->ip += 4;
+    frame->ip += 4;
 }
 
 void handle_store(VM *vm) {
@@ -740,18 +747,19 @@ void handle_print(VM *vm) {
 }
 
 void handle_string(VM *vm) {
-    uint32_t stridx =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    CallFrame *frame = vm->call_frame;
+    uint32_t stridx = read_u32(frame->func->code, frame->ip + 1);
     char *string = vm->strings[stridx];
     Obj *obj = malloc(sizeof(Obj));
     obj->type = OBJ_STRING;
     obj->string.data = string;
     push(vm, OBJ_VAL(obj));
-    vm->call_frame->ip += 4;
+    frame->ip += 4;
 }
 
 void handle_make_tuple(VM *vm) {
-    uint32_t len = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    CallFrame *frame = vm->call_frame;
+    uint32_t len = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = malloc(sizeof(Obj));
     obj->type = OBJ_TUPLE;
     obj->tuple.items = malloc(sizeof(Value) * len);
@@ -760,7 +768,7 @@ void handle_make_tuple(VM *vm) {
         obj->tuple.items[i] = pop(vm);
     }
     push(vm, OBJ_VAL(obj));
-    vm->call_frame->ip += 4;
+    frame->ip += 4;
 }
 
 void handle_make_list(VM *vm) {
@@ -779,30 +787,32 @@ void handle_make_list(VM *vm) {
 }
 
 void handle_local(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, vm->call_frame->locals[index]);
-    vm->call_frame->ip += 4;
+    CallFrame *frame = vm->call_frame;
+    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
+    push(vm, frame->locals[index]);
+    frame->ip += 4;
 }
 
 void handle_assign(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    CallFrame *frame = vm->call_frame;
+    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
     Value val = pop(vm);
-    vm->call_frame->locals[index] = val;
-    vm->call_frame->ip += 4;
+    frame->locals[index] = val;
+    frame->ip += 4;
 }
 
 void handle_return(VM *vm) {
     if (vm->call_frame->depth == 0) {
         return;
     }
+
     if (vm->stack_size) {
         Value val = pop(vm);
         if (IS_OBJ(val)) {
             Obj *obj = AS_OBJ(val);
             Obj *new_obj = malloc(sizeof(Obj));
-            if (obj->type == OBJ_LIST) {
+            switch (obj->type) {
+            case OBJ_LIST: {
                 new_obj->list.items =
                     malloc(sizeof(Value) * obj->list.capacity);
                 memcpy(new_obj->list.items, obj->list.items,
@@ -812,13 +822,17 @@ void handle_return(VM *vm) {
                 new_obj->list.owner = 1;
                 new_obj->type = OBJ_LIST;
                 push(vm, OBJ_VAL(new_obj));
-            } else if (obj->type == OBJ_STRING) {
+                break;
+            }
+            case OBJ_STRING: {
                 int len = strlen(obj->string.data) + 1;
                 new_obj->string.data = malloc(len);
                 memcpy(new_obj->string.data, obj->string.data, len);
                 new_obj->type = OBJ_STRING;
                 push(vm, OBJ_VAL(new_obj));
-            } else {
+                break;
+            }
+            default: {
                 new_obj->type = OBJ_TUPLE;
                 new_obj->tuple.length = obj->tuple.length;
                 new_obj->tuple.items =
@@ -827,23 +841,31 @@ void handle_return(VM *vm) {
                        sizeof(Value) * obj->tuple.length);
                 push(vm, OBJ_VAL(new_obj));
             }
+            }
+
+            free_obj(obj);
         } else {
             push(vm, val);
         }
     }
+
     CallFrame *call_frame = vm->call_frame->prev;
     free_call_frame(vm->call_frame);
     vm->call_frame = call_frame;
 }
 
 void handle_call(VM *vm) {
-    if (vm->call_frame->depth == MAX_CALL_DEPTH) {
+    CallFrame *frame = vm->call_frame;
+    uint32_t depth = frame->depth + 1;
+    if (depth == MAX_CALL_DEPTH) {
         error(vm, "Maximum call depth exceeded");
     }
-    uint32_t funcidx =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    uint32_t argc =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 5);
+
+    uint8_t *code = frame->func->code;
+    uint32_t ip = frame->ip;
+    uint32_t funcidx = read_u32(code, ip + 1);
+    uint32_t argc = read_u32(code, ip + 5);
+
     Value *args = malloc(sizeof(Value) * argc);
     for (int i = argc - 1; i >= 0; --i) {
         Value val = pop(vm);
