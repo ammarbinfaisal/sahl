@@ -1081,6 +1081,7 @@ int main(int argc, char **argv) {
     dissassemble(code->bytes, code->length);
     puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
+    free(code->bytes);
     free(code);
     run(vm);
     free_vm(vm);
