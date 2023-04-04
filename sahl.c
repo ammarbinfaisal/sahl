@@ -362,7 +362,6 @@ struct VM {
     int funcs_count;
     int string_count;
     char **strings;
-    uint8_t *code_ptr;
     CallFrame *call_frame;
     int start_func;
 
@@ -450,7 +449,6 @@ void free_vm(VM *vm) {
         free(vm->strings[i]);
     }
     free(vm->strings);
-    free(vm->code_ptr);
     free(vm->grayStack);
     free(vm);
 }
