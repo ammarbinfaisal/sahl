@@ -802,7 +802,7 @@ void handle_def_local(VM *vm) {
     uint32_t index = read_u32(frame->func->code, frame->ip + 1);
     if (index >= frame->locals_capacity) {
         uint32_t new_capacity = (index + 1) * 2; // Exponential growth
-        if (new_capacity <= 16) { // Small arrays can use stack-based allocation
+        if (new_capacity <= 16) {
             frame->locals = realloc(frame->locals, sizeof(Value) * 16);
             frame->locals_capacity = 16;
         } else {
@@ -820,7 +820,6 @@ void handle_list(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t length = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_LIST);
-    obj->type = OBJ_LIST;
     int lenn = GROW_CAPACITY(length);
     obj->list.items = allocate(vm, sizeof(Value) * lenn);
     obj->list.length = length;
@@ -889,7 +888,6 @@ void handle_string(VM *vm) {
     uint32_t stridx = read_u32(frame->func->code, frame->ip + 1);
     char *string = vm->strings[stridx];
     Obj *obj = new_obj(vm, OBJ_STRING);
-    obj->type = OBJ_STRING;
     obj->string.data = string;
     push(vm, OBJ_VAL(obj));
     frame->ip += 4;
@@ -899,7 +897,6 @@ void handle_make_tuple(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t len = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_TUPLE);
-    obj->type = OBJ_TUPLE;
     obj->tuple.items = allocate(vm, sizeof(Value) * len);
     obj->tuple.length = len;
     for (int i = len - 1; i >= 0; --i) {
@@ -913,7 +910,6 @@ void handle_make_list(VM *vm) {
     Value def = pop(vm);
     Value len = pop(vm);
     Obj *obj = new_obj(vm, OBJ_LIST);
-    obj->type = OBJ_LIST;
     obj->list.items = allocate(vm, sizeof(Value) * (len ? len : 2) * 2);
     obj->list.length = len;
     obj->list.capacity = (len ? len : 2) * 2;
