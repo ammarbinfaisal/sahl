@@ -268,9 +268,7 @@ int print_opcode(uint8_t *code, int i) {
         i += 4;
         break;
     case MAKE_LIST:
-        // u32 length
         printf("MakeList\n");
-        i += 1;
         break;
     case STRING: {
         // u32 length
