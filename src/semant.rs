@@ -180,10 +180,12 @@ impl<'a> Checker<'a> {
                     Err(Error::TypeMismatch(vec![Type::Bool], vec![ty]))
                 }
             }
-            Expr::Arith(_, ex1, ex2) => {
+            Expr::Arith(op, ex1, ex2) => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if ty1 == Type::Int && ty2 == Type::Int {
+                if *op == ArithOp::Add && ty1 == Type::Str && ty2 == Type::Str {
+                    Ok(Type::Str)
+                } else if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Int)
                 } else {
                     Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))

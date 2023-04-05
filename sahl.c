@@ -97,6 +97,7 @@ struct Obj {
     union {
         struct {
             char *data;
+            bool constant;
         } string;
         struct {
             uint64_t capacity;
@@ -525,6 +526,8 @@ void free_obj(Obj *obj) {
         free(obj->list.items);
     } else if (obj->type == OBJ_TUPLE) {
         free(obj->tuple.items);
+    } else if (obj->type == OBJ_STRING && !obj->string.constant) {
+        free(obj->string.data);
     }
 
 #ifdef DEBUG
@@ -646,7 +649,7 @@ void *allocate(VM *vm, size_t size) {
     return ptr;
 }
 
-void* reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
+void *reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     vm->allocated += newSize - oldSize;
     void *new_ptr = realloc(ptr, newSize);
 
@@ -673,11 +676,35 @@ Obj *new_obj(VM *vm, ObjType type) {
 // Define function pointer type for opcodes
 typedef void (*OpcodeHandler)(VM *);
 
+Obj *new_string(VM *vm, char *chars, int length) {
+    Obj *obj = new_obj(vm, OBJ_STRING);
+    obj->string.data = chars;
+    obj->string.constant = false;
+    return obj;
+}
+
+Obj *concat_strings(VM *vm, Obj *a, Obj *b) {
+    int len1 = strlen(a->string.data);
+    int len2 = strlen(b->string.data);
+    int length = len1 + len2 + 1;
+    char *chars = allocate(vm, length);
+    memcpy(chars, a->string.data, len1);
+    memcpy(chars + len1, b->string.data, len2);
+    chars[length] = '\0';
+
+    return new_string(vm, chars, length);
+}
+
 // Define opcode handler functions
 void handle_add(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
+
+    if (IS_OBJ(a) && IS_OBJ(b)) {
+        push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
+    } else {
     push(vm, a + b);
+    }
 }
 
 void handle_sub(VM *vm) {
@@ -870,9 +897,9 @@ void handle_append(VM *vm) {
     if (obj->list.length >= obj->list.capacity) {
         size_t old_capacity = obj->list.capacity;
         obj->list.capacity = GROW_CAPACITY(old_capacity);
-        obj->list.items = reallocate(
-            vm, obj->list.items, sizeof(Value) * old_capacity,
-            sizeof(Value) * obj->list.capacity);
+        obj->list.items =
+            reallocate(vm, obj->list.items, sizeof(Value) * old_capacity,
+                       sizeof(Value) * obj->list.capacity);
     }
     obj->list.items[obj->list.length++] = value;
 }
@@ -899,7 +926,7 @@ void handle_index(VM *vm) {
 void handle_print(VM *vm) {
     Value value = pop(vm);
     print_value(value);
-    putchar('\n');
+    // putchar('\n');
 }
 
 void handle_string(VM *vm) {
@@ -908,6 +935,7 @@ void handle_string(VM *vm) {
     char *string = vm->strings[stridx];
     Obj *obj = new_obj(vm, OBJ_STRING);
     obj->string.data = string;
+    obj->string.constant = true;
     push(vm, OBJ_VAL(obj));
     frame->ip += 4;
 }
