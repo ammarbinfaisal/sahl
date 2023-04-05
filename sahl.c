@@ -49,7 +49,7 @@
 // #define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
-#define DEBUG
+// #define DEBUG
 #define UNSAFE
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
@@ -621,8 +621,11 @@ void mark_roots(VM *vm) {
 
     // current call frame
     CallFrame *frame = vm->call_frame;
-    for (int i = 0; i < frame->locals_count; i++) {
-        mark_value(vm, frame->locals[i]);
+    while (frame != NULL) {
+        for (int i = 0; i < frame->locals_count; i++) {
+            mark_value(vm, frame->locals[i]);
+        }
+        frame = frame->prev;
     }
 }
 
@@ -703,7 +706,7 @@ void handle_add(VM *vm) {
     if (IS_OBJ(a) && IS_OBJ(b)) {
         push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
     } else {
-    push(vm, a + b);
+        push(vm, a + b);
     }
 }
 
