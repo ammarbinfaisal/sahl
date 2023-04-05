@@ -523,16 +523,21 @@ void free_obj(Obj *obj) {
 #endif
 
     if (obj->type == OBJ_LIST) {
+#ifdef DEBUG
+        printf("freeing list items %p\n", obj->list.items);
+#endif
         free(obj->list.items);
     } else if (obj->type == OBJ_TUPLE) {
+#ifdef DEBUG
+        printf("freeing tuple items %p\n", obj->tuple.items);
+#endif
         free(obj->tuple.items);
     } else if (obj->type == OBJ_STRING && !obj->string.constant) {
+#ifdef DEBUG
+        printf("freeing string chars %p\n", obj->string.data);
+#endif
         free(obj->string.data);
     }
-
-#ifdef DEBUG
-    printf("freed %p payload\n", obj);
-#endif
 
     free(obj);
 }
@@ -544,6 +549,11 @@ void free_value(Value value) {
 }
 
 void mark_obj(VM *vm, Obj *obj) {
+#ifdef DEBUG
+    printf("marking %p\n", obj);
+    print_value(OBJ_VAL(obj));
+#endif
+
     if (obj->marked) return;
     obj->marked = true;
 
@@ -642,7 +652,7 @@ void *allocate(VM *vm, size_t size) {
     void *ptr = malloc(size);
 
 #ifdef DEBUG
-    printf("allocating %p of size %ld\n", ptr, size);
+    printf("allocated %p of size %ld\n", ptr, size);
 #endif
 
     if (vm->allocated > vm->nextGC) {
