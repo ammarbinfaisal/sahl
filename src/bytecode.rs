@@ -338,9 +338,10 @@ impl Bytecode {
                                 Type::Str => {
                                     self.add_u32(STRING, 0);
                                 }
-                                _ => {
-                                    panic!("Invalid type for list");
+                                Type::List(_) => {
+                                    self.add_u32(LIST, 0);
                                 }
+                                _ => panic!("Cannot make a non-list"),
                             }
                             self.add(MAKE_LIST);
                         }

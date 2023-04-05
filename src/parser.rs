@@ -41,7 +41,7 @@ fn chanty(source: &str) -> IResult<&str, Type> {
 
 fn listty(source: &str) -> IResult<&str, Type> {
     let (source, _) = tag("[")(source)?;
-    let (source, ty) = typee(source)?;
+    let (source, ty) = alt((listty, typee))(source)?;
     let (source, _) = tag("]")(source)?;
     Ok((source, Type::List(Box::new(ty))))
 }
