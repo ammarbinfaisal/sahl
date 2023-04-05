@@ -276,6 +276,11 @@ impl Bytecode {
                         self.compile_expr(arg);
                     }
                     self.add(APPEND);
+                } else if name == "len" {
+                    for arg in args {
+                        self.compile_expr(arg);
+                    }
+                    self.add(LENGTH);
                 } else {
                     for arg in args {
                         self.compile_expr(arg);

@@ -93,6 +93,19 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 Err(Error::ArityMismatch(2, args.len()))
             }
         }
+        "len" => {
+            if args.len() == 1 {
+                match &args[0] {
+                    Type::List(_) => Ok(Type::Int),
+                    _ => Err(Error::TypeMismatch(
+                        vec![Type::List(Box::new(Type::Void))],
+                        vec![args[0].clone()],
+                    )),
+                }
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            }
+        }
         _ => Err(Error::UndefinedVariable(name.to_string())),
     }
 }
