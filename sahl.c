@@ -43,7 +43,8 @@
 #define MAKE_LIST 35
 #define MAKE_TUPLE 36
 #define NATIVE_CALL 37
-#define NUM_OPCODES 38
+#define CONST_DOUBLE 38
+#define NUM_OPCODES 39
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -113,6 +114,7 @@ struct Obj {
         struct {
             CallFrame *frame;
         } closure;
+        long long integer;
     };
 };
 
@@ -124,11 +126,17 @@ typedef struct Obj Obj;
 
 #define AS_BOOL(value) ((value) == TRUE_VAL)
 #define AS_OBJ(value) ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
+#define AS_FLOAT(value) value_to_float(value)
 
 #define BOOL_VAL(b) ((b) ? TRUE_VAL : FALSE_VAL)
 #define FALSE_VAL ((Value)(uint64_t)(QNAN | TAG_FALSE))
 #define TRUE_VAL ((Value)(uint64_t)(QNAN | TAG_TRUE))
 #define OBJ_VAL(obj) (Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
+#define FLOAT_VAL(f) float_to_value(f)
+
+double value_to_float(Value value) { return *(double *)&value; }
+
+Value float_to_value(double f) { return *(Value *)&f; }
 
 struct Code {
     uint32_t start_ip;
@@ -489,7 +497,7 @@ void print_value(Value value) {
     if (IS_BOOL(value)) {
         printf("%s", AS_BOOL(value) ? "true" : "false");
     } else if (IS_NUMBER(value)) {
-        printf("%ld", value);
+        printf("%lf", AS_FLOAT(value));
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
 
@@ -716,37 +724,40 @@ void handle_add(VM *vm) {
     if (IS_OBJ(a) && IS_OBJ(b)) {
         push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
     } else {
-        push(vm, a + b);
+        push(vm, FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b)));
     }
 }
 
 void handle_sub(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, b - a);
+    push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_FLOAT(a)));
 }
 
 void handle_mul(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, b * a);
+    push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_FLOAT(a)));
 }
 
 void handle_div(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, b / a);
+    push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_FLOAT(a)));
 }
 
 void handle_mod(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, b % a);
+    error(vm, "This used to work when language had only integers, "
+              "but now Ammar replaced integers with floats as "
+              "implementing floats alognside ints seemed hard without wasting "
+              "memory");
 }
 
 void handle_neg(VM *vm) {
     Value a = pop(vm);
-    push(vm, -a);
+    push(vm, FLOAT_VAL(-AS_FLOAT(a)));
 }
 
 void handle_const_u8(VM *vm) {
@@ -765,7 +776,7 @@ void handle_const_u32(VM *vm) {
 void handle_const_u64(VM *vm) {
     uint64_t value =
         read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, value);
+    push(vm, FLOAT_VAL((double)value));
     vm->call_frame->ip += 8;
 }
 
@@ -970,7 +981,8 @@ void handle_make_tuple(VM *vm) {
 
 void handle_make_list(VM *vm) {
     Value def = pop(vm);
-    Value len = pop(vm);
+    double dlen = AS_FLOAT(pop(vm));
+    uint64_t len = (double)dlen;
     Obj *obj = new_obj(vm, OBJ_LIST);
     push(vm, OBJ_VAL(obj)); // premptive GC prevention
     size_t cap = GROW_CAPACITY(len);
@@ -1039,7 +1051,7 @@ void handle_call(VM *vm) {
 
 void handle_const_64(VM *vm) {
     uint64_t val = read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, val);
+    push(vm, FLOAT_VAL(val));
     vm->call_frame->ip += 8;
 }
 
@@ -1054,6 +1066,8 @@ void handle_const_8(VM *vm) {
     push(vm, val);
     vm->call_frame->ip += 2;
 }
+
+void handle_const_double(VM *vm) { handle_const_64(vm); }
 
 void handle_native_call(VM *vm) {
     CallFrame *frame = vm->call_frame;
@@ -1072,32 +1086,35 @@ void handle_native_call(VM *vm) {
     case 1: {
         // RAND
         int r = rand() % args[1] + args[0];
-        push(vm, r);
+        push(vm, FLOAT_VAL((double)r));
         break;
     }
     case 2:
         // SLEEP
         sleep(args[0]);
         break;
+    case 3:
+        // RANDF
+        push(vm, FLOAT_VAL(rand() % RAND_MAX));
     }
     frame->ip += 8;
 }
 
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
-    handle_add,           handle_sub,        handle_mul,
-    handle_div,           handle_mod,        handle_neg,
-    handle_not,           handle_and,        handle_or,
-    handle_equal,         handle_not_equal,  handle_less,
-    handle_less_equal,    handle_greater,    handle_greater_equal,
-    handle_true,          handle_false,      handle_jump,
-    handle_jump_if_false, handle_store,      handle_index,
-    handle_append,        handle_length,     handle_list,
-    handle_const_64,      handle_const_32,   handle_const_8,
-    handle_string,        handle_def_local,  handle_get_local,
-    handle_assign,        handle_call,       handle_return,
-    handle_print,         handle_pop,        handle_make_list,
-    handle_make_tuple,    handle_native_call};
+    handle_add,           handle_sub,         handle_mul,
+    handle_div,           handle_mod,         handle_neg,
+    handle_not,           handle_and,         handle_or,
+    handle_equal,         handle_not_equal,   handle_less,
+    handle_less_equal,    handle_greater,     handle_greater_equal,
+    handle_true,          handle_false,       handle_jump,
+    handle_jump_if_false, handle_store,       handle_index,
+    handle_append,        handle_length,      handle_list,
+    handle_const_64,      handle_const_32,    handle_const_8,
+    handle_string,        handle_def_local,   handle_get_local,
+    handle_assign,        handle_call,        handle_return,
+    handle_print,         handle_pop,         handle_make_list,
+    handle_make_tuple,    handle_native_call, handle_const_double};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {

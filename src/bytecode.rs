@@ -42,6 +42,7 @@ const POP: u8 = 34;
 const MAKE_LIST: u8 = 35;
 const MAKE_TUPLE: u8 = 36;
 const NATIVE_CALL: u8 = 37;
+const CONST_DOUBLE: u8 = 38;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -170,6 +171,10 @@ impl Bytecode {
                 Lit::Int(i) => {
                     self.add_u64(CONST_U64, *i as u64);
                 }
+                Lit::Double(d) => {
+                    let bytes = d.to_bits();
+                    self.add_u64(CONST_DOUBLE, bytes);
+                }
                 Lit::Char(c) => {
                     self.add_u8(CONST_U8, *c);
                 }
@@ -282,6 +287,8 @@ impl Bytecode {
                     self.add_2_u32(NATIVE_CALL, 1, 2);
                 } else if name == "sleep" {
                     self.add_2_u32(NATIVE_CALL, 2, 1);
+                } else if name == "randf" {
+                    self.add_2_u32(NATIVE_CALL, 0, 1);
                 } else {
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);
@@ -326,6 +333,9 @@ impl Bytecode {
                             match **ty {
                                 Type::Int => {
                                     self.add_u64(CONST_U64, 0);
+                                }
+                                Type::Double => {
+                                    self.add_u64(CONST_DOUBLE, (0.0f64).to_bits());
                                 }
                                 Type::Char => {
                                     self.add_u8(CONST_U8, 0);

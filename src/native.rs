@@ -209,7 +209,8 @@ where
                             }
                         }
                     }
-                }
+                },
+                _ => panic!("Invalid literal"),
             },
             Expr::Variable(v) => {
                 let var = self.lookup_var(v);

@@ -144,6 +144,9 @@ impl Codegen {
                     }
                     self.add_instruction(Instruction::List(l.len()));
                 }
+                _ => {
+                    panic!("Unimplemented literal: {:?}", lit);
+                }
             },
             Expr::Variable(name) => {
                 let local = self.get_local(name);
@@ -279,12 +282,7 @@ impl Codegen {
                             Type::Char => Value::Char(0),
                             Type::Bool => Value::Bool(false),
                             Type::Str => Value::Str(Vec::new()),
-                            Type::List(_) => panic!("Cannot create a list of lists"),
-                            Type::Chan(_) => panic!("Cannot create a list of channels"),
-                            Type::Void => panic!("Cannot create a list of void"),
-                            Type::Any => panic!("Cannot create a list of any"),
-                            Type::Tuple(_) => panic!("Cannot create a list of tuples"),
-                            Type::Range => unimplemented!("list of ranges is unimplemented"),
+                            _ => panic!("Cannot make a list of this type"),
                         };
                         if size.is_some() {
                             self.compile_expr(size.as_ref().unwrap());

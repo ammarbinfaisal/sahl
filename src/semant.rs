@@ -122,7 +122,14 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
             } else {
                 Err(Error::ArityMismatch(2, args.len()))
             }
-        }
+        },
+        "randf" => {
+            if args.len() == 0 {
+                Ok(Type::Double)
+            } else {
+                Err(Error::ArityMismatch(0, args.len()))
+            }
+        },
         _ => Err(Error::UndefinedVariable(name.to_string())),
     }
 }
@@ -163,6 +170,7 @@ impl<'a> Checker<'a> {
                 Lit::Bool(_) => Ok(Type::Bool),
                 Lit::Char(_) => Ok(Type::Char),
                 Lit::Str(_) => Ok(Type::Str),
+                Lit::Double(_) => Ok(Type::Double),
                 Lit::List(list) => {
                     let type_ = self.check_expr(&list.iter().next().unwrap())?;
                     for elem in list.iter().skip(1) {
@@ -217,8 +225,10 @@ impl<'a> Checker<'a> {
                     Ok(Type::Str)
                 } else if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Int)
+                } else if ty1 == Type::Double || ty2 == Type::Double {
+                    Ok(Type::Double)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
+                    Err(Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty1, ty2]))
                 }
             }
             Expr::BoolOp(_, ex1, ex2) => {
@@ -233,10 +243,10 @@ impl<'a> Checker<'a> {
             Expr::CmpOp(_, ex1, ex2) => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if ty1 == Type::Int && ty2 == Type::Int {
+                if ty1 == ty2 {
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
+                    Err(Error::TypeMismatch(vec![ty1.clone()], vec![ty1, ty2]))
                 }
             }
             Expr::Call(name, args) => {

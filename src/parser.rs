@@ -3,10 +3,11 @@ extern crate nom;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while_m_n},
-    character::complete::{space0, none_of},
+    character::complete::{none_of, space0},
     combinator::{map, opt},
     error::ErrorKind,
     multi::{many0, many1},
+    number::complete::float,
     sequence::{delimited, tuple},
     Err, IResult,
 };
@@ -24,6 +25,7 @@ fn typee(source: &str) -> IResult<&str, Type> {
         map(tag("bool"), |_| Type::Bool),
         map(tag("string"), |_| Type::Str),
         map(tag("char"), |_| Type::Char),
+        map(tag("double"), |_| Type::Double),
         chanty,
     ))(source)?;
     Ok((source, ty))
@@ -99,10 +101,7 @@ fn parse_escape(source: &str) -> IResult<&str, u8> {
 
 fn string(source: &str) -> IResult<&str, Lit> {
     let (source, _) = tag("\"")(source)?;
-    let (source, chars) = many0(alt((
-        parse_escape,
-        map(none_of("\""), |c| c as u8),
-    )))(source)?;
+    let (source, chars) = many0(alt((parse_escape, map(none_of("\""), |c| c as u8))))(source)?;
     let (source, _) = tag("\"")(source)?;
     Ok((source, Lit::Str(chars)))
 }
@@ -120,7 +119,18 @@ fn charr(source: &str) -> IResult<&str, Lit> {
 
 fn natural(source: &str) -> IResult<&str, Lit> {
     let (source, nat) = take_while_m_n(1, 19, |c: char| c.is_digit(10))(source)?;
+    if source.len() > 0 && source.as_bytes()[0] == '.' as u8 {
+        return Err(Err::Error(nom::error::Error {
+            input: source,
+            code: ErrorKind::Fail,
+        }));
+    }
     Ok((source, Lit::Int(nat.parse::<i64>().unwrap())))
+}
+
+fn floatt(source: &str) -> IResult<&str, Lit> {
+    let (source, f) = float(source)?;
+    Ok((source, Lit::Double(f as f64)))
 }
 
 fn boolean(source: &str) -> IResult<&str, Lit> {
@@ -192,7 +202,10 @@ fn barcexpr(source: &str) -> IResult<&str, Expr> {
 fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = alt((
-        map(alt((string, charr, natural, boolean)), Expr::Literal),
+        map(
+            alt((string, charr, natural,floatt, boolean)),
+            Expr::Literal,
+        ),
         call,
         subscript,
         variable,
@@ -204,6 +217,7 @@ fn factor(source: &str) -> IResult<&str, Expr> {
             call,
             variable,
             map(natural, Expr::Literal),
+            map(floatt, Expr::Literal),
             subscript,
             barcexpr,
         )),
