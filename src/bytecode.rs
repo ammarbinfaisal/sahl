@@ -288,7 +288,7 @@ impl Bytecode {
                 } else if name == "sleep" {
                     self.add_2_u32(NATIVE_CALL, 2, 1);
                 } else if name == "randf" {
-                    self.add_2_u32(NATIVE_CALL, 0, 1);
+                    self.add_2_u32(NATIVE_CALL, 3, 1);
                 } else {
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);
