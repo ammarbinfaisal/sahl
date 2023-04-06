@@ -5,6 +5,7 @@ pub enum Type {
     Char,
     Bool,
     Void,
+    Double,
     Any,
     List(Box<Type>),
     Chan(Box<Type>),
@@ -19,6 +20,7 @@ pub enum Lit {
     Bool(bool),
     Str(Vec<u8>),
     List(Vec<Expr>),
+    Double(f64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
