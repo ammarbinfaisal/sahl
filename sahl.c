@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define ADD 0
 #define SUB 1
@@ -41,7 +42,8 @@
 #define POP 34
 #define MAKE_LIST 35
 #define MAKE_TUPLE 36
-#define NUM_OPCODES 37
+#define NATIVE_CALL 37
+#define NUM_OPCODES 38
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -1053,19 +1055,49 @@ void handle_const_8(VM *vm) {
     vm->call_frame->ip += 2;
 }
 
+void handle_native_call(VM *vm) {
+    CallFrame *frame = vm->call_frame;
+    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);
+    uint32_t argc = read_u32(frame->func->code, frame->ip + 5);
+    Value *args = allocate(vm, sizeof(Value) * argc);
+    for (int i = argc - 1; i >= 0; --i) {
+        Value val = pop(vm);
+        args[i] = val;
+    }
+    switch (funcidx) {
+    case 0:
+        // CLEAR SCREEN
+        printf("\033[2J\033[1;1H");
+        break;
+    case 1: {
+        // RAND
+        int r = rand() % args[1] + args[0];
+        push(vm, r);
+        break;
+    }
+    case 2:
+        // SLEEP
+        sleep(args[0]);
+        break;
+    }
+    frame->ip += 8;
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
-    handle_add,        handle_sub,       handle_mul,           handle_div,
-    handle_mod,        handle_neg,       handle_not,           handle_and,
-    handle_or,         handle_equal,     handle_not_equal,     handle_less,
-    handle_less_equal, handle_greater,   handle_greater_equal, handle_true,
-    handle_false,      handle_jump,      handle_jump_if_false, handle_store,
-    handle_index,      handle_append,    handle_length,        handle_list,
-    handle_const_64,   handle_const_32,  handle_const_8,       handle_string,
-    handle_def_local,  handle_get_local, handle_assign,        handle_call,
-    handle_return,     handle_print,     handle_pop,           handle_make_list,
-    handle_make_tuple,
-};
+    handle_add,           handle_sub,        handle_mul,
+    handle_div,           handle_mod,        handle_neg,
+    handle_not,           handle_and,        handle_or,
+    handle_equal,         handle_not_equal,  handle_less,
+    handle_less_equal,    handle_greater,    handle_greater_equal,
+    handle_true,          handle_false,      handle_jump,
+    handle_jump_if_false, handle_store,      handle_index,
+    handle_append,        handle_length,     handle_list,
+    handle_const_64,      handle_const_32,   handle_const_8,
+    handle_string,        handle_def_local,  handle_get_local,
+    handle_assign,        handle_call,       handle_return,
+    handle_print,         handle_pop,        handle_make_list,
+    handle_make_tuple,    handle_native_call};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {

@@ -106,6 +106,23 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 Err(Error::ArityMismatch(1, args.len()))
             }
         }
+        "clear" => {
+            Ok(Type::Void)
+        }
+        "sleep" => {
+            if args.len() == 1 {
+                Ok(Type::Void)
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            }
+        }
+        "rand" => {
+            if args.len() == 2 {
+                Ok(Type::Int)
+            } else {
+                Err(Error::ArityMismatch(2, args.len()))
+            }
+        }
         _ => Err(Error::UndefinedVariable(name.to_string())),
     }
 }

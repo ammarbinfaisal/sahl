@@ -41,6 +41,7 @@ const PRINT: u8 = 33;
 const POP: u8 = 34;
 const MAKE_LIST: u8 = 35;
 const MAKE_TUPLE: u8 = 36;
+const NATIVE_CALL: u8 = 37;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -266,25 +267,22 @@ impl Bytecode {
                 }
             }
             Expr::Call(name, args) => {
+                for arg in args {
+                    self.compile_expr(arg);
+                }
                 if name == "print" {
-                    for arg in args {
-                        self.compile_expr(arg);
-                    }
                     self.add(PRINT);
                 } else if name == "append" {
-                    for arg in args {
-                        self.compile_expr(arg);
-                    }
                     self.add(APPEND);
                 } else if name == "len" {
-                    for arg in args {
-                        self.compile_expr(arg);
-                    }
                     self.add(LENGTH);
+                } else if name == "clear" {
+                    self.add_2_u32(NATIVE_CALL, 0, 0);
+                } else if name == "rand" {
+                    self.add_2_u32(NATIVE_CALL, 1, 2);
+                } else if name == "sleep" {
+                    self.add_2_u32(NATIVE_CALL, 2, 1);
                 } else {
-                    for arg in args {
-                        self.compile_expr(arg);
-                    }
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);
                     let (call_offset, _) = self.add_2_u32(CALL, 0, args.len() as u32);
