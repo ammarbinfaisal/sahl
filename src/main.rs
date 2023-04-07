@@ -19,6 +19,7 @@ fn usage() {
     println!("  -c: Compile to bytecode");
     println!("  -e: Execute code on rust backend");
     println!("  -n: Compile to native code");
+    println!("  -x: Skip semantic checking");
     println!("Verbose:");
     println!("  -v: Verbose mode");
 }
@@ -27,11 +28,14 @@ fn main() {
     let filename = std::env::args().nth(1);
     let opt = std::env::args().nth(2);
     let opt2 = std::env::args().nth(3);
+    let opt3 = std::env::args().nth(4);
     if filename.is_some() && opt.is_some() {
         let to_exec = opt.clone().unwrap() == "-e";
         let to_compile = opt.clone().unwrap() == "-c";
         let native = opt.unwrap() == "-n";
-        let verbose = opt2.is_some() && opt2.unwrap() == "-v";
+        let verbose = opt2.clone().is_some() && opt2.clone().unwrap() == "-v";
+        let skip_semant =
+            (opt3.is_some() && opt3.unwrap() == "-x") || (opt2.is_some() && opt2.unwrap() == "-x");
         if !to_exec && !to_compile && !native {
             usage();
             return;
@@ -54,7 +58,11 @@ fn main() {
                 if verbose {
                     println!("{:#?}", p);
                 }
-                let res = check_program(&p);
+                let res = if skip_semant {
+                    Ok(())
+                } else {
+                    check_program(&p)
+                };
                 match res {
                     Ok(_) => {
                         if verbose {

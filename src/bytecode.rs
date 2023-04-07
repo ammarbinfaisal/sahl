@@ -276,7 +276,7 @@ impl Bytecode {
                     self.compile_expr(arg);
                 }
                 if name == "print" {
-                    self.add(PRINT);
+                    self.add_2_u32(NATIVE_CALL, 7, args.len() as u32);
                 } else if name == "append" {
                     self.add(APPEND);
                 } else if name == "len" {
@@ -289,6 +289,16 @@ impl Bytecode {
                     self.add_2_u32(NATIVE_CALL, 2, 1);
                 } else if name == "randf" {
                     self.add_2_u32(NATIVE_CALL, 3, 0);
+                } else if name == "exp" {
+                    self.add_2_u32(NATIVE_CALL, 4, 1);
+                } else if name == "pow" {
+                    self.add_2_u32(NATIVE_CALL, 5, 2);
+                } else if name == "exit" {
+                    self.add_2_u32(NATIVE_CALL, 6, 1);
+                } else if name == "tanh" {
+                    self.add_2_u32(NATIVE_CALL, 8, 1);
+                } else if name == "log" {
+                    self.add_2_u32(NATIVE_CALL, 9, 1);
                 } else {
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);

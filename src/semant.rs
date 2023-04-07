@@ -66,13 +66,7 @@ type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
 
 fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
     match name {
-        "print" => {
-            if args.len() == 1 {
-                Ok(Type::Void)
-            } else {
-                Err(Error::ArityMismatch(1, args.len()))
-            }
-        }
+        "print" => Ok(Type::Void),
         "append" => {
             if args.len() == 2 {
                 match &args[0] {
@@ -106,9 +100,7 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 Err(Error::ArityMismatch(1, args.len()))
             }
         }
-        "clear" => {
-            Ok(Type::Void)
-        }
+        "clear" => Ok(Type::Void),
         "sleep" => {
             if args.len() == 1 {
                 Ok(Type::Void)
@@ -122,14 +114,49 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
             } else {
                 Err(Error::ArityMismatch(2, args.len()))
             }
-        },
+        }
         "randf" => {
             if args.len() == 0 {
                 Ok(Type::Double)
             } else {
                 Err(Error::ArityMismatch(0, args.len()))
             }
+        }
+        "exp" => {
+            if args.len() == 1 {
+                Ok(Type::Double)
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            }
+        }
+        "pow" => {
+            if args.len() == 2 {
+                Ok(Type::Double)
+            } else {
+                Err(Error::ArityMismatch(2, args.len()))
+            }
+        }
+        "exit" => {
+            if args.len() == 1 {
+                Ok(Type::Void)
+            } else {
+                Err(Error::ArityMismatch(0, args.len()))
+            }
         },
+        "tanh" => {
+            if args.len() == 1 {
+                Ok(Type::Double)
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            } 
+        }
+        "log" => {
+            if args.len() == 1 {
+                Ok(Type::Double)
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            } 
+        }
         _ => Err(Error::UndefinedVariable(name.to_string())),
     }
 }
@@ -204,10 +231,10 @@ impl<'a> Checker<'a> {
             }
             Expr::Neg(e) => {
                 let ty = self.check_expr(e)?;
-                if ty == Type::Int {
+                if ty == Type::Int || ty == Type::Double {
                     Ok(ty)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty]))
+                    Err(Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty]))
                 }
             }
             Expr::Not(e) => {
@@ -228,7 +255,10 @@ impl<'a> Checker<'a> {
                 } else if ty1 == Type::Double || ty2 == Type::Double {
                     Ok(Type::Double)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty1, ty2]))
+                    Err(Error::TypeMismatch(
+                        vec![Type::Int, Type::Double],
+                        vec![ty1, ty2],
+                    ))
                 }
             }
             Expr::BoolOp(_, ex1, ex2) => {

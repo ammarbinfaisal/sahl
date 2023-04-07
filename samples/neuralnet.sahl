@@ -1,0 +1,238 @@
+fun randmat(r: int, c: int) -> [[double]] {
+    let m = make([[double]])
+    let i = 0
+    while i < r {
+        let j = 0
+        let col = make([double])
+        while j < c {
+            append(col, randf())
+            j = j + 1
+        }
+        append(m, col)
+        i = i + 1
+    }
+    return m
+}
+
+fun submat(m1 : [[double]], m2 : [[double]]) -> [[double]] {
+    let m = make([[double]])
+    let i = 0
+    while i < len(m1) {
+        let j = 0
+        let row = make([double])
+        while j < len(m1[i]) {
+            append(row, m1[i][j] - m2[i][j])
+            j = j + 1
+        }
+        append(m, row)
+        i = i + 1
+    }
+    return m
+}
+
+fun powmat(m : [[double]], p : double) -> [[double]] {
+    let m2 = make([[double]])
+    let i = 0
+    while i < len(m) {
+        let j = 0
+        let row = make([double])
+        while j < len(m[i]) {
+            append(row, pow(m[i][j], p))
+            j = j + 1
+        }
+        append(m2, row)
+        i = i + 1
+    }
+    return m2
+}
+
+fun max(a : double, b : double) -> double {
+    if a > b {
+        return a
+    } else {
+        return b
+    }
+}
+
+fun relu(m : [[double]]) -> [[double]] {
+    let m2 = make([[double]])
+    let i = 0
+    while i < len(m) {
+        let j = 0
+        let row = make([double])
+        while j < len(m[i]) {
+            append(row, max(0.0, m[i][j]))
+            j = j + 1
+        }
+        append(m2, row)
+        i = i + 1
+    }
+    return m2
+}
+
+fun sigmoid(m : [[double]]) -> [[double]] {
+    let m2 = make([[double]])
+    let i = 0
+    let r = len(m)
+    let c = len(m[0])
+    while i < r {
+        let j = 0
+        let row = make([double])
+        while j < c {
+            append(row, 1 / (1 + exp(-m[i][j])))
+            j = j + 1
+        }
+        append(m2, row)
+        i = i + 1
+    }
+    return m2
+}
+
+fun summat(m : [[double]]) -> double {
+    let s = 0.0
+    let i = 0
+    while i < len(m) {
+        let j = 0
+        while j < len(m[i]) {
+            s = s + m[i][j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return s
+}
+
+fun matmul(m1 : [[double]], m2 : [[double]]) -> [[double]] {
+    # m1 x m2
+    # m1: r x c
+    # m2: c x r2
+    let r = len(m1)
+    let c = len(m1[0])
+    let c2 = len(m2)
+    let r2 = len(m2[0])
+    if c != c2 {
+        print("error: matmul \t size: ", r, " x ", c, " with ", c2, " x ", r2, "\n")
+        exit(1)
+        return make([[double]]) # to make the semantic check pass
+    }
+    let m = make([[double]])
+    let i = 0
+    while i < r {
+        let j = 0
+        let row = make([double])
+        # print("making row ", i, " of ", r, "\n")
+        while j < r2 {
+            # print("j = ", j, " of ", r2, "\n")
+            let k = 0
+            let s = 0.0
+            while k < c2 {
+                # print("m1[", i, "][", k, "] = ", m1[i][k], "\n")
+                # print("m2[", k, "][", j, "] = ", m2[k][j], "\n")
+                s = s + m1[i][k] * m2[k][j]
+                k = k + 1
+            }
+            append(row, s)
+            j = j + 1
+        }
+        append(m, row)
+        i = i + 1
+    }
+    return m
+}
+
+fun matmulc(mat: [[double]], v: double) -> [[double]] {
+    let r = len(mat)
+    let c = len(mat[0])
+    let i = 0
+    while i < r {
+        let j = 0
+        while j < c {
+            mat[i][j] = mat[i][j] * v
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return mat
+}
+
+fun transpose(m : [[double]]) -> [[double]] {
+    let m2 = make([[double]])
+    let i = 0
+    while i < len(m[0]) {
+        let j = 0
+        let row = make([double])
+        while j < len(m) {
+            append(row, m[j][i])
+            j = j + 1
+        }
+        append(m2, row)
+        i = i + 1
+    }
+    return m2
+}
+
+fun copyarr(a : [double]) -> [double] {
+    let b = make([double])
+    let i = 0
+    while i < len(a) {
+        append(b, a[i])
+        i = i + 1
+    }
+    return b
+}
+
+fun print_size(m : [[double]]) {
+    print("size: ", len(m), " x ", len(m[0]), "\n")
+}
+
+fun main() {
+    let input_size = 2
+    let hidden_size = 36
+    let output_size = 1
+
+    # parameters
+    let w1 = randmat(hidden_size, input_size)
+    let w2 = randmat(output_size, hidden_size)
+
+    print("w1: ", w1, "\n")
+    print("w2: ", w2, "\n")
+    
+    let lr = 0.05
+
+    # training xor
+    let _x = [[0., 0.,], [0., 1.,], [1., 0.,], [1., 1.,],]
+    let x = transpose(_x)
+    let y = [[0., 1., 1., 0.,], ]
+
+    print(x, "\n")
+
+    let i = 0
+    while i < 10000 {
+        # forward
+        let h = relu(matmul(w1, x))
+        let h2 = sigmoid(matmul(w2, h))
+
+        # loss
+        let loss = summat(powmat(submat(h2, y), 2.0))
+        if i % 1000 == 0 {
+            print("i: ", i, "\n")
+            print("loss: ", loss, "\n")
+            print("preds: ", h2, "\n")
+        }
+
+        # backward
+        let grad_h2 = submat(h2, y)
+        # print("grad_h2", grad_h2, "\n")
+        let grad_w2 = matmul(grad_h2, transpose(h))
+        # print("grad_w2", grad_w2, "\n")
+        let grad_h = matmul(transpose(w2), grad_h2)
+        # print("grad_h", grad_h, "\n")
+        let grad_w1 = matmul(grad_h, transpose(x))
+
+        # update
+        w1 = submat(w1, matmulc(grad_w1, lr))
+        w2 = submat(w2, matmulc(grad_w2, lr))
+
+        i = i + 1
+    }
+}

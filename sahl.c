@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -53,6 +54,7 @@
 // #define PRINT_STACK
 // #define PRINT_LOCALS
 // #define DEBUG
+// #define MINARR
 #define UNSAFE
 
 #define SIGN_BIT ((uint64_t)0x8000000000000000)
@@ -61,7 +63,7 @@
 #define TAG_FALSE 2 // 10.
 #define TAG_TRUE 3  // 11.
 
-#define GC_HEAP_GROW_FACTOR 2
+#define GC_HEAP_GROW_FACTOR 1.4
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
 typedef uint64_t Value;
@@ -178,6 +180,14 @@ uint64_t read_u64(uint8_t *code, int idx) {
         uint32_t *restrict u64;
     } conv = {code + idx};
     return *conv.u64;
+}
+
+double read_double(uint8_t *code, int idx) {
+    union {
+        uint8_t *restrict u8;
+        double *restrict d;
+    } conv = {code + idx};
+    return *conv.d;
 }
 
 char *read_string(uint8_t *code, int idx, int len) {
@@ -509,10 +519,14 @@ void print_value(Value value) {
             printf("%s", obj->string.data);
         } else if (obj->type == OBJ_LIST) {
             printf("[");
+#ifndef MINARR
             for (int i = 0; i < obj->list.length; i++) {
                 print_value(obj->list.items[i]);
                 printf(", ");
             }
+#else
+            printf(" %lf items ", obj->list.length);
+#endif
             printf("]");
         } else if (obj->type == OBJ_TUPLE) {
             printf("(");
@@ -749,10 +763,7 @@ void handle_div(VM *vm) {
 void handle_mod(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    error(vm, "This used to work when language had only integers, "
-              "but now Ammar replaced integers with floats as "
-              "implementing floats alognside ints seemed hard without wasting "
-              "memory");
+    push(vm, FLOAT_VAL(fmod(AS_FLOAT(b), AS_FLOAT(a))));
 }
 
 void handle_neg(VM *vm) {
@@ -816,25 +827,25 @@ void handle_not_equal(VM *vm) {
 void handle_less(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(a < b));
+    push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
 }
 
 void handle_less_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(a <= b));
+    push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
 }
 
 void handle_greater(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(a > b));
+    push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
 }
 
 void handle_greater_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(a >= b));
+    push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
 }
 
 void handle_jump(VM *vm) {
@@ -886,6 +897,7 @@ void handle_list(VM *vm) {
     CallFrame *frame = vm->call_frame;
     uint32_t length = read_u32(frame->func->code, frame->ip + 1);
     Obj *obj = new_obj(vm, OBJ_LIST);
+    obj->list.length = 0;
     push(vm, OBJ_VAL(obj)); // Prevent GC
     int cap = GROW_CAPACITY(length);
     obj->list.items = allocate(vm, sizeof(Value) * cap);
@@ -901,7 +913,8 @@ void handle_list(VM *vm) {
 }
 
 void handle_store(VM *vm) {
-    Value index = pop(vm);
+    double didx = AS_FLOAT(pop(vm));
+    uint64_t index = (uint64_t)trunc(didx);
     Value arr = pop(vm);
     Value value = pop(vm);
     Obj *obj = AS_OBJ(arr);
@@ -931,11 +944,12 @@ void handle_append(VM *vm) {
 void handle_length(VM *vm) {
     Value value = pop(vm);
     Obj *obj = AS_OBJ(value);
-    push(vm, obj->list.length);
+    push(vm, FLOAT_VAL(obj->list.length));
 }
 
 void handle_index(VM *vm) {
-    Value index = pop(vm);
+    double didx = AS_FLOAT(pop(vm));
+    uint64_t index = (uint64_t)trunc(didx);
     Value value = pop(vm);
     Obj *obj = AS_OBJ(value);
     if (obj->list.length <= index) {
@@ -982,7 +996,7 @@ void handle_make_tuple(VM *vm) {
 void handle_make_list(VM *vm) {
     Value def = pop(vm);
     double dlen = AS_FLOAT(pop(vm));
-    uint64_t len = (double)dlen;
+    uint64_t len = (uint64_t)dlen;
     Obj *obj = new_obj(vm, OBJ_LIST);
     push(vm, OBJ_VAL(obj)); // premptive GC prevention
     size_t cap = GROW_CAPACITY(len);
@@ -1067,7 +1081,11 @@ void handle_const_8(VM *vm) {
     vm->call_frame->ip += 2;
 }
 
-void handle_const_double(VM *vm) { handle_const_64(vm); }
+void handle_const_double(VM *vm) { 
+    double val = read_double(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    push(vm, FLOAT_VAL(val));
+    vm->call_frame->ip += 8;
+}
 
 void handle_native_call(VM *vm) {
     CallFrame *frame = vm->call_frame;
@@ -1085,7 +1103,7 @@ void handle_native_call(VM *vm) {
         break;
     case 1: {
         // RAND
-        int r = rand() % args[1] + args[0];
+        int r = rand() % (int)AS_FLOAT(args[0]) + AS_FLOAT(args[1]);
         push(vm, FLOAT_VAL((double)r));
         break;
     }
@@ -1095,7 +1113,33 @@ void handle_native_call(VM *vm) {
         break;
     case 3:
         // RANDF
-        push(vm, FLOAT_VAL(rand() % RAND_MAX));
+        push(vm, FLOAT_VAL((float)rand() / (float)RAND_MAX));
+        break;
+    case 4:
+        // EXP
+        push(vm, FLOAT_VAL(exp(AS_FLOAT(args[0]))));
+        break;
+    case 5:
+        // POW
+        push(vm, FLOAT_VAL(pow(AS_FLOAT(args[0]), AS_FLOAT(args[1]))));
+        break;
+    case 6:
+        // EXIT
+        free_vm(vm);
+        exit(args[0]);
+    case 7:
+        // PRINT
+        for (int i = 0; i < argc; ++i) {
+            print_value(args[i]);
+            printf(" ");
+        }
+        break;
+    case 8:
+        // TANH
+        push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
+    case 9:
+        // LOG
+        push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
     }
     frame->ip += 8;
 }

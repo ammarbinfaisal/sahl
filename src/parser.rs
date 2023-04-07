@@ -203,7 +203,7 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = alt((
         map(
-            alt((string, charr, natural,floatt, boolean)),
+            alt((string, charr, natural, floatt, boolean)),
             Expr::Literal,
         ),
         call,
@@ -215,10 +215,10 @@ fn factor(source: &str) -> IResult<&str, Expr> {
         delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
         alt((
             call,
+            subscript,
             variable,
             map(natural, Expr::Literal),
             map(floatt, Expr::Literal),
-            subscript,
             barcexpr,
         )),
     )))(source)?;
