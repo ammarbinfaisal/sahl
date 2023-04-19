@@ -689,6 +689,54 @@ void print_value(Value value) {
     }
 }
 
+char *stringify(Value value) {
+    char *str = calloc(1024, sizeof(char));
+    int i = 0, l = 1024;
+    if (IS_BOOL(value)) {
+        sprintf(str, "%s", AS_BOOL(value) ? "true" : "false");
+        return str;
+    } else if (IS_NUMBER(value)) {
+        sprintf(str, "%lf", AS_FLOAT(value));
+        return str;
+    } else if (IS_OBJ(value)) {
+        Obj *obj = AS_OBJ(value);
+        if (obj->type == OBJ_STRING) {
+            int len = strlen(obj->string.data);
+            str = realloc(str, len + 1);
+            sprintf(str, "%s", obj->string.data);
+            return str;
+        } else if (obj->type == OBJ_LIST) {
+            i += sprintf(str, "[");
+#ifndef MINARR
+            for (int i = 0; i < obj->list.length; i++) {
+                if (i > l / 2) {
+                    l *= 2;
+                    str = realloc(str, l);
+                }
+                i += sprintf(str, "%s%s", str, stringify(obj->list.items[i]));
+                i += sprintf(str, "%s, ", str);
+            }
+#else
+            sprintf(str, "%s %lf items ", str, obj->list.length);
+#endif
+            return str;
+        } else if (obj->type == OBJ_TUPLE) {
+            i += sprintf(str, "(");
+            for (int i = 0; i < obj->tuple.length; i++) {
+                if (i > l / 2) {
+                    l *= 2;
+                    str = realloc(str, l);
+                }
+                i += sprintf(str, "%s%s", str, stringify(obj->tuple.items[i]));
+                if (i != obj->tuple.length - 1) sprintf(str, "%s, ", str);
+            }
+            sprintf(str, "%s)", str);
+            return str;
+        }
+    }
+    return str;
+}
+
 void free_obj(Obj *obj) {
 #ifdef DEBUG
     printf("freeing %p\n\n", obj);
@@ -1324,13 +1372,27 @@ void handle_native_call(VM *vm) {
         // EXIT
         free_vm(vm);
         exit(args[0]);
-    case 7:
+    case 7: {
         // PRINT
+        char str[1024 * 4];
+        memset(str, 0, 1024 * 4);
+        int len = 0;
         for (int i = 0; i < argc; ++i) {
-            print_value(args[i]);
-            printf(" ");
+            char *s = stringify(args[i]);
+            memcpy(str + len, s, strlen(s));
+            len += strlen(s);
+            free(s);
+            if (len > 1024 * 3.5) {
+                str[len] = '.';
+                str[len + 1] = '.';
+                str[len + 2] = '.';
+                str[len + 3] = '\0';
+                break;
+            }
         }
+        printf("%s", str);
         break;
+    }
     case 8:
         // TANH
         push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
