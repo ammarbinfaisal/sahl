@@ -116,7 +116,6 @@ struct Obj {
         struct {
             CallFrame *frame;
         } closure;
-        long long integer;
     };
 };
 
