@@ -1332,49 +1332,57 @@ void handle_const_double(VM *vm) {
     vm->call_frame->ip += 8;
 }
 
-void handle_native_call(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);
-    uint32_t argc = read_u32(frame->func->code, frame->ip + 5);
-    Value *args = allocate(vm, sizeof(Value) * argc);
-    for (int i = argc - 1; i >= 0; --i) {
-        Value val = pop(vm);
-        args[i] = val;
+// ------------------ NATIVE FUNCTIONS ------------------
+
+#define PRE_NATIVE                                                             \
+    CallFrame *frame = vm->call_frame;                                         \
+    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);             \
+    uint32_t argc = read_u32(frame->func->code, frame->ip + 5);                \
+    Value *args = allocate(vm, sizeof(Value) * argc);                          \
+    for (int i = argc - 1; i >= 0; --i) {                                      \
+        Value val = pop(vm);                                                   \
+        args[i] = val;                                                         \
     }
-    switch (funcidx) {
-    case 0:
-        // CLEAR SCREEN
-        printf("\033[2J\033[1;1H");
-        break;
-    case 1: {
-        // RAND
-        int r = rand() % (int)AS_FLOAT(args[0]) + AS_FLOAT(args[1]);
-        push(vm, FLOAT_VAL((double)r));
-        break;
-    }
-    case 2:
-        // SLEEP
-        sleep(args[0]);
-        break;
-    case 3:
-        // RANDF
-        push(vm, FLOAT_VAL((float)rand() / (float)RAND_MAX));
-        break;
-    case 4:
-        // EXP
-        push(vm, FLOAT_VAL(exp(AS_FLOAT(args[0]))));
-        break;
-    case 5:
-        // POW
-        push(vm, FLOAT_VAL(pow(AS_FLOAT(args[0]), AS_FLOAT(args[1]))));
-        break;
-    case 6:
-        // EXIT
-        free_vm(vm);
-        exit(args[0]);
-    case 7: {
-        // PRINT
-        char str[1024 * 4];
+
+typedef void (*native_fn_t)(VM *vm);
+
+void native_clear_screen(VM *vm) { printf("\033[2J\033[1;1H"); }
+
+void native_rand(VM *vm) { 
+    PRE_NATIVE
+    int r = rand() % (int)AS_FLOAT(args[0]) + AS_FLOAT(args[1]);
+    push(vm, FLOAT_VAL((double)r));
+}
+
+void native_sleep(VM *vm) {
+    PRE_NATIVE
+    sleep(args[0]);
+}
+
+void native_randf(VM *vm) {
+    PRE_NATIVE
+    push(vm, FLOAT_VAL((float)rand() / (float)RAND_MAX));
+}
+
+void native_exp(VM *vm) {
+    PRE_NATIVE
+    push(vm, FLOAT_VAL(exp(AS_FLOAT(args[0]))));
+}
+
+void native_pow(VM *vm) {
+    PRE_NATIVE
+    push(vm, FLOAT_VAL(pow(AS_FLOAT(args[0]), AS_FLOAT(args[1]))));
+}
+
+void native_exit(VM *vm) {
+    PRE_NATIVE
+    free_vm(vm);
+    exit(args[0]);
+}
+
+void native_print(VM *vm) {
+    PRE_NATIVE
+    char str[1024 * 4];
         memset(str, 0, 1024 * 4);
         int len = 0;
         for (int i = 0; i < argc; ++i) {
@@ -1391,15 +1399,28 @@ void handle_native_call(VM *vm) {
             }
         }
         printf("%s", str);
-        break;
-    }
-    case 8:
-        // TANH
-        push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
-    case 9:
-        // LOG
-        push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
-    }
+}
+
+void native_tanh(VM *vm) {
+    PRE_NATIVE
+    push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
+}
+
+void native_log(VM *vm) {
+    PRE_NATIVE
+    push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
+}
+
+
+static native_fn_t native_functions[] = {
+    native_clear_screen, native_rand, native_sleep, native_randf, native_exp,
+    native_pow,          native_exit, native_print, native_tanh,  native_log,
+};
+
+void handle_native_call(VM *vm) {
+    CallFrame *frame = vm->call_frame;
+    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);
+    native_functions[funcidx](vm);
     frame->ip += 8;
 }
 
