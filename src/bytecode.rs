@@ -43,6 +43,10 @@ const MAKE_LIST: u8 = 35;
 const MAKE_TUPLE: u8 = 36;
 const NATIVE_CALL: u8 = 37;
 const CONST_DOUBLE: u8 = 38;
+const MAKE_CHAN: u8 = 39;
+const CHAN_READ: u8 = 40;
+const CHAN_WRITE: u8 = 41;
+const SPAWN: u8 = 42;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -364,7 +368,12 @@ impl Bytecode {
                             self.add(MAKE_LIST);
                         }
                     }
-                    _ => panic!("Cannot make a non-list"),
+                    Type::Chan(_) => {
+                        self.add(MAKE_CHAN);
+                    }
+                    _ => {
+                        panic!("Can only make a list or a chan");
+                    }
                 }
             }
             Expr::Tuple(exprs) => {
@@ -373,8 +382,13 @@ impl Bytecode {
                 }
                 self.add_u32(MAKE_TUPLE, exprs.len() as u32);
             }
+            Expr::ChanRead(name) => {
+                let local = self.get_local(name).unwrap();
+                self.add_u32(GET_LOCAL, *local as u32);
+                self.add(CHAN_READ);
+            }
             _ => {
-                println!("unimplemented {:?}", expr);
+                unimplemented!()
             }
         }
     }
@@ -584,7 +598,14 @@ impl Bytecode {
                 // do nothing
             }
             Stmt::Coroutine(call) => {
+                self.add(SPAWN);
                 self.compile_expr(call);
+            }
+            Stmt::ChanWrite(name, expr) => {
+                self.compile_expr(expr);
+                let local = *self.get_local(name).unwrap();
+                self.add_u32(GET_LOCAL, local as u32);
+                self.add(CHAN_WRITE)
             }
             _ => {
                 println!("unimplemented {:?}", stmt);

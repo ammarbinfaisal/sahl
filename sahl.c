@@ -1,9 +1,12 @@
 #include <math.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #define ADD 0
@@ -45,10 +48,15 @@
 #define MAKE_TUPLE 36
 #define NATIVE_CALL 37
 #define CONST_DOUBLE 38
-#define NUM_OPCODES 39
+#define MAKE_CHAN 39
+#define CHAN_READ 40
+#define CHAN_WRITE 41
+#define SPAWN 42
+#define NUM_OPCODES 43
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
+#define MAX_COROS 128
 
 // #define PRINT_OPCODES
 // #define PRINT_STACK
@@ -68,11 +76,7 @@
 
 typedef uint64_t Value;
 
-enum ObjType {
-    OBJ_STRING,
-    OBJ_LIST,
-    OBJ_TUPLE,
-};
+enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN };
 
 typedef enum ObjType ObjType;
 
@@ -95,6 +99,85 @@ struct CallFrame {
 
 typedef struct CallFrame CallFrame;
 
+struct Queue {
+    int capacity;
+    int length;
+    Value *items;
+};
+
+typedef struct Queue Queue;
+
+struct Chan {
+    Queue *q;
+    // channel properties
+    pthread_mutex_t m_mu;
+    pthread_cond_t r_cond;
+    pthread_cond_t w_cond;
+    int closed;
+    int r_waiting;
+    int w_waiting;
+};
+
+typedef struct Chan Chan;
+
+enum ChanOpResult { CHAN_OK, CHAN_CLOSED, CHAN_FULL };
+
+Queue *new_queue(int capacity) {
+    Queue *q = malloc(sizeof(Queue));
+    q->capacity = capacity;
+    q->length = 0;
+    q->items = malloc(sizeof(Value) * capacity);
+    return q;
+}
+
+Chan *new_chan(int capacity) {
+    Chan *c = malloc(sizeof(Chan));
+    c->q = new_queue(capacity);
+
+    pthread_mutex_init(&c->m_mu, NULL);
+    pthread_cond_init(&c->r_cond, NULL);
+    pthread_cond_init(&c->w_cond, NULL);
+    c->closed = 0;
+    c->r_waiting = 0;
+    c->w_waiting = 0;
+
+    return c;
+}
+
+static int chan_write(Chan *chan, Value v) {
+    pthread_mutex_lock(&chan->m_mu);
+    while (chan->q->length == chan->q->capacity) {
+        chan->w_waiting++;
+        pthread_cond_wait(&chan->w_cond, &chan->m_mu);
+        chan->w_waiting--;
+    }
+    chan->q->items[chan->q->length++] = v;
+    if (chan->r_waiting > 0) {
+        pthread_cond_signal(&chan->r_cond);
+    }
+    pthread_mutex_unlock(&chan->m_mu);
+    return CHAN_OK;
+}
+
+static int chan_read(Chan *chan, Value *v) {
+    pthread_mutex_lock(&chan->m_mu);
+    while (chan->q->length == 0) {
+        if (chan->closed) {
+            pthread_mutex_unlock(&chan->m_mu);
+            return CHAN_CLOSED;
+        }
+        chan->r_waiting++;
+        pthread_cond_wait(&chan->r_cond, &chan->m_mu);
+        chan->r_waiting--;
+    }
+    *v = chan->q->items[--chan->q->length];
+    if (chan->w_waiting > 0) {
+        pthread_cond_signal(&chan->w_cond);
+    }
+    pthread_mutex_unlock(&chan->m_mu);
+    return CHAN_OK;
+}
+
 struct Obj {
     bool marked;
     ObjType type;
@@ -116,6 +199,9 @@ struct Obj {
         struct {
             CallFrame *frame;
         } closure;
+        struct {
+            Chan *chan;
+        } channel;
     };
 };
 
@@ -332,6 +418,29 @@ int print_opcode(uint8_t *code, int i) {
     case POP:
         printf("Pop\n");
         break;
+    case NATIVE_CALL:
+        // u32 function index, u32 arg count
+        printf("NativeCall \t fn: %u \t arg count: %u \n",
+               read_u32(code, i + 1), read_u32(code, i + 5));
+        i += 8;
+        break;
+    case CONST_DOUBLE:
+        // u64 code
+        printf("ConstDouble %f\n", read_double(code, i + 1));
+        i += 8;
+        break;
+    case MAKE_CHAN:
+        printf("MakeChan\n");
+        break;
+    case SPAWN:
+        printf("Spawn\n");
+        break;
+    case CHAN_WRITE:
+        printf("ChanWrite\n");
+        break;
+    case CHAN_READ:
+        printf("ChanRead\n");
+        break;
     default:
         printf("Unknown opcode %u\n", code[i]);
         break;
@@ -390,9 +499,19 @@ struct VM {
     Obj **grayStack;
     uint64_t allocated;
     uint64_t nextGC;
+
+    // thread
+    bool coro_to_be_spawned;
+    bool is_coro;
+    int coro_count;
+    int coro_id;
+    pthread_t *threads;
+    bool *coro_done;
 };
 
 typedef struct VM VM;
+
+static int coro_count = 0;
 
 void free_value(Value value);
 
@@ -448,6 +567,38 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
     vm->allocated = 0;
     vm->nextGC = 1024 * 1024;
+
+    // threads
+    vm->is_coro = false;
+    vm->coro_count = 0;
+    vm->threads = NULL;
+
+    return vm;
+}
+
+VM *coro_vm(VM *curr, int start_func) {
+    VM *vm = malloc(sizeof(struct VM));
+    vm->start_func = start_func;
+    vm->string_count = curr->string_count;
+    vm->strings = curr->strings;
+    vm->funcs = curr->funcs;
+    vm->funcs_count = curr->funcs_count;
+    vm->stack_size = 0;
+    vm->stack = malloc(sizeof(Value) * 1024);
+    vm->call_frame = new_call_frame(curr->funcs + start_func, NULL);
+
+    // garbage collection
+    vm->objects = NULL;
+    vm->grayCount = 0;
+    vm->grayCapacity = 1024;
+    vm->grayStack = malloc(sizeof(Obj *) * 1024);
+    vm->allocated = 0;
+    vm->nextGC = 1024 * 1024;
+
+    // threads
+    vm->is_coro = true;
+    vm->coro_count = 0;
+    vm->threads = NULL;
 
     return vm;
 }
@@ -728,6 +879,8 @@ Obj *concat_strings(VM *vm, Obj *a, Obj *b) {
 
     return new_string(vm, chars, length);
 }
+
+void run(VM *vm); // to be used in handle_call;
 
 // Define opcode handler functions
 void handle_add(VM *vm) {
@@ -1023,6 +1176,14 @@ void handle_assign(VM *vm) {
 }
 
 void handle_return(VM *vm) {
+    if (vm->is_coro) {
+        pthread_exit(NULL);
+#ifdef DEBUG
+        printf("exiting a thread\n");
+#endif
+        return;
+    }
+
     if (vm->call_frame->depth == 0) {
         return;
     }
@@ -1030,6 +1191,12 @@ void handle_return(VM *vm) {
     CallFrame *call_frame = vm->call_frame->prev;
     free(vm->call_frame);
     vm->call_frame = call_frame;
+}
+
+void *spawn(void *vm) {
+    VM *nvm = (VM *)vm;
+    run(nvm);
+    return NULL;
 }
 
 void handle_call(VM *vm) {
@@ -1044,22 +1211,52 @@ void handle_call(VM *vm) {
     uint32_t funcidx = read_u32(code, ip + 1);
     uint32_t argc = read_u32(code, ip + 5);
 
-    Value *args = allocate(vm, sizeof(Value) * argc);
+    VM *nvm;
+    CallFrame *newframe;
+    if (vm->coro_to_be_spawned) {
+        nvm = coro_vm(vm, funcidx);
+        newframe = nvm->call_frame;
+    } else {
+        nvm = vm;
+        newframe = new_call_frame(vm->funcs + funcidx, frame);
+    }
+
+    Value *args = allocate(nvm, sizeof(Value) * argc);
     for (int i = argc - 1; i >= 0; --i) {
         Value val = pop(vm);
         args[i] = val;
     }
 
-    CallFrame *curr = vm->call_frame;
-    curr->ip += 8;
-    CallFrame *newframe = new_call_frame(vm->funcs + funcidx, curr);
     newframe->locals_capacity = argc;
     newframe->locals_count = argc;
     newframe->locals = args;
-    newframe->depth = curr->depth + 1;
+    newframe->depth = depth + 1;
     newframe->func = vm->funcs + funcidx;
-    vm->call_frame = newframe;
-    vm->call_frame->ip = -1;
+    newframe->ip = -1;
+    nvm->call_frame = newframe;
+    frame->ip += 8;
+
+    if (vm->coro_to_be_spawned) {
+        vm->coro_to_be_spawned = false;
+        vm->coro_count++;
+        newframe->ip++; // should be 0
+        nvm->coro_id = coro_count++;
+        if (vm->coro_count == MAX_COROS) {
+            int i = 0;
+            while (i < vm->coro_count && vm->coro_done[i]) {
+                i++;
+            }
+            pthread_join(vm->threads[i], NULL);
+            vm->coro_done[i] = true;
+            vm->coro_count--;
+        }
+        pthread_t thread = (pthread_t)malloc(sizeof(pthread_t));
+        pthread_create(&thread, NULL, spawn, nvm);
+        vm->threads = realloc(vm->threads, vm->coro_count * sizeof(pthread_t));
+        vm->coro_done = realloc(vm->coro_done, vm->coro_count * sizeof(bool));
+        vm->threads[vm->coro_count - 1] = thread;
+        vm->coro_done[vm->coro_count - 1] = false;
+    }
 }
 
 void handle_const_64(VM *vm) {
@@ -1080,8 +1277,9 @@ void handle_const_8(VM *vm) {
     vm->call_frame->ip += 2;
 }
 
-void handle_const_double(VM *vm) { 
-    double val = read_double(vm->call_frame->func->code, vm->call_frame->ip + 1);
+void handle_const_double(VM *vm) {
+    double val =
+        read_double(vm->call_frame->func->code, vm->call_frame->ip + 1);
     push(vm, FLOAT_VAL(val));
     vm->call_frame->ip += 8;
 }
@@ -1143,6 +1341,33 @@ void handle_native_call(VM *vm) {
     frame->ip += 8;
 }
 
+void handle_make_chan(VM *vm) {
+    Obj *obj = new_obj(vm, OBJ_CHAN);
+    obj->channel.chan = new_chan(128);
+    push(vm, OBJ_VAL(obj));
+}
+
+void handle_chan_read(VM *vm) {
+    Obj *obj = AS_OBJ(pop(vm));
+    if (obj->type != OBJ_CHAN) {
+        error(vm, "Expected channel");
+    }
+    Value val;
+    chan_read(obj->channel.chan, &val);
+    push(vm, val);
+}
+
+void handle_chan_write(VM *vm) {
+    Obj *obj = AS_OBJ(pop(vm));
+    Value val = pop(vm);
+    if (obj->type != OBJ_CHAN) {
+        error(vm, "Expected channel");
+    }
+    chan_write(obj->channel.chan, val);
+}
+
+void handle_spawn(VM *vm) { vm->coro_to_be_spawned = true; }
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_add,           handle_sub,         handle_mul,
@@ -1157,13 +1382,17 @@ static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_string,        handle_def_local,   handle_get_local,
     handle_assign,        handle_call,        handle_return,
     handle_print,         handle_pop,         handle_make_list,
-    handle_make_tuple,    handle_native_call, handle_const_double};
+    handle_make_tuple,    handle_native_call, handle_const_double,
+    handle_make_chan,     handle_chan_read,   handle_chan_write,
+    handle_spawn,
+};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {
         uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
 
 #ifdef PRINT_OPCODES
+        printf("%d ", vm->coro_id);
         printf("%d ", vm->call_frame->ip);
         print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
 #endif
@@ -1195,6 +1424,10 @@ void run(VM *vm) {
         opcode_handlers[instruction](vm);
 
         ++vm->call_frame->ip;
+    }
+
+    for (int i = 0; i < vm->coro_count; ++i) {
+        if (!vm->coro_done[i]) pthread_join(vm->threads[i], NULL);
     }
 
     // clear call frame
