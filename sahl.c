@@ -676,7 +676,7 @@ void print_value(Value value) {
                 printf(", ");
             }
 #else
-            printf(" %lf items ", obj->list.length);
+            printf(" %ld items ", obj->list.length);
 #endif
             printf("]");
         } else if (obj->type == OBJ_TUPLE) {
@@ -718,7 +718,7 @@ char *stringify(Value value) {
                 i += sprintf(str, "%s, ", str);
             }
 #else
-            sprintf(str, "%s %lf items ", str, obj->list.length);
+            sprintf(str, "%s %ld items ", str, obj->list.length);
 #endif
             return str;
         } else if (obj->type == OBJ_TUPLE) {
