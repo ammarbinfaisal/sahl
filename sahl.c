@@ -885,15 +885,15 @@ void *allocate(VM *vm, size_t size) {
 
 void *reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
     vm->allocated += newSize - oldSize;
-    void *new_ptr = realloc(ptr, newSize);
 
 #ifdef DEBUG
     printf("reallocating %p from %ld to %ld\n", ptr, oldSize, newSize);
 #endif
-
     if (vm->allocated > vm->nextGC) {
         collect_garbage(vm);
     }
+
+    void *new_ptr = realloc(ptr, newSize);
 
     return new_ptr;
 }
