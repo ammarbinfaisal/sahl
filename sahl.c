@@ -1349,7 +1349,7 @@ typedef void (*native_fn_t)(VM *vm);
 
 void native_clear_screen(VM *vm) { printf("\033[2J\033[1;1H"); }
 
-void native_rand(VM *vm) { 
+void native_rand(VM *vm) {
     PRE_NATIVE
     int r = rand() % (int)AS_FLOAT(args[0]) + AS_FLOAT(args[1]);
     push(vm, FLOAT_VAL((double)r));
@@ -1384,22 +1384,22 @@ void native_exit(VM *vm) {
 void native_print(VM *vm) {
     PRE_NATIVE
     char str[1024 * 4];
-        memset(str, 0, 1024 * 4);
-        int len = 0;
-        for (int i = 0; i < argc; ++i) {
-            char *s = stringify(args[i]);
-            memcpy(str + len, s, strlen(s));
-            len += strlen(s);
-            free(s);
-            if (len > 1024 * 3.5) {
-                str[len] = '.';
-                str[len + 1] = '.';
-                str[len + 2] = '.';
-                str[len + 3] = '\0';
-                break;
-            }
+    memset(str, 0, 1024 * 4);
+    int len = 0;
+    for (int i = 0; i < argc; ++i) {
+        char *s = stringify(args[i]);
+        memcpy(str + len, s, strlen(s));
+        len += strlen(s);
+        free(s);
+        if (len > 1024 * 3.5) {
+            str[len] = '.';
+            str[len + 1] = '.';
+            str[len + 2] = '.';
+            str[len + 3] = '\0';
+            break;
         }
-        printf("%s", str);
+    }
+    printf("%s", str);
 }
 
 void native_tanh(VM *vm) {
@@ -1411,7 +1411,6 @@ void native_log(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
 }
-
 
 static native_fn_t native_functions[] = {
     native_clear_screen, native_rand, native_sleep, native_randf, native_exp,
