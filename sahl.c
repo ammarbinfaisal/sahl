@@ -572,6 +572,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->is_coro = false;
     vm->coro_count = 0;
     vm->threads = NULL;
+    vm->coro_to_be_spawned = false;
 
     return vm;
 }
