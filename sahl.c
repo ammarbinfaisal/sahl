@@ -1383,23 +1383,26 @@ void native_exit(VM *vm) {
 
 void native_print(VM *vm) {
     PRE_NATIVE
-    char str[1024 * 4];
-    memset(str, 0, 1024 * 4);
-    int len = 0;
+    // char str[1024 * 4];
+    // memset(str, 0, 1024 * 4);
+    // int len = 0;
+    // for (int i = 0; i < argc; ++i) {
+    //     char *s = stringify(args[i]);
+    //     memcpy(str + len, s, strlen(s));
+    //     len += strlen(s);
+    //     free(s);
+    //     if (len > 1024 * 3.5) {
+    //         str[len] = '.';
+    //         str[len + 1] = '.';
+    //         str[len + 2] = '.';
+    //         str[len + 3] = '\0';
+    //         break;
+    //     }
+    // }
+    // printf("%s", str);
     for (int i = 0; i < argc; ++i) {
-        char *s = stringify(args[i]);
-        memcpy(str + len, s, strlen(s));
-        len += strlen(s);
-        free(s);
-        if (len > 1024 * 3.5) {
-            str[len] = '.';
-            str[len + 1] = '.';
-            str[len + 2] = '.';
-            str[len + 3] = '\0';
-            break;
-        }
+        print_value(args[i]);
     }
-    printf("%s", str);
 }
 
 void native_tanh(VM *vm) {
