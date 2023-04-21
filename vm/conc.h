@@ -10,6 +10,9 @@
 enum ChanOpResult { CHAN_OK, CHAN_CLOSED, CHAN_FULL };
 
 Queue *new_queue(int capacity);
+RingBuffer *new_ring_buffer(int capacity);
+void rbuf_write(RingBuffer *rb, Value v);
+Value rbuf_read(RingBuffer *rb);
 Chan *new_chan(int capacity);
 
 static int chan_write(Chan *chan, Value v) {

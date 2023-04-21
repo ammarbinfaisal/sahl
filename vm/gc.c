@@ -1,4 +1,5 @@
 #include "gc.h"
+#include "rbtree.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -41,6 +42,10 @@ static void blacken_object(VM *vm, Obj *obj) {
         for (int i = 0; i < obj->tuple.length; i++) {
             mark_value(vm, obj->tuple.items[i]);
         }
+        break;
+    }
+    case OBJ_MAP: {
+        rb_mark(vm, obj->map.map);
         break;
     }
     }

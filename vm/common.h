@@ -7,6 +7,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// #define PRINT_OPCODES
+// #define PRINT_STACK
+// #define PRINT_LOCALS
+// #define DEBUG
+// #define MINARR
+#define UNSAFE
+
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
 typedef uint64_t Value;
@@ -18,6 +25,16 @@ struct Queue {
 };
 
 typedef struct Queue Queue;
+
+struct RingBuffer {
+    int capacity;
+    int length;
+    int head;
+    int tail;
+    Value *items;
+};
+
+typedef struct RingBuffer RingBuffer;
 
 struct Chan {
     Queue *q;
@@ -51,7 +68,18 @@ struct CallFrame {
 
 typedef struct CallFrame CallFrame;
 
-enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN };
+struct RBNode {
+    Value key;
+    Value value;
+    int color;
+    struct RBNode *left;
+    struct RBNode *right;
+    struct RBNode *parent;
+};
+
+typedef struct RBNode RBNode;
+
+enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP };
 
 typedef enum ObjType ObjType;
 
@@ -79,6 +107,9 @@ struct Obj {
         struct {
             Chan *chan;
         } channel;
+        struct {
+            RBNode *map;
+        } map;
     };
 };
 

@@ -32,5 +32,8 @@ Value float_to_value(double f);
 void free_value(Value value);
 void free_obj(Obj *obj);
 Obj *new_obj(VM *vm, ObjType type);
+bool obj_is_less(Value a, Value b);
+bool obj_is_equal(Value a, Value b);
+void print_value(Value value);
 
 #endif

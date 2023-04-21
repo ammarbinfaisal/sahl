@@ -45,6 +45,7 @@
 #define CHAN_READ 40
 #define CHAN_WRITE 41
 #define SPAWN 42
-#define NUM_OPCODES 43
+#define MAKE_MAP 43
+#define NUM_OPCODES 44
 
 #endif

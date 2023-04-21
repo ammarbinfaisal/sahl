@@ -1,6 +1,8 @@
 #include "obj.h"
 #include "gc.h"
+#include "rbtree.h"
 #include <stdlib.h>
+#include <string.h>
 
 double value_to_float(Value value) { return *(double *)&value; }
 
@@ -41,7 +43,101 @@ void free_obj(Obj *obj) {
         printf("freeing string chars %p\n", obj->string.data);
 #endif
         free(obj->string.data);
+    } else if (obj->type == OBJ_MAP) {
+        rb_free(obj->map.map);
     }
 
     free(obj);
+}
+
+bool obj_is_equal(Value a, Value b) {
+#ifdef DEBUG
+    printf("comparing ");
+    print_value(a);
+    printf(" and ");
+    print_value(b);
+    printf("\n");
+#endif
+    if (IS_OBJ(a) && IS_OBJ(b)) {
+        Obj *obj_a = AS_OBJ(a);
+        Obj *obj_b = AS_OBJ(b);
+
+        return strcmp(obj_a->string.data, obj_b->string.data) == 0;
+    }
+    return a == b;
+}
+
+bool obj_is_less(Value a, Value b) {
+    if (IS_NUMBER(a) && IS_NUMBER(b)) {
+        return AS_FLOAT(a) < AS_FLOAT(b);
+    } else if (IS_OBJ(a) && IS_OBJ(b)) {
+        Obj *obj_a = AS_OBJ(a);
+        Obj *obj_b = AS_OBJ(b);
+
+        // assume that the objects are string
+        // that will be checked by the compiler
+        return strcmp(obj_a->string.data, obj_b->string.data) < 0;
+    } else {
+        // obj is greater than non-obj
+        if (IS_OBJ(a)) {
+            return false;
+        } else if (IS_OBJ(b)) {
+            return true;
+        } else {
+            return a < b;
+        }
+    }
+}
+
+void print_value(Value value) {
+    if (IS_BOOL(value)) {
+        printf("%s", AS_BOOL(value) ? "true" : "false");
+    } else if (IS_NUMBER(value)) {
+        printf("%lf", AS_FLOAT(value));
+    } else if (IS_OBJ(value)) {
+        Obj *obj = AS_OBJ(value);
+
+#ifdef DEBUG
+        printf("%p ", obj);
+#endif
+
+        if (obj->type == OBJ_STRING) {
+            printf("%s", obj->string.data);
+        } else if (obj->type == OBJ_LIST) {
+            printf("[");
+#ifndef MINARR
+            for (int i = 0; i < obj->list.length; i++) {
+                print_value(obj->list.items[i]);
+                printf(", ");
+            }
+#else
+            printf(" %ld items ", obj->list.length);
+#endif
+            printf("]");
+        } else if (obj->type == OBJ_TUPLE) {
+            printf("(");
+            for (int i = 0; i < obj->tuple.length; i++) {
+                print_value(obj->tuple.items[i]);
+                if (i != obj->tuple.length - 1) printf(", ");
+            }
+            printf(")");
+        } else { // MAP
+            printf("{");
+            RBNode *root = obj->map.map;
+            LinkedList *list = rb_to_ll(root);
+            LinkedList *curr = list;
+            while (curr != NULL) {
+                if (curr != list) {
+                    print_value(curr->key);
+                    printf(": ");
+                    print_value(curr->value);
+                    if (curr->next != NULL) printf(", ");
+                }
+                LinkedList *temp = curr;
+                curr = curr->next;
+                free(temp);
+            }
+            printf("}");
+        }
+    }
 }

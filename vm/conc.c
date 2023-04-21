@@ -21,3 +21,26 @@ Chan *new_chan(int capacity) {
 
     return c;
 }
+
+void rbuf_write(RingBuffer *rb, Value v) {
+    rb->items[rb->head] = v;
+    rb->head = (rb->head + 1) % rb->capacity;
+    rb->length++;
+}
+
+Value rbuf_read(RingBuffer *rb) {
+    Value v = rb->items[rb->tail];
+    rb->tail = (rb->tail + 1) % rb->capacity;
+    rb->length--;
+    return v;
+}
+
+RingBuffer *new_ring_buffer(int capacity) {
+    RingBuffer *rb = malloc(sizeof(RingBuffer));
+    rb->capacity = capacity;
+    rb->length = 0;
+    rb->head = 0;
+    rb->tail = 0;
+    rb->items = malloc(sizeof(Value) * capacity);
+    return rb;
+}

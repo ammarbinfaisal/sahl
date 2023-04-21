@@ -16,19 +16,13 @@
 #include "gc.h"
 #include "obj.h"
 #include "opcodes.h"
+#include "rbtree.h"
 #include "read.h"
 #include "vm.h"
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
 #define MAX_COROS 128
-
-// #define PRINT_OPCODES
-// #define PRINT_STACK
-// #define PRINT_LOCALS
-// #define DEBUG
-// #define MINARR
-#define UNSAFE
 
 static int coro_count = 0;
 
@@ -61,42 +55,6 @@ void push(VM *vm, Value value) {
     }
 #endif
     vm->stack[vm->stack_size++] = value;
-}
-
-void print_value(Value value) {
-    if (IS_BOOL(value)) {
-        printf("%s", AS_BOOL(value) ? "true" : "false");
-    } else if (IS_NUMBER(value)) {
-        printf("%lf", AS_FLOAT(value));
-    } else if (IS_OBJ(value)) {
-        Obj *obj = AS_OBJ(value);
-
-#ifdef DEBUG
-        printf("%p ", obj);
-#endif
-
-        if (obj->type == OBJ_STRING) {
-            printf("%s", obj->string.data);
-        } else if (obj->type == OBJ_LIST) {
-            printf("[");
-#ifndef MINARR
-            for (int i = 0; i < obj->list.length; i++) {
-                print_value(obj->list.items[i]);
-                printf(", ");
-            }
-#else
-            printf(" %ld items ", obj->list.length);
-#endif
-            printf("]");
-        } else if (obj->type == OBJ_TUPLE) {
-            printf("(");
-            for (int i = 0; i < obj->tuple.length; i++) {
-                print_value(obj->tuple.items[i]);
-                if (i != obj->tuple.length - 1) printf(", ");
-            }
-            printf(")");
-        }
-    }
 }
 
 char *stringify(Value value) {
@@ -354,18 +312,25 @@ void handle_list(VM *vm) {
 }
 
 void handle_store(VM *vm) {
-    double didx = AS_FLOAT(pop(vm));
-    uint64_t index = (uint64_t)trunc(didx);
+    Value idx = pop(vm);
     Value arr = pop(vm);
     Value value = pop(vm);
     Obj *obj = AS_OBJ(arr);
-    if (obj->list.length <= index) {
-        char msg[100];
-        memset(msg, 0, 100);
-        sprintf(msg, "Index out of bounds %ld", index);
-        error(vm, msg);
+    if (obj->type == OBJ_LIST) {
+        double index = AS_FLOAT(idx);
+        uint64_t i = (uint64_t)trunc(index);
+        if (obj->list.length <= index) {
+            char msg[100];
+            memset(msg, 0, 100);
+            sprintf(msg, "Index out of bounds %ld", i);
+            error(vm, msg);
+        }
+        obj->list.items[i] = value;
+    } else {
+        RBNode *new = new_rb_node(idx);
+        new->value = value;
+        RBNode *node = rb_insert(obj->map.map, new);
     }
-    obj->list.items[index] = value;
 }
 
 void handle_append(VM *vm) {
@@ -389,17 +354,29 @@ void handle_length(VM *vm) {
 }
 
 void handle_index(VM *vm) {
-    double didx = AS_FLOAT(pop(vm));
-    uint64_t index = (uint64_t)trunc(didx);
+    Value idx = pop(vm);
     Value value = pop(vm);
     Obj *obj = AS_OBJ(value);
-    if (obj->list.length <= index) {
-        char msg[100];
-        memset(msg, 0, 100);
-        sprintf(msg, "Index out of bounds %ld", index);
-        error(vm, msg);
+    if (obj->type == OBJ_LIST) {
+        double didx = AS_FLOAT(idx);
+        uint64_t index = (uint64_t)trunc(didx);
+        if (obj->list.length <= index) {
+            char msg[100];
+            memset(msg, 0, 100);
+            sprintf(msg, "Index out of bounds %ld", index);
+            error(vm, msg);
+        }
+        push(vm, obj->list.items[index]);
+    } else {
+        RBNode *node = rb_search(obj->map.map, idx);
+        if (node == NULL) {
+            char msg[100];
+            memset(msg, 0, 100);
+            sprintf(msg, "Key <%s> not found", stringify(idx));
+            error(vm, msg);
+        }
+        push(vm, node->value);
     }
-    push(vm, obj->list.items[index]);
 }
 
 void handle_print(VM *vm) {
@@ -694,6 +671,12 @@ void handle_chan_write(VM *vm) {
 
 void handle_spawn(VM *vm) { vm->coro_to_be_spawned = true; }
 
+void handle_make_map(VM *vm) {
+    Obj *obj = new_obj(vm, OBJ_MAP);
+    obj->map.map = new_rb_node(0);
+    push(vm, OBJ_VAL(obj));
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_add,           handle_sub,         handle_mul,
@@ -710,7 +693,7 @@ static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_print,         handle_pop,         handle_make_list,
     handle_make_tuple,    handle_native_call, handle_const_double,
     handle_make_chan,     handle_chan_read,   handle_chan_write,
-    handle_spawn,
+    handle_spawn,         handle_make_map,
 };
 
 void run(VM *vm) {
