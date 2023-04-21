@@ -10,6 +10,7 @@ pub enum Type {
     List(Box<Type>),
     Chan(Box<Type>),
     Tuple(Vec<Type>),
+    Map(Box<Type>, Box<Type>),
     Range,
 }
 

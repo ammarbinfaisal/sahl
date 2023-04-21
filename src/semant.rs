@@ -322,6 +322,13 @@ impl<'a> Checker<'a> {
                             Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
+                    Type::Map(key, val) => {
+                        if *key.clone() == index_ty {
+                            Ok(*val.clone())
+                        } else {
+                            Err(Error::TypeMismatch(vec![*key], vec![index_ty]))
+                        }
+                    }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
                         vec![ty],

@@ -27,8 +27,22 @@ fn typee(source: &str) -> IResult<&str, Type> {
         map(tag("char"), |_| Type::Char),
         map(tag("double"), |_| Type::Double),
         chanty,
+        mapty,
     ))(source)?;
     Ok((source, ty))
+}
+
+fn mapty(source: &str) -> IResult<&str, Type> {
+    let (source, _) = tag("map")(source)?;
+    let (source, _) = tag("<")(source)?;
+    let (source, _) = space0(source)?;
+    let (source, key) = typee(source)?;
+    let (source, _) = tag(",")(source)?;
+    let (source, _) = space0(source)?;
+    let (source, val) = typee(source)?;
+    let (source, _) = space0(source)?;
+    let (source, _) = tag(">")(source)?;
+    Ok((source, Type::Map(Box::new(key), Box::new(val))))
 }
 
 fn chanty(source: &str) -> IResult<&str, Type> {
@@ -326,7 +340,7 @@ fn assignment(source: &str) -> IResult<&str, Expr> {
 fn make(source: &str) -> IResult<&str, Expr> {
     let (source, _) = tag("make")(source)?;
     let (source, _) = tag("(")(source)?;
-    let (source, ty) = delimited(space0, alt((listty, chanty)), space0)(source)?;
+    let (source, ty) = delimited(space0, alt((listty, chanty, mapty)), space0)(source)?;
     let (source, len) = opt(map(
         tuple((
             delimited(space0, tag(","), space0),
