@@ -7,7 +7,7 @@ codegen:
 	cargo build --release
 
 vm:
-	gcc -O2 sahl.c -o sahl
+	gcc vm/* -o sahl -O2 -g -lm -lpthread
 
 aot:
 	go build sahl_aot.go
