@@ -47,6 +47,7 @@ const MAKE_CHAN: u8 = 39;
 const CHAN_READ: u8 = 40;
 const CHAN_WRITE: u8 = 41;
 const SPAWN: u8 = 42;
+const MAKE_MAP: u8 = 43;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -370,6 +371,9 @@ impl Bytecode {
                     }
                     Type::Chan(_) => {
                         self.add(MAKE_CHAN);
+                    }
+                    Type::Map(_, _) => {
+                        self.add(MAKE_MAP);
                     }
                     _ => {
                         panic!("Can only make a list or a chan");
