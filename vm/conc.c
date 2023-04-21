@@ -1,4 +1,5 @@
 #include "conc.h"
+#include "gc.h"
 
 Queue *new_queue(int capacity) {
     Queue *q = malloc(sizeof(Queue));
@@ -22,6 +23,14 @@ Chan *new_chan(int capacity) {
     return c;
 }
 
+void close_chan(Chan *c) {
+    pthread_mutex_lock(&c->m_mu);
+    c->closed = 1;
+    pthread_cond_broadcast(&c->r_cond);
+    pthread_cond_broadcast(&c->w_cond);
+    pthread_mutex_unlock(&c->m_mu);
+}
+
 void rbuf_write(RingBuffer *rb, Value v) {
     rb->items[rb->head] = v;
     rb->head = (rb->head + 1) % rb->capacity;
@@ -43,4 +52,11 @@ RingBuffer *new_ring_buffer(int capacity) {
     rb->tail = 0;
     rb->items = malloc(sizeof(Value) * capacity);
     return rb;
+}
+
+void mark_chan(VM *vm, Chan *c) {
+    Queue *q = c->q;
+    for (int i = 0; i < q->length; i++) {
+        mark_value(vm, q->items[i]);
+    }
 }

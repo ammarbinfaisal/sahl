@@ -1,6 +1,13 @@
 {
     "files.associations": {
         "*.ml": "ocaml",
-        "common.h": "c"
+        "common.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "ranges": "c",
+        "list.h": "c",
+        "vm.h": "c",
+        "gc.h": "c"
     }
 }

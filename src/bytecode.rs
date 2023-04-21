@@ -304,6 +304,12 @@ impl Bytecode {
                     self.add_2_u32(NATIVE_CALL, 8, 1);
                 } else if name == "log" {
                     self.add_2_u32(NATIVE_CALL, 9, 1);
+                } else if name == "tcp_server" {
+                    self.add_2_u32(NATIVE_CALL, 10, 2);
+                } else if name == "close_chan" {
+                    self.add_2_u32(NATIVE_CALL, 11, 1);
+                } else if name == "is_open_chan" {
+                    self.add_2_u32(NATIVE_CALL, 12, 1);
                 } else {
                     let func_idx = self.func_idx[name];
                     // println!("emitting call to {}", name);

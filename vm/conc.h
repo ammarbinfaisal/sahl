@@ -14,8 +14,13 @@ RingBuffer *new_ring_buffer(int capacity);
 void rbuf_write(RingBuffer *rb, Value v);
 Value rbuf_read(RingBuffer *rb);
 Chan *new_chan(int capacity);
+void close_chan(Chan *c);
+void mark_chan(VM *vm, Chan *c);
 
 static int chan_write(Chan *chan, Value v) {
+    if (chan->closed) {
+        return CHAN_CLOSED;
+    }
     pthread_mutex_lock(&chan->m_mu);
     while (chan->q->length == chan->q->capacity) {
         chan->w_waiting++;
@@ -31,6 +36,9 @@ static int chan_write(Chan *chan, Value v) {
 }
 
 static int chan_read(Chan *chan, Value *v) {
+    if (chan->closed) {
+        return CHAN_CLOSED;
+    }
     pthread_mutex_lock(&chan->m_mu);
     while (chan->q->length == 0) {
         if (chan->closed) {
@@ -43,7 +51,7 @@ static int chan_read(Chan *chan, Value *v) {
     }
     *v = chan->q->items[--chan->q->length];
     if (chan->w_waiting > 0) {
-        pthread_cond_signal(&chan->w_cond);
+        pthread_cond_broadcast(&chan->w_cond);
     }
     pthread_mutex_unlock(&chan->m_mu);
     return CHAN_OK;

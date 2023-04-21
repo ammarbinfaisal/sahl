@@ -19,6 +19,7 @@
 #include "rbtree.h"
 #include "read.h"
 #include "vm.h"
+#include "tcp.h"
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -504,24 +505,24 @@ void handle_call(VM *vm) {
 
     if (vm->coro_to_be_spawned) {
         vm->coro_to_be_spawned = false;
-        vm->coro_count++;
+        vm->thread_count++;
         newframe->ip++; // should be 0
         nvm->coro_id = coro_count++;
-        if (vm->coro_count == MAX_COROS) {
+        if (vm->thread_count == MAX_COROS) {
             int i = 0;
-            while (i < vm->coro_count && vm->coro_done[i]) {
+            while (i < vm->thread_count && vm->coro_done[i]) {
                 i++;
             }
             pthread_join(vm->threads[i], NULL);
             vm->coro_done[i] = true;
-            vm->coro_count--;
+            vm->thread_count--;
         }
         pthread_t thread = (pthread_t)malloc(sizeof(pthread_t));
         pthread_create(&thread, NULL, spawn, nvm);
-        vm->threads = realloc(vm->threads, vm->coro_count * sizeof(pthread_t));
-        vm->coro_done = realloc(vm->coro_done, vm->coro_count * sizeof(bool));
-        vm->threads[vm->coro_count - 1] = thread;
-        vm->coro_done[vm->coro_count - 1] = false;
+        vm->threads = realloc(vm->threads, vm->thread_count * sizeof(pthread_t));
+        vm->coro_done = realloc(vm->coro_done, vm->thread_count * sizeof(bool));
+        vm->threads[vm->thread_count - 1] = thread;
+        vm->coro_done[vm->thread_count - 1] = false;
     }
 }
 
@@ -632,9 +633,36 @@ void native_log(VM *vm) {
     push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
 }
 
+void native_tcp_server(VM *vm) {
+    PRE_NATIVE
+    double portf = AS_FLOAT(args[0]);
+    int port = (int)trunc(portf);
+    Chan *chan = AS_OBJ(args[1])->channel.chan;
+    TcpServer *server = malloc(sizeof(TcpServer));
+    server->port = port;
+    server->chan = chan;
+    server->vm = vm;
+    pthread_t thread;
+    pthread_create(&thread, NULL, tcp_server_thread, (void *)server);
+    APPEND_THREAD(thread)
+}
+
+void native_close_chan(VM *vm) {
+    PRE_NATIVE
+    Chan *chan = AS_OBJ(args[0])->channel.chan;
+    close_chan(chan);
+}
+
+void native_is_open_chan(VM *vm) {
+    PRE_NATIVE
+    Chan *chan = AS_OBJ(args[0])->channel.chan;
+    push(vm, BOOL_VAL(!chan->closed));
+}
+
 static native_fn_t native_functions[] = {
     native_clear_screen, native_rand, native_sleep, native_randf, native_exp,
     native_pow,          native_exit, native_print, native_tanh,  native_log,
+    native_tcp_server,   native_close_chan, native_is_open_chan
 };
 
 void handle_native_call(VM *vm) {
@@ -735,7 +763,7 @@ void run(VM *vm) {
         ++vm->call_frame->ip;
     }
 
-    for (int i = 0; i < vm->coro_count; ++i) {
+    for (int i = 0; i < vm->thread_count; ++i) {
         if (!vm->coro_done[i]) pthread_join(vm->threads[i], NULL);
     }
 

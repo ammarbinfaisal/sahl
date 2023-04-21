@@ -1,4 +1,5 @@
 #include "gc.h"
+#include "conc.h"
 #include "rbtree.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +47,10 @@ static void blacken_object(VM *vm, Obj *obj) {
     }
     case OBJ_MAP: {
         rb_mark(vm, obj->map.map);
+        break;
+    }
+    case OBJ_CHAN: {
+        mark_chan(vm, obj->channel.chan);
         break;
     }
     }

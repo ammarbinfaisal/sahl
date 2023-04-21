@@ -157,6 +157,44 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 Err(Error::ArityMismatch(1, args.len()))
             } 
         }
+        "tcp_server" => {
+            if args.len() == 2 {
+                if let Type::Int = args[0] {
+                    if let Type::Chan(_) = args[1].clone() {
+                        // TODO: check that ch is [chan<string>]
+                        Ok(Type::Void)
+                    } else {
+                        Err(Error::TypeMismatch(vec![Type::Int], vec![args[1].clone()]))
+                    }
+                } else {
+                    Err(Error::TypeMismatch(vec![Type::Int], vec![args[0].clone()]))
+                }
+            } else {
+                Err(Error::ArityMismatch(2, args.len()))
+            }
+        }
+        "close_chan" => {
+            if args.len() == 1 {
+                if let Type::Chan(_) = args[0] {
+                    Ok(Type::Void)
+                } else {
+                    Err(Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![args[0].clone()]))
+                }
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            }
+        }
+        "is_open_chan" => {
+            if args.len() == 1 {
+                if let Type::Chan(_) = args[0] {
+                    Ok(Type::Bool)
+                } else {
+                    Err(Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![args[0].clone()]))
+                }
+            } else {
+                Err(Error::ArityMismatch(1, args.len()))
+            }
+        }
         _ => Err(Error::UndefinedVariable(name.to_string())),
     }
 }

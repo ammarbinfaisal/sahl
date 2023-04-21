@@ -1,0 +1,19 @@
+fun handle_sock(chs : [chan<string>]) {
+    print("received a connection \n")
+    let reqch = chs[0]
+    let resch = chs[1]
+    while is_open_chan(reqch) {
+        let req = <-reqch
+        let res = "you seny me: " + req
+        resch <- res
+    }
+}
+
+fun main () {
+    let ch = make(chan<[chan<string>]>)
+    tcp_server(8000, ch)
+    while true {
+        let chs = <-ch
+        sahl handle_sock(chs)
+    }
+}

@@ -136,12 +136,15 @@ struct VM {
     // thread
     bool coro_to_be_spawned;
     bool is_coro;
-    int coro_count;
+    int thread_count;
     int coro_id;
     pthread_t *threads;
     bool *coro_done;
 };
 
 typedef struct VM VM;
+
+void error(VM *vm, char *msg);
+char *stringify(Value value);
 
 #endif

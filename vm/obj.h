@@ -20,6 +20,7 @@
 #define AS_BOOL(value) ((value) == TRUE_VAL)
 #define AS_OBJ(value) ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
 #define AS_FLOAT(value) value_to_float(value)
+#define AS_CSTRING(value) (((AS_OBJ(value)))->string.data)
 
 #define BOOL_VAL(b) ((b) ? TRUE_VAL : FALSE_VAL)
 #define FALSE_VAL ((Value)(uint64_t)(QNAN | TAG_FALSE))

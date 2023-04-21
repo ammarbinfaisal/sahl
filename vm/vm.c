@@ -39,7 +39,7 @@ VM *new_vm(uint8_t *code, int code_length) {
 
     // threads
     vm->is_coro = false;
-    vm->coro_count = 0;
+    vm->thread_count = 0;
     vm->threads = NULL;
     vm->coro_to_be_spawned = false;
 
@@ -67,7 +67,7 @@ VM *coro_vm(VM *curr, int start_func) {
 
     // threads
     vm->is_coro = true;
-    vm->coro_count = 0;
+    vm->thread_count = 0;
     vm->threads = NULL;
 
     return vm;

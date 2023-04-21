@@ -46,13 +46,12 @@ fn mapty(source: &str) -> IResult<&str, Type> {
 }
 
 fn chanty(source: &str) -> IResult<&str, Type> {
-    let (source, ty) = alt((
-        map(tag("chan int"), |_| Type::Chan(Box::new(Type::Int))),
-        map(tag("chan bool"), |_| Type::Chan(Box::new(Type::Bool))),
-        map(tag("chan string"), |_| Type::Chan(Box::new(Type::Str))),
-        map(tag("chan char"), |_| Type::Chan(Box::new(Type::Char))),
-    ))(source)?;
-    Ok((source, ty))
+    let (source, _) = tag("chan<")(source)?;
+    let (source, _) = space0(source)?;
+    let (source, ty) = typee(source)?;
+    let (source, _) = space0(source)?;
+    let (source, _) = tag(">")(source)?;
+    Ok((source, Type::Chan(Box::new(ty))))
 }
 
 fn listty(source: &str) -> IResult<&str, Type> {
