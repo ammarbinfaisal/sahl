@@ -97,13 +97,16 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
         }
         "len" => {
             if args.len() == 1 {
-                match &args[0] {
-                    Type::List(_) => Ok(Type::Int),
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::List(Box::new(Type::Void))],
-                        vec![args[0].clone()],
-                    )),
-                }
+                // match &args[0] {
+                //     Type::List(_) => Ok(Type::Int),
+                //     _ => Err(Error::TypeMismatch(
+                //         vec![Type::List(Box::new(Type::Void))],
+                //         vec![args[0].clone()],
+                //     )),
+                // }
+
+                // arg can be either a list or a string
+                Ok(Type::Int)
             } else {
                 Err(Error::ArityMismatch(1, args.len()))
             }
@@ -150,20 +153,20 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
             } else {
                 Err(Error::ArityMismatch(0, args.len()))
             }
-        },
+        }
         "tanh" => {
             if args.len() == 1 {
                 Ok(Type::Double)
             } else {
                 Err(Error::ArityMismatch(1, args.len()))
-            } 
+            }
         }
         "log" => {
             if args.len() == 1 {
                 Ok(Type::Double)
             } else {
                 Err(Error::ArityMismatch(1, args.len()))
-            } 
+            }
         }
         "tcp_server" => {
             if args.len() == 2 {
@@ -186,7 +189,10 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 if let Type::Chan(_) = args[0] {
                     Ok(Type::Void)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![args[0].clone()]))
+                    Err(Error::TypeMismatch(
+                        vec![Type::Chan(Box::new(Type::Void))],
+                        vec![args[0].clone()],
+                    ))
                 }
             } else {
                 Err(Error::ArityMismatch(1, args.len()))
@@ -197,7 +203,10 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 if let Type::Chan(_) = args[0] {
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![args[0].clone()]))
+                    Err(Error::TypeMismatch(
+                        vec![Type::Chan(Box::new(Type::Void))],
+                        vec![args[0].clone()],
+                    ))
                 }
             } else {
                 Err(Error::ArityMismatch(1, args.len()))
@@ -294,8 +303,22 @@ impl<'a> Checker<'a> {
             Expr::Arith(op, ex1, ex2) => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if *op == ArithOp::Add && ty1 == Type::Str && ty2 == Type::Str {
-                    Ok(Type::Str)
+                if *op == ArithOp::Add {
+                    if (ty1 == Type::Str && ty2 == Type::Str)
+                        || (ty1 == Type::Str && ty2 == Type::Char)
+                        || (ty1 == Type::Char && ty2 == Type::Str)
+                    {
+                        Ok(Type::Str)
+                    } else if ty1 == Type::Int && ty2 == Type::Int {
+                        Ok(Type::Int)
+                    } else if ty1 == Type::Double || ty2 == Type::Double {
+                        Ok(Type::Double)
+                    } else {
+                        Err(Error::TypeMismatch(
+                            vec![Type::Str, Type::Char],
+                            vec![ty1, ty2],
+                        ))
+                    }
                 } else if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::Int)
                 } else if ty1 == Type::Double || ty2 == Type::Double {

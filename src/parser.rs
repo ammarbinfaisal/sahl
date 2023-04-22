@@ -2,7 +2,7 @@ use crate::syntax::*;
 extern crate nom;
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while, take_while_m_n},
+    bytes::{complete::{tag, take_while, take_while_m_n}, streaming::escaped},
     character::complete::{none_of, space0},
     combinator::{map, opt},
     error::ErrorKind,
@@ -120,14 +120,17 @@ fn string(source: &str) -> IResult<&str, Lit> {
 }
 
 fn charr(source: &str) -> IResult<&str, Lit> {
-    map(
-        delimited(
-            tag("'"),
-            take_while_m_n(1, 1, |c: char| c != '\''),
-            tag("'"),
-        ),
-        |s: &str| Lit::Char(s.as_bytes()[0]),
-    )(source)
+    let (source, c) = delimited(
+        tag("'"),
+        take_while_m_n(1, 2, |c: char| c != '\''),
+        tag("'"),
+    )(source)?;
+    if c.as_bytes()[0] == '\\' as u8 {
+        let (source, c) = parse_escape(c)?;
+        Ok((source, Lit::Char(c)))
+    } else {
+        Ok((source, Lit::Char(c.as_bytes()[0])))
+    }
 }
 
 fn natural(source: &str) -> IResult<&str, Lit> {

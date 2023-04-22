@@ -140,6 +140,28 @@ void handle_add(VM *vm) {
 
     if (IS_OBJ(a) && IS_OBJ(b)) {
         push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
+    } else if (IS_CHAR(a) && IS_OBJ(b)) {
+        char c = AS_CHAR(a);
+        Obj *obj = AS_OBJ(b);
+        int len = strlen(obj->string.data);
+        char *old = obj->string.data;
+        char *chars = allocate(vm, len + 2);
+        chars[len] = c;
+        memcpy(chars, old, len);
+        chars[len + 1] = '\0';
+        push(vm, OBJ_VAL(new_string(vm, chars, len + 2)));
+        free(old);
+    } else if (IS_OBJ(a) && IS_CHAR(b)) {
+        char c = AS_CHAR(b);
+        Obj *obj = AS_OBJ(a);
+        int len = strlen(obj->string.data);
+        char *old = obj->string.data;
+        char *chars = allocate(vm, len + 2);
+        chars[0] = c;
+        memcpy(chars + 1, old, len);
+        chars[len + 1] = '\0';
+        push(vm, OBJ_VAL(new_string(vm, chars, len + 2)));
+        free(old);
     } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
         push(vm, FLOAT_VAL(AS_FLOAT(b) + AS_FLOAT(a)));
     } else if (IS_INT(a) && IS_INT(b)) {
