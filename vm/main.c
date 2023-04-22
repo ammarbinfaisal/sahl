@@ -541,7 +541,7 @@ void handle_const_32(VM *vm) {
 void handle_const_8(VM *vm) {
     uint8_t val = vm->call_frame->func->code[vm->call_frame->ip + 1];
     push(vm, val);
-    vm->call_frame->ip += 2;
+    vm->call_frame->ip += 1;
 }
 
 void handle_const_double(VM *vm) {
