@@ -9,7 +9,6 @@ VM *new_vm(uint8_t *code, int code_length) {
     int offset = 8;
     for (int i = 0; i < vm->string_count; ++i) {
         uint32_t strlength = read_u32(code, offset);
-        printf("reading string of %d\n", strlength);
         offset += 4;
         vm->strings[i] = read_string(code, offset, strlength);
         offset += strlength;
