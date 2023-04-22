@@ -68,9 +68,13 @@ bool obj_is_equal(Value a, Value b) {
 }
 
 bool obj_is_less(Value a, Value b) {
-    if (IS_NUMBER(a) && IS_NUMBER(b)) {
+    if (IS_FLOAT(a) && IS_FLOAT(b)) {
         return AS_FLOAT(a) < AS_FLOAT(b);
-    } else if (IS_OBJ(a) && IS_OBJ(b)) {
+    }
+    if (IS_INT(a) && IS_INT(b)) {
+        return AS_INT(a) < AS_INT(b);
+    }
+    if (IS_OBJ(a) && IS_OBJ(b)) {
         Obj *obj_a = AS_OBJ(a);
         Obj *obj_b = AS_OBJ(b);
 
@@ -92,8 +96,10 @@ bool obj_is_less(Value a, Value b) {
 void print_value(Value value) {
     if (IS_BOOL(value)) {
         printf("%s", AS_BOOL(value) ? "true" : "false");
-    } else if (IS_NUMBER(value)) {
+    } else if (IS_FLOAT(value)) {
         printf("%lf", AS_FLOAT(value));
+    } else if (IS_INT(value)) {
+        printf("%ld", AS_INT(value));
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
 

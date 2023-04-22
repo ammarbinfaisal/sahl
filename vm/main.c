@@ -64,8 +64,11 @@ char *stringify(Value value) {
     if (IS_BOOL(value)) {
         sprintf(str, "%s", AS_BOOL(value) ? "true" : "false");
         return str;
-    } else if (IS_NUMBER(value)) {
+    } else if (IS_FLOAT(value)) {
         sprintf(str, "%lf", AS_FLOAT(value));
+        return str;
+    } else if (IS_INT(value)) {
+        sprintf(str, "%ld", AS_INT(value));
         return str;
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
@@ -187,7 +190,7 @@ void handle_const_u32(VM *vm) {
 void handle_const_u64(VM *vm) {
     uint64_t value =
         read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, FLOAT_VAL((double)value));
+    push(vm, INT_VAL((double)value));
     vm->call_frame->ip += 8;
 }
 
@@ -227,25 +230,65 @@ void handle_not_equal(VM *vm) {
 void handle_less(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
+    if (IS_INT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) < AS_INT(b)));
+    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) < AS_FLOAT(b)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) < AS_INT(b)));
+    } else {
+        error(vm, "Cannot compare non-numbers");
+    }
 }
 
 void handle_less_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
+    if (IS_INT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) <= AS_INT(b)));
+    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) <= AS_FLOAT(b)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_INT(b)));
+    } else {
+        error(vm, "Cannot compare non-numbers");
+    }
 }
 
 void handle_greater(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
+    if (IS_INT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) > AS_INT(b)));
+    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) > AS_FLOAT(b)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) > AS_INT(b)));
+    } else {
+        error(vm, "Cannot compare non-numbers");
+    }
 }
 
 void handle_greater_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
+    if (IS_INT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) >= AS_INT(b)));
+    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, BOOL_VAL(AS_INT(a) >= AS_FLOAT(b)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_INT(b)));
+    } else {
+        error(vm, "Cannot compare non-numbers");
+    }
 }
 
 void handle_jump(VM *vm) {
@@ -318,15 +361,14 @@ void handle_store(VM *vm) {
     Value value = pop(vm);
     Obj *obj = AS_OBJ(arr);
     if (obj->type == OBJ_LIST) {
-        double index = AS_FLOAT(idx);
-        uint64_t i = (uint64_t)trunc(index);
+        uint64_t index = AS_INT(idx);
         if (obj->list.length <= index) {
             char msg[100];
             memset(msg, 0, 100);
-            sprintf(msg, "Index out of bounds %ld", i);
+            sprintf(msg, "Index out of bounds %ld", index);
             error(vm, msg);
         }
-        obj->list.items[i] = value;
+        obj->list.items[index] = value;
     } else {
         RBNode *new = new_rb_node(idx);
         new->value = value;
@@ -359,8 +401,7 @@ void handle_index(VM *vm) {
     Value value = pop(vm);
     Obj *obj = AS_OBJ(value);
     if (obj->type == OBJ_LIST) {
-        double didx = AS_FLOAT(idx);
-        uint64_t index = (uint64_t)trunc(didx);
+        uint64_t index = AS_INT(idx);
         if (obj->list.length <= index) {
             char msg[100];
             memset(msg, 0, 100);
@@ -414,8 +455,7 @@ void handle_make_tuple(VM *vm) {
 
 void handle_make_list(VM *vm) {
     Value def = pop(vm);
-    double dlen = AS_FLOAT(pop(vm));
-    uint64_t len = (uint64_t)dlen;
+    uint64_t len = AS_INT(pop(vm));
     Obj *obj = new_obj(vm, OBJ_LIST);
     push(vm, OBJ_VAL(obj)); // premptive GC prevention
     size_t cap = GROW_CAPACITY(len);
@@ -528,7 +568,7 @@ void handle_call(VM *vm) {
 
 void handle_const_64(VM *vm) {
     uint64_t val = read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, FLOAT_VAL(val));
+    push(vm, INT_VAL(val));
     vm->call_frame->ip += 8;
 }
 
@@ -569,7 +609,7 @@ void native_clear_screen(VM *vm) { printf("\033[2J\033[1;1H"); }
 
 void native_rand(VM *vm) {
     PRE_NATIVE
-    int r = rand() % (int)AS_FLOAT(args[0]) + AS_FLOAT(args[1]);
+    int r = rand() % AS_INT(args[0]) + AS_INT(args[1]);
     push(vm, FLOAT_VAL((double)r));
 }
 
@@ -635,8 +675,7 @@ void native_log(VM *vm) {
 
 void native_tcp_server(VM *vm) {
     PRE_NATIVE
-    double portf = AS_FLOAT(args[0]);
-    int port = (int)trunc(portf);
+    int port = AS_INT(args[0]);
     Chan *chan = AS_OBJ(args[1])->channel.chan;
     TcpServer *server = malloc(sizeof(TcpServer));
     server->port = port;
