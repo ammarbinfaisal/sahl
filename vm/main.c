@@ -140,33 +140,77 @@ void handle_add(VM *vm) {
 
     if (IS_OBJ(a) && IS_OBJ(b)) {
         push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
+    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) + AS_FLOAT(a)));
+    } else if (IS_INT(a) && IS_INT(b)) {
+        push(vm, INT_VAL(AS_INT(b) + AS_INT(a)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) + AS_INT(a)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, FLOAT_VAL(AS_INT(b) + AS_FLOAT(a)));
     } else {
-        push(vm, FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b)));
+        error(vm, "Invalid operands for +");
     }
 }
 
 void handle_sub(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_FLOAT(a)));
+    if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_FLOAT(a)));
+    } else if (IS_INT(a) && IS_INT(b)) {
+        push(vm, INT_VAL(AS_INT(b) - AS_INT(a)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_INT(a)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, FLOAT_VAL(AS_INT(b) - AS_FLOAT(a)));
+    } else {
+        error(vm, "Invalid operands for -");
+    }
 }
 
 void handle_mul(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_FLOAT(a)));
+    if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_FLOAT(a)));
+    } else if (IS_INT(a) && IS_INT(b)) {
+        push(vm, INT_VAL(AS_INT(b) * AS_INT(a)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_INT(a)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, FLOAT_VAL(AS_INT(b) * AS_FLOAT(a)));
+    } else {
+        error(vm, "Invalid operands for *");
+    }
 }
 
 void handle_div(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_FLOAT(a)));
+    if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_FLOAT(a)));
+    } else if (IS_INT(a) && IS_INT(b)) {
+        push(vm, INT_VAL(AS_INT(b) / AS_INT(a)));
+    } else if (IS_INT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_INT(a)));
+    } else if (IS_FLOAT(a) && IS_INT(b)) {
+        push(vm, FLOAT_VAL(AS_INT(b) / AS_FLOAT(a)));
+    } else {
+        error(vm, "Invalid operands for /");
+    }
 }
 
 void handle_mod(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    push(vm, FLOAT_VAL(fmod(AS_FLOAT(b), AS_FLOAT(a))));
+    if (IS_FLOAT(a) && IS_FLOAT(b)) {
+        push(vm, FLOAT_VAL(fmod(AS_FLOAT(b), AS_FLOAT(a))));
+    } else if (IS_INT(a) && IS_INT(b)) {
+        push(vm, INT_VAL(AS_INT(b) % AS_INT(a)));
+    } else {
+        error(vm, "Invalid operands for %");
+    }
 }
 
 void handle_neg(VM *vm) {
