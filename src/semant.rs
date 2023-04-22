@@ -14,6 +14,8 @@ pub enum Error {
     NoMain,
     MainArgs,
     MainNotVoid,
+    TupleIndexOutOfBounds,
+    TupleIndexNotInt,
 }
 
 impl std::fmt::Display for Error {
@@ -56,6 +58,12 @@ impl std::fmt::Display for Error {
             }
             Error::MainNotVoid => {
                 write!(f, "Main function must return void")
+            }
+            Error::TupleIndexOutOfBounds => {
+                write!(f, "Tuple index out of bounds")
+            }
+            Error::TupleIndexNotInt => {
+                write!(f, "Tuple index must be an integer")
             }
         }
     }
@@ -370,6 +378,22 @@ impl<'a> Checker<'a> {
                     Type::Str => {
                         if index_ty == Type::Int {
                             Ok(Type::Char)
+                        } else {
+                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
+                        }
+                    }
+                    Type::Tuple(tys) => {
+                        // can only have integer literals as index
+                        if let Expr::Literal(i) = *index.clone() {
+                            if let Lit::Int(i) = i {
+                                if i < tys.len() as i64 {
+                                    Ok(tys[i as usize].clone())
+                                } else {
+                                    Err(Error::TupleIndexOutOfBounds)
+                                }
+                            } else {
+                                Err(Error::TupleIndexNotInt)
+                            }
                         } else {
                             Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }

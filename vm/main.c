@@ -18,8 +18,8 @@
 #include "opcodes.h"
 #include "rbtree.h"
 #include "read.h"
-#include "vm.h"
 #include "tcp.h"
+#include "vm.h"
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
@@ -463,6 +463,15 @@ void handle_index(VM *vm) {
         }
         char c = obj->string.data[index];
         push(vm, CHAR_VAL(c));
+    } else if (obj->type == OBJ_TUPLE) {
+        uint64_t index = AS_INT(idx);
+        if (obj->tuple.length <= index) {
+            char msg[100];
+            memset(msg, 0, 100);
+            sprintf(msg, "Index out of bounds %ld", index);
+            error(vm, msg);
+        }
+        push(vm, obj->tuple.items[index]);
     } else {
         RBNode *node = rb_search(obj->map.map, idx);
         if (node == NULL) {
@@ -613,7 +622,8 @@ void handle_call(VM *vm) {
         }
         pthread_t thread = (pthread_t)malloc(sizeof(pthread_t));
         pthread_create(&thread, NULL, spawn, nvm);
-        vm->threads = realloc(vm->threads, vm->thread_count * sizeof(pthread_t));
+        vm->threads =
+            realloc(vm->threads, vm->thread_count * sizeof(pthread_t));
         vm->coro_done = realloc(vm->coro_done, vm->thread_count * sizeof(bool));
         vm->threads[vm->thread_count - 1] = thread;
         vm->coro_done[vm->thread_count - 1] = false;
@@ -753,10 +763,10 @@ void native_is_open_chan(VM *vm) {
 }
 
 static native_fn_t native_functions[] = {
-    native_clear_screen, native_rand, native_sleep, native_randf, native_exp,
-    native_pow,          native_exit, native_print, native_tanh,  native_log,
-    native_tcp_server,   native_close_chan, native_is_open_chan
-};
+    native_clear_screen, native_rand, native_sleep,      native_randf,
+    native_exp,          native_pow,  native_exit,       native_print,
+    native_tanh,         native_log,  native_tcp_server, native_close_chan,
+    native_is_open_chan};
 
 void handle_native_call(VM *vm) {
     CallFrame *frame = vm->call_frame;
