@@ -367,6 +367,13 @@ impl<'a> Checker<'a> {
                             Err(Error::TypeMismatch(vec![*key], vec![index_ty]))
                         }
                     }
+                    Type::Str => {
+                        if index_ty == Type::Int {
+                            Ok(Type::Char)
+                        } else {
+                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
+                        }
+                    }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
                         vec![ty],

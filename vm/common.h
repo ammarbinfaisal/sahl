@@ -7,8 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// #define PRINT_OPCODES
-// #define PRINT_STACK
+#define PRINT_OPCODES
+#define PRINT_STACK
 // #define PRINT_LOCALS
 // #define DEBUG
 // #define MINARR

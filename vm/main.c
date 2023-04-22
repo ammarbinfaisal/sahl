@@ -409,6 +409,16 @@ void handle_index(VM *vm) {
             error(vm, msg);
         }
         push(vm, obj->list.items[index]);
+    } else if (obj->type == OBJ_STRING) {
+        uint64_t index = AS_INT(idx);
+        if (strlen(obj->string.data) <= index) {
+            char msg[100];
+            memset(msg, 0, 100);
+            sprintf(msg, "Index out of bounds %ld", index);
+            error(vm, msg);
+        }
+        char c = obj->string.data[index];
+        push(vm, CHAR_VAL(c));
     } else {
         RBNode *node = rb_search(obj->map.map, idx);
         if (node == NULL) {
@@ -580,7 +590,7 @@ void handle_const_32(VM *vm) {
 
 void handle_const_8(VM *vm) {
     uint8_t val = vm->call_frame->func->code[vm->call_frame->ip + 1];
-    push(vm, val);
+    push(vm, CHAR_VAL(val));
     vm->call_frame->ip += 1;
 }
 

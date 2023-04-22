@@ -100,6 +100,8 @@ void print_value(Value value) {
         printf("%lf", AS_FLOAT(value));
     } else if (IS_INT(value)) {
         printf("%ld", AS_INT(value));
+    } else if (IS_CHAR(value)) {
+        printf("%c", AS_CHAR(value));
     } else if (IS_OBJ(value)) {
         Obj *obj = AS_OBJ(value);
 
