@@ -21,7 +21,7 @@
 
 #define IS_FLOAT(value) ((value & NANISH) != NANISH)
 #define IS_OBJ(value) ((value & NANISH_MASK) == OBJECT_MASK)
-#define IS_BOOL(v) ((v & BOOLEAN_MASK) == BOOLEAN_MASK)
+#define IS_BOOL(v) ((v & NANISH_MASK) == BOOLEAN_MASK)
 #define IS_INT(v) ((v & NANISH_MASK) == INTEGER_MASK)
 #define IS_CHAR(v) ((v & NANISH_MASK) == CHAR_MASK)
 
