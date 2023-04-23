@@ -500,8 +500,13 @@ impl Asm {
         }
         self.append(&format!("call {}", name), 1);
         let m = self.get_result_mem(ret_ty.clone());
-        let v = Value::new(m, ret_ty);
+        let v = Value::new(m, ret_ty.clone());
         self.push(v);
+        if ret_ty == Type::Double {
+            self.used_regs[16] = true;
+        } else {
+            self.used_regs[0] = true;
+        }
     }
 
     fn emit_mov(&mut self, dest: &Mem, src: &Mem) {
