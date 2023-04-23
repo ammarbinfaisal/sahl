@@ -877,12 +877,16 @@ impl Asm {
                 self.compile_expr(expr);
                 let v = self.pop();
                 self.append(&format!("cmp {}, 0", v.mem), 1);
-                self.append(&format!("je {}", label_else), 1);
+                if !else_stmts.is_none() {
+                    self.append(&format!("je {}", label_else), 1);
+                }
                 for stmt in stmts {
                     self.compile_stmt(stmt);
                 }
-                self.append(&format!("jmp {}", label_end), 1);
-                self.append(&format!("{}:", label_else), 0);
+                if !else_stmts.is_none() {
+                    self.append(&format!("jmp {}", label_end), 1);
+                    self.append(&format!("{}:", label_else), 0);
+                }
                 for els in else_stmts {
                     for stmt in els {
                         self.compile_stmt(stmt);
