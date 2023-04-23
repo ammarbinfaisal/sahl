@@ -1,15 +1,15 @@
+mod asm;
 mod bytecode;
 mod code;
-mod native;
 mod parser;
 mod semant;
 mod syntax;
 mod vm;
 
-use inkwell::context::Context;
-use native::Compiler;
+use asm::*;
 use parser::*;
 use semant::*;
+use std::collections::HashMap;
 use std::fs::*;
 use std::io::Read;
 
@@ -59,12 +59,12 @@ fn main() {
                     println!("{:#?}", p);
                 }
                 let res = if skip_semant {
-                    Ok(())
+                    Ok(HashMap::new())
                 } else {
                     check_program(&p)
                 };
                 match res {
-                    Ok(_) => {
+                    Ok(env) => {
                         if verbose {
                             println!("Program is well-typed");
                         }
@@ -77,10 +77,8 @@ fn main() {
                             codebyte.compile_program(&p);
                             codebyte.write("exe.bin");
                         } else {
-                            let context = Context::create();
-                            let mut compiler = Compiler::new(&context, p.funcs.iter().collect());
-                            compiler.compile();
-                            compiler.write("exe.ll");
+                            let mut asm = Asm::new(env);
+                            asm.compile(&p);
                         }
                     }
                     Err(e) => {

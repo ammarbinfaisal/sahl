@@ -12,5 +12,4 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
-./target/debug/sahl $1 -c
-./sahl_aot exe.bin && nasm -f elf64 -o exe.o exe.asm&& gcc -static -lc -o exe exe.o sahl_rts.c && echo "compiled to ./exe"
+./target/debug/sahl $1 -n && nasm -f elf64 -o exe.o exe.asm && gcc -nostartfiles -o exe exe.o rt.c && echo "compiled to ./exe"

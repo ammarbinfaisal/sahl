@@ -70,7 +70,7 @@ impl std::fmt::Display for Error {
 }
 
 type TypeEnv = Vec<HashMap<String, Type>>;
-type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
+pub type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
 
 fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
     match name {
@@ -650,7 +650,7 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
-pub fn check_program(program: &Program) -> Result<(), Error> {
+pub fn check_program(program: &Program) -> Result<FuncEnv, Error> {
     let mut func_env: FuncEnv = HashMap::new();
     for func in &program.funcs {
         let args_ty = func
@@ -697,5 +697,5 @@ pub fn check_program(program: &Program) -> Result<(), Error> {
         return Err(Error::MainNotVoid);
     }
 
-    Ok(())
+    Ok(func_env)
 }
