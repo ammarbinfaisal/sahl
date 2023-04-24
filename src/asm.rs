@@ -298,6 +298,7 @@ pub struct Asm {
     stack_size: u32,
     var_offset: u32,
     return_label: String,
+    return_stack_space: u32,
     functy: FuncEnv,
 }
 
@@ -322,6 +323,7 @@ impl Asm {
             curr_fn_start: 0,
             stack_size: 0,
             var_offset: 0,
+            return_stack_space: 0,
             return_label: String::new(),
             functy,
         }
@@ -550,7 +552,7 @@ impl Asm {
                 self.get_arg_mem(i)
             };
             self.write_mem(&m, &a.clone());
-            self.free_mem(&a.mem);  
+            self.free_mem(&a.mem);
             i += 1;
         }
         self.append(&format!("call {}", name), 1);
@@ -828,8 +830,7 @@ impl Asm {
                 let (a, b) = (self.peek(0), self.peek(1));
                 let res = self.get_result_mem(Type::Bool);
                 if a.ty == Type::Int && b.ty == Type::Int {
-                    let (b, a) = if is_stack_mem(&a.mem) && is_stack_mem(&b.mem)
-                    {
+                    let (b, a) = if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
                         let reg = self.unused_reg();
                         let v = Mem::R64(reg);
                         let val = Value::new(v, Type::Int);
@@ -933,11 +934,11 @@ impl Asm {
                         .collect::<Vec<_>>();
                     let (argstys, retty) = self.functy.get(name).unwrap().clone();
                     let name = &format!("func_{}", name);
-                    self.emit_call(name, &args, retty.clone(), argstys.as_slice());
                     // pop args
                     for _ in 0..args.len() {
                         self.pop();
                     }
+                    self.emit_call(name, &args, retty.clone(), argstys.as_slice());
                 }
             }
             Expr::Assign(lhs, rhs) => {
@@ -1024,7 +1025,7 @@ impl Asm {
             Stmt::Return(expr) => {
                 self.compile_expr(expr);
                 let v = self.pop();
-                self.emit_mov(&Mem::Stack(8), &v.mem);
+                self.emit_mov(&Mem::Stack(self.return_stack_space), &v.mem);
                 self.append(&format!("jmp {}", self.return_label), 1);
             }
             Stmt::Comment => {}
@@ -1047,22 +1048,16 @@ impl Asm {
         self.append("push rbp", 1);
         self.append("mov rbp, rsp", 1);
         let stack_init_idx = self.code.len(); // space for local variables
-        let rbp_rsp = [
-            Value::new(Mem::R64(Reg64::Rbp), Type::Int),
-            Value::new(Mem::R64(Reg64::Rsp), Type::Int),
-        ];
-        self.emit_call(
-            "register_call_frame",
-            &rbp_rsp,
-            Type::Void,
-            &[Type::Int, Type::Int],
-        );
+
         self.var_offset = if func.args.len() > 6 {
-            16 + (func.args.len() as u32 - 6) * 8
+            (func.args.len() as u32 - 6) * 8
         } else {
-            16
+            0
         };
         self.return_label = self.rand_label();
+        self.var_offset += 8;
+        self.return_stack_space = self.var_offset;
+        self.var_offset += 8;
 
         // add arguments to stack
         for i in 0..func.args.len() {
@@ -1074,6 +1069,18 @@ impl Asm {
                 .insert(func.args[i].name.clone(), func.args[i].ty.clone());
             self.var_offset += 8;
         }
+
+        let rbp_rsp = [
+            Value::new(Mem::R64(Reg64::Rbp), Type::Int),
+            Value::new(Mem::R64(Reg64::Rsp), Type::Int),
+        ];
+        self.emit_call(
+            "register_call_frame",
+            &rbp_rsp,
+            Type::Void,
+            &[Type::Int, Type::Int],
+        );
+
         for stmt in &func.body {
             self.compile_stmt(stmt);
         }
@@ -1081,7 +1088,7 @@ impl Asm {
         self.code
             .insert(stack_init_idx, format!("    sub rsp, {}", self.var_offset));
         self.emit_call("unregister_call_frame", &[], Type::Void, &[]);
-        self.emit_mov(&Mem::R64(Reg64::Rax), &Mem::Stack(8));
+        self.emit_mov(&Mem::R64(Reg64::Rax), &Mem::Stack(self.return_stack_space));
         if func.name == "main" {
             self.append("mov rax, 60", 1);
             self.append("mov rdi, 0", 1);
