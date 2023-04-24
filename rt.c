@@ -13,7 +13,7 @@
 #define AS_OBJ(value) ((Obj *)(((uint64_t)value) & 0xFFFFFFFFFFFF))
 #define IS_OBJ(value) ((value & NANISH_MASK) == OBJECT_MASK)
 
-#define DEBUG
+// #define DEBUG
 
 struct str_t {
     int64_t len;
@@ -145,6 +145,8 @@ void *allocate(int64_t size) {
         exit(1);
     }
 
+    alloced += size;
+
     return ptr;
 }
 
@@ -219,6 +221,8 @@ uint64_t strcatt(uint64_t a, uint64_t b) {
 }
 
 void str_free(str_t *str) {
+    alloced -= str->len;
+    alloced -= sizeof(str_t);
     if (!str->constant) {
         free(str->ptr);
     }
@@ -318,6 +322,9 @@ void collect_garbage() {
     trace_roots();
     sweep();
     next_gc = alloced * 1.5;
+#ifdef DEBUG
+    printf("next_gc = %ld \t alloced = %ld\n", next_gc, alloced);
+#endif
 }
 
 void free_obj(Obj *obj) {
@@ -327,6 +334,7 @@ void free_obj(Obj *obj) {
         break;
     }
     }
+    alloced -= sizeof(Obj);
     free(obj);
 }
 
