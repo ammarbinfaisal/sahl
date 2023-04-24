@@ -398,10 +398,15 @@ impl Asm {
     }
 
     fn unused_reg(&mut self) -> Reg64 {
-        for i in 0..16 {
-            if !self.used_regs[i] {
-                self.used_regs[i] = true;
-                return unsafe { std::mem::transmute(i as u8) };
+        // only scratch regs
+        for i in 0..SCRATCH_REGS.len() {
+            let r = SCRATCH_REGS[i];
+            if !self.used_regs[r as usize] {
+                self.used_regs[r as usize] = true;
+                return unsafe {
+                    // safe because we only use the first 16
+                    std::mem::transmute(r)
+                };
             }
         }
         panic!("no unused registers");
@@ -524,6 +529,18 @@ impl Asm {
         self.emit_mov(m, &v.mem);
     }
 
+    fn free_reg(&mut self, r: u8) {
+        self.used_regs[r as usize] = false;
+    }
+
+    fn free_mem(&mut self, m: &Mem) {
+        match m {
+            Mem::R64(r) => self.free_reg(*r as u8),
+            Mem::Xmm(r) => self.free_reg(*r as u8 + 16),
+            _ => {}
+        }
+    }
+
     fn emit_call(&mut self, name: &str, args: &[Value], ret_ty: Type, argtypes: &[Type]) {
         let mut i = 0;
         for a in args {
@@ -533,6 +550,7 @@ impl Asm {
                 self.get_arg_mem(i)
             };
             self.write_mem(&m, &a.clone());
+            self.free_mem(&a.mem);  
             i += 1;
         }
         self.append(&format!("call {}", name), 1);
@@ -899,6 +917,7 @@ impl Asm {
                         } else {
                             self.tyerr(v.ty, Type::Int);
                         }
+                        self.free_all_regs();
                     }
                 } else {
                     let args = args
