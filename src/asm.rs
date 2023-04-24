@@ -193,6 +193,7 @@ enum MemType {
     R8,
     Xmm,
     Stack,
+    Data,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -203,6 +204,7 @@ enum Mem {
     R8(Reg8),
     Xmm(u8),
     Stack(u32),
+    Data(u64),
 }
 
 #[derive(Clone)]
@@ -225,6 +227,7 @@ fn is_reg_mem(mem: &Mem) -> bool {
         Mem::R8(_) => true,
         Mem::Xmm(_) => true,
         Mem::Stack(_) => false,
+        Mem::Data(_) => false,
     }
 }
 
@@ -236,6 +239,19 @@ fn is_stack_mem(mem: &Mem) -> bool {
         Mem::R8(_) => false,
         Mem::Stack(_) => true,
         Mem::Xmm(_) => false,
+        Mem::Data(_) => false,
+    }
+}
+
+fn is_data_mem(mem: &Mem) -> bool {
+    match mem {
+        Mem::R64(_) => false,
+        Mem::R32(_) => false,
+        Mem::R16(_) => false,
+        Mem::R8(_) => false,
+        Mem::Stack(_) => false,
+        Mem::Xmm(_) => false,
+        Mem::Data(_) => true,
     }
 }
 
@@ -247,6 +263,7 @@ fn mem_type(mem: &Mem) -> MemType {
         Mem::R8(_) => MemType::R8,
         Mem::Stack(_) => MemType::Stack,
         Mem::Xmm(_) => MemType::Xmm,
+        Mem::Data(_) => MemType::Data,
     }
 }
 
@@ -262,6 +279,7 @@ impl std::fmt::Display for Mem {
                 write!(f, "qword [rbp - {}]", i)
             }
             Mem::Xmm(i) => write!(f, "xmm{}", i),
+            Mem::Data(i) => write!(f, "[d{}]", i),
         }
     }
 }
@@ -274,7 +292,7 @@ pub struct Asm {
     used_regs: [bool; 23], // first 16 are rxx, next 7 are xmmx
     vars: HashMap<String, Mem>,
     varty: HashMap<String, Type>,
-    strings: HashMap<String, u32>,
+    strings: Vec<Vec<u8>>,
     curr_fn_name: String,
     curr_fn_start: u32,
     stack_size: u32,
@@ -299,7 +317,7 @@ impl Asm {
             used_regs: [false; 23],
             vars: HashMap::new(),
             varty: HashMap::new(),
-            strings: HashMap::new(),
+            strings: Vec::new(),
             curr_fn_name: String::new(),
             curr_fn_start: 0,
             stack_size: 0,
@@ -318,6 +336,7 @@ impl Asm {
                 Mem::R8(r) => r as u8,
                 Mem::Xmm(r) => r + 16,
                 Mem::Stack(_) => unreachable!(),
+                Mem::Data(_) => unreachable!(),
             };
             self.used_regs[r as usize] = true;
         }
@@ -358,11 +377,12 @@ impl Asm {
                 let r = r as u8;
                 self.used_regs[r as usize] = false;
             }
-            Mem::Stack(_) => {}
             Mem::Xmm(r) => {
                 let r = r as u8;
                 self.used_regs[r as usize + 16] = false;
             }
+            Mem::Stack(_) => {}
+            Mem::Data(_) => {}
         }
         m
     }
@@ -397,18 +417,27 @@ impl Asm {
 
     fn header(&mut self) -> Vec<String> {
         let mut header = Vec::new();
-        header.push("section .data".to_string());
-        for (s, i) in self.strings.iter() {
-            header.push(format!("str{}: .string \"{}\",0", i, s).to_string());
+        header.push("default rel\n".to_string());
+        header.push("section .data\n".to_string());
+        for (i, s) in self.strings.iter().enumerate() {
+            // comma separated list of bytes
+            let s = s
+                .iter()
+                .map(|b| b.to_string())
+                .collect::<Vec<String>>()
+                .join(",");
+            header.push(format!("d{}: db {},0", i, s));
         }
-        header.push("section .text".to_string());
-        header.push("global _start".to_string());
+
+        header.push("\nsection .text\n".to_string());
+        header.push("global _start\n".to_string());
 
         // prints
         header.push("extern iprint".to_string());
         header.push("extern fprint".to_string());
         header.push("extern bprint".to_string());
         header.push("extern cprint".to_string());
+        header.push("extern sprint".to_string());
 
         // arith ops
         header.push("extern ifadd".to_string());
@@ -425,6 +454,14 @@ impl Asm {
         // cmp ops
         header.push("extern ifcmp".to_string());
         header.push("extern ffcmp".to_string());
+
+        // string
+        header.push("extern newstr".to_string());
+        header.push("extern strcatt".to_string());
+
+        // runtime
+        header.push("extern register_call_frame".to_string());
+        header.push("extern unregister_call_frame".to_string());
 
         return header;
     }
@@ -510,6 +547,7 @@ impl Asm {
     }
 
     fn emit_mov(&mut self, dest: &Mem, src: &Mem) {
+        println!("mov {} <- {}", dest, src);
         if dest == src {
             return;
         }
@@ -534,8 +572,14 @@ impl Asm {
             let reg = self.unused_reg();
             self.emit_mov(&Mem::R64(reg), src);
             self.emit_mov(dest, &Mem::R64(reg));
+        } else if src_ty == MemType::Data {
+            self.append(&format!("lea {}, {}", dest, src), 1);
+        } else if src_ty == MemType::Stack && dest_ty == MemType::Stack {
+            let reg = self.unused_reg();
+            self.emit_mov(&Mem::R64(reg), src);
+            self.emit_mov(dest, &Mem::R64(reg));
         } else {
-            unimplemented!("emit_mov: {} <- {}", dest, src);
+            panic!("unhandled mov: {:?} {:?}", dest, src);
         }
     }
 
@@ -581,8 +625,13 @@ impl Asm {
                         };
                         self.push(v);
                     }
-                    Lit::Str(_) => {
-                        unimplemented!("string literals not implemented yet")
+                    Lit::Str(s) => {
+                        self.strings.push(s.clone());
+                        let v = Value {
+                            mem: Mem::Data((self.strings.len() - 1) as u64),
+                            ty: Type::Str,
+                        };
+                        self.emit_call("newstr", &[v], Type::Str, &[Type::Str]);
                     }
                     _ => unimplemented!("this literal is not implemented yet"),
                 }
@@ -606,105 +655,110 @@ impl Asm {
                     ArithOp::Div => "idiv",
                     ArithOp::Mod => "mod",
                 };
-                match op.clone() {
-                    ArithOp::Add | ArithOp::Sub | ArithOp::Mul => {
-                        if a.ty == Type::Int && b.ty == Type::Int {
-                            // both are regs
-                            if is_reg_mem(&a.mem) && is_reg_mem(&b.mem) {
-                                self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
-                                self.pop2();
-                                self.push(Value {
-                                    mem: a.mem,
-                                    ty: Type::Int,
-                                });
-                            } else if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
-                                // both are stack
-                                let reg = self.unused_reg();
-                                self.append(&format!("mov {}, {}", reg, a.mem), 1);
-                                self.append(&format!("{} {}, {}", func, reg, b.mem), 1);
-                                self.pop2();
-                                self.push(Value {
-                                    mem: Mem::R64(reg),
-                                    ty: Type::Int,
-                                });
+                if a.ty == Type::Str && b.ty == Type::Str {
+                    // string concat
+                    self.emit_call("strcatt", &[a, b], Type::Str, &[Type::Str, Type::Str]);
+                } else {
+                    match op.clone() {
+                        ArithOp::Add | ArithOp::Sub | ArithOp::Mul => {
+                            if a.ty == Type::Int && b.ty == Type::Int {
+                                // both are regs
+                                if is_reg_mem(&a.mem) && is_reg_mem(&b.mem) {
+                                    self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
+                                    self.pop2();
+                                    self.push(Value {
+                                        mem: a.mem,
+                                        ty: Type::Int,
+                                    });
+                                } else if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
+                                    // both are stack
+                                    let reg = self.unused_reg();
+                                    self.append(&format!("mov {}, {}", reg, a.mem), 1);
+                                    self.append(&format!("{} {}, {}", func, reg, b.mem), 1);
+                                    self.pop2();
+                                    self.push(Value {
+                                        mem: Mem::R64(reg),
+                                        ty: Type::Int,
+                                    });
+                                } else {
+                                    // one is reg, one is stack
+                                    let (a, b) = if is_reg_mem(&a.mem) { (a, b) } else { (b, a) };
+                                    self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
+                                    self.pop2();
+                                    self.push(Value {
+                                        mem: a.mem,
+                                        ty: Type::Int,
+                                    });
+                                }
                             } else {
-                                // one is reg, one is stack
-                                let (a, b) = if is_reg_mem(&a.mem) { (a, b) } else { (b, a) };
-                                self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
-                                self.pop2();
-                                self.push(Value {
-                                    mem: a.mem,
-                                    ty: Type::Int,
-                                });
-                            }
-                        } else {
-                            // call the appropriate function
-                            if a.ty == Type::Double && b.ty == Type::Double {
-                                // call ffadd
-                                self.pop2();
-                                self.emit_call(
-                                    "ffadd",
-                                    &[a, b],
-                                    Type::Double,
-                                    &[Type::Double, Type::Double],
-                                );
-                            } else {
-                                let (a, b) = if a.ty == Type::Double { (a, b) } else { (b, a) };
-                                self.pop2();
-                                self.emit_call(
-                                    format!("if{}", func).as_str(),
-                                    &[a, b],
-                                    Type::Double,
-                                    &[Type::Int, Type::Double],
-                                );
-                            }
-                        }
-                    }
-                    ArithOp::Div => {
-                        if a.ty == Type::Int && b.ty == Type::Int {
-                            // call idiv
-                            self.pop2();
-                            self.emit_call("idiv", &[a, b], Type::Int, &[Type::Int, Type::Int]);
-                        } else {
-                            if a.ty == Type::Double && b.ty == Type::Double {
-                                // call ffdiv
-                                self.pop2();
-                                self.emit_call(
-                                    "ffdiv",
-                                    &[a, b],
-                                    Type::Double,
-                                    &[Type::Double, Type::Double],
-                                );
-                            } else if a.ty == Type::Double {
-                                self.pop2();
-                                self.emit_call(
-                                    "fidiv",
-                                    &[b, a],
-                                    Type::Double,
-                                    &[Type::Int, Type::Double],
-                                );
-                            } else {
-                                self.pop2();
-                                self.emit_call(
-                                    "ifdiv",
-                                    &[a, b],
-                                    Type::Double,
-                                    &[Type::Int, Type::Double],
-                                );
+                                // call the appropriate function
+                                if a.ty == Type::Double && b.ty == Type::Double {
+                                    // call ffadd
+                                    self.pop2();
+                                    self.emit_call(
+                                        "ffadd",
+                                        &[a, b],
+                                        Type::Double,
+                                        &[Type::Double, Type::Double],
+                                    );
+                                } else {
+                                    let (a, b) = if a.ty == Type::Double { (a, b) } else { (b, a) };
+                                    self.pop2();
+                                    self.emit_call(
+                                        format!("if{}", func).as_str(),
+                                        &[a, b],
+                                        Type::Double,
+                                        &[Type::Int, Type::Double],
+                                    );
+                                }
                             }
                         }
-                    }
-                    ArithOp::Mod => {
-                        if a.ty == Type::Int && b.ty == Type::Int {
-                            self.append(&format!("mov {}, {}", Reg64::Rax, a.mem), 1);
-                            self.append(&format!("xor {}, {}", Reg64::Rdx, Reg64::Rdx), 1);
-                            self.append(&format!("idiv {}", b.mem), 1);
-                            let v = Value {
-                                mem: Mem::R64(Reg64::Rdx),
-                                ty: Type::Int,
-                            };
-                            self.pop2();
-                            self.push(v);
+                        ArithOp::Div => {
+                            if a.ty == Type::Int && b.ty == Type::Int {
+                                // call idiv
+                                self.pop2();
+                                self.emit_call("idiv", &[a, b], Type::Int, &[Type::Int, Type::Int]);
+                            } else {
+                                if a.ty == Type::Double && b.ty == Type::Double {
+                                    // call ffdiv
+                                    self.pop2();
+                                    self.emit_call(
+                                        "ffdiv",
+                                        &[a, b],
+                                        Type::Double,
+                                        &[Type::Double, Type::Double],
+                                    );
+                                } else if a.ty == Type::Double {
+                                    self.pop2();
+                                    self.emit_call(
+                                        "fidiv",
+                                        &[b, a],
+                                        Type::Double,
+                                        &[Type::Int, Type::Double],
+                                    );
+                                } else {
+                                    self.pop2();
+                                    self.emit_call(
+                                        "ifdiv",
+                                        &[a, b],
+                                        Type::Double,
+                                        &[Type::Int, Type::Double],
+                                    );
+                                }
+                            }
+                        }
+                        ArithOp::Mod => {
+                            if a.ty == Type::Int && b.ty == Type::Int {
+                                self.append(&format!("mov {}, {}", Reg64::Rax, a.mem), 1);
+                                self.append(&format!("xor {}, {}", Reg64::Rdx, Reg64::Rdx), 1);
+                                self.append(&format!("idiv {}", b.mem), 1);
+                                let v = Value {
+                                    mem: Mem::R64(Reg64::Rdx),
+                                    ty: Type::Int,
+                                };
+                                self.pop2();
+                                self.push(v);
+                            }
                         }
                     }
                 }
@@ -756,6 +810,18 @@ impl Asm {
                 let (a, b) = (self.peek(0), self.peek(1));
                 let res = self.get_result_mem(Type::Bool);
                 if a.ty == Type::Int && b.ty == Type::Int {
+                    let (b, a) = if is_stack_mem(&a.mem) && is_stack_mem(&b.mem)
+                    {
+                        let reg = self.unused_reg();
+                        let v = Mem::R64(reg);
+                        let val = Value::new(v, Type::Int);
+                        self.emit_mov(&v, &a.mem);
+                        (val, b)
+                    } else if is_stack_mem(&b.mem) {
+                        (a, b)
+                    } else {
+                        (b, a)
+                    };
                     self.append(&format!("cmp {}, {}", b.mem, a.mem), 1);
                     let j1 = match op.clone() {
                         CmpOp::Eq => "je",
@@ -828,6 +894,8 @@ impl Asm {
                             self.emit_call("bprint", &[v], Type::Void, &[Type::Int]);
                         } else if v.ty == Type::Char {
                             self.emit_call("cprint", &[v], Type::Void, &[Type::Int]);
+                        } else if v.ty == Type::Str {
+                            self.emit_call("sprint", &[v], Type::Void, &[Type::Int]);
                         } else {
                             self.tyerr(v.ty, Type::Int);
                         }
@@ -933,7 +1001,7 @@ impl Asm {
             Stmt::Return(expr) => {
                 self.compile_expr(expr);
                 let v = self.pop();
-                self.emit_mov(&Mem::R64(Reg64::Rax), &v.mem);
+                self.emit_mov(&Mem::Stack(8), &v.mem);
                 self.append(&format!("jmp {}", self.return_label), 1);
             }
             Stmt::Comment => {}
@@ -956,7 +1024,21 @@ impl Asm {
         self.append("push rbp", 1);
         self.append("mov rbp, rsp", 1);
         let stack_init_idx = self.code.len(); // space for local variables
-        self.var_offset = 0;
+        let rbp_rsp = [
+            Value::new(Mem::R64(Reg64::Rbp), Type::Int),
+            Value::new(Mem::R64(Reg64::Rsp), Type::Int),
+        ];
+        self.emit_call(
+            "register_call_frame",
+            &rbp_rsp,
+            Type::Void,
+            &[Type::Int, Type::Int],
+        );
+        self.var_offset = if func.args.len() > 6 {
+            16 + (func.args.len() as u32 - 6) * 8
+        } else {
+            16
+        };
         self.return_label = self.rand_label();
 
         // add arguments to stack
@@ -975,6 +1057,8 @@ impl Asm {
         self.append(&format!("{}:", self.return_label), 0);
         self.code
             .insert(stack_init_idx, format!("    sub rsp, {}", self.var_offset));
+        self.emit_call("unregister_call_frame", &[], Type::Void, &[]);
+        self.emit_mov(&Mem::R64(Reg64::Rax), &Mem::Stack(8));
         if func.name == "main" {
             self.append("mov rax, 60", 1);
             self.append("mov rdi, 0", 1);
