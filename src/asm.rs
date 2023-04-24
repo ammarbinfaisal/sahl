@@ -833,10 +833,14 @@ impl Asm {
                         let reg = self.unused_reg();
                         let v = Mem::R64(reg);
                         let val = Value::new(v, Type::Int);
-                        self.emit_mov(&v, &a.mem);
-                        (val, b)
+                        self.emit_mov(&v, &b.mem);
+                        (val, a)
                     } else if is_stack_mem(&b.mem) {
-                        (a, b)
+                        let reg = self.unused_reg();
+                        let v = Mem::R64(reg);
+                        let val = Value::new(v, Type::Int);
+                        self.emit_mov(&v, &a.mem);
+                        (b, val)
                     } else {
                         (b, a)
                     };
