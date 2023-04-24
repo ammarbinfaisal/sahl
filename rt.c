@@ -13,7 +13,7 @@
 #define AS_OBJ(value) ((Obj *)(((uint64_t)value) & 0xFFFFFFFFFFFF))
 #define IS_OBJ(value) ((value & NANISH_MASK) == OBJECT_MASK)
 
-// #define DEBUG
+#define DEBUG
 
 struct str_t {
     int64_t len;
@@ -228,8 +228,10 @@ void str_free(str_t *str) {
 void mark_obj(Obj *obj) {
     if (obj == NULL) return;
     if (obj->marked) return;
+#ifdef DEBUG
     printf("marking %p \t val = (%p) \t type = %d\n", obj, (void *)OBJ_VAL(obj),
            obj->type);
+#endif
     obj->marked = 1;
 
     if (gray_stack.len + 1 > gray_stack.cap) {
@@ -259,9 +261,9 @@ void mark_roots() {
 #ifdef DEBUG
         printf("rbp = %ld \t rsp = %ld\n", rbp, rsp);
 #endif
-        int64_t *ptr = (int64_t *)rbp;
-        while (ptr < (int64_t *)rsp) {
-            ptr--;
+        while (rbp > rsp) {
+            rbp -= 8;
+            uint64_t *ptr = (uint64_t *)rbp;
             if (IS_OBJ(*ptr)) {
                 mark_obj(AS_OBJ(*ptr));
             }
@@ -299,6 +301,13 @@ void sweep() {
             printf("freeing %p \n", obj);
 #endif
             free_obj(obj);
+
+            if (obj == next) {
+                heap.first = NULL;
+                heap.last = NULL;
+                break;
+            }
+
             obj = next;
         }
     }
