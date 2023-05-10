@@ -1,3 +1,17 @@
+fun print_list(ar: [int]) {
+    let l = len(ar)
+    let i = 0
+    while i < l {
+        print(ar[i])
+        i = i + 1
+        if i < l {
+            print(", ")
+        }
+    }
+    print("\n")
+}
+
+
 fun main() {
     let list = make([int])
     let i = 0 
@@ -5,5 +19,5 @@ fun main() {
         append(list, i)
         i = i + 1
     }
-    print(list)
+    print_list(list)
 }

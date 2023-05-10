@@ -13,7 +13,7 @@
 #define AS_OBJ(value) ((Obj *)(((uint64_t)value) & 0xFFFFFFFFFFFF))
 #define IS_OBJ(value) ((value & NANISH_MASK) == OBJECT_MASK)
 
-// #define DEBUG
+#define DEBUG
 
 struct str_t {
     int64_t len;
@@ -23,9 +23,16 @@ struct str_t {
 
 typedef struct str_t str_t;
 
-enum ObjType {
-    OBJ_STR,
+struct list_t {
+    int cap;
+    int length;
+    int elemsize;
+    void *data;
 };
+
+typedef struct list_t list_t;
+
+enum ObjType { OBJ_STR, OBJ_LIST };
 
 typedef enum ObjType ObjType;
 
@@ -35,6 +42,7 @@ struct Obj {
     int marked;
     union {
         str_t *str;
+        list_t *list;
     };
 };
 
@@ -229,6 +237,93 @@ void str_free(str_t *str) {
     free(str);
 }
 
+uint64_t new_list(uint8_t elemsize, int len) {
+    Obj *obj = newobj(OBJ_LIST);
+    obj->list = (list_t *)allocate(sizeof(list_t));
+    obj->list->length = len;
+    obj->list->cap = len ? len : 8;
+    obj->list->data = (uint64_t *)allocate(elemsize * obj->list->cap);
+    obj->list->elemsize = elemsize;
+    return OBJ_VAL(obj);
+}
+
+void list_append(uint64_t list, void *val) {
+    Obj *obj = AS_OBJ(list);
+    list_t *l = obj->list;
+    if (l->length + 1 > l->cap) {
+        l->cap = l->cap == 0 ? 8 : l->cap * 2;
+        l->data = (uint64_t *)realloc(l->data, l->elemsize * l->cap);
+    }
+    memcpy(l->data + l->length * l->elemsize, val, l->elemsize);
+    l->length++;
+}
+
+void list_set(uint64_t list, uint64_t index, void *val) {
+    Obj *obj = AS_OBJ(list);
+    list_t *l = obj->list;
+    if (index >= l->length) {
+        printf("list index out of range\n");
+        exit(1);
+    }
+    switch (l->elemsize) {
+    case 1:
+        *(uint8_t *)(l->data + index * l->elemsize) = *(uint8_t *)val;
+        break;
+    case 2:
+        *(uint16_t *)(l->data + index * l->elemsize) = *(uint16_t *)val;
+        break;
+    case 4:
+        *(uint32_t *)(l->data + index * l->elemsize) = *(uint32_t *)val;
+        break;
+    case 8:
+        *(uint64_t *)(l->data + index * l->elemsize) = *(uint64_t *)val;
+        break;
+    }
+}
+
+void list_get(uint64_t list, uint64_t index, void *val) {
+    Obj *obj = AS_OBJ(list);
+    list_t *l = obj->list;
+    if (index >= l->length) {
+        printf("list index out of range\n");
+        exit(1);
+    }
+    switch (l->elemsize) {
+    case 1:
+        *(uint8_t *)val = *(uint8_t *)(l->data + index * l->elemsize);
+        break;
+    case 2:
+        *(uint16_t *)val = *(uint16_t *)(l->data + index * l->elemsize);
+        break;
+    case 4:
+        *(uint32_t *)val = *(uint32_t *)(l->data + index * l->elemsize);
+        break;
+    case 8:
+        *(uint64_t *)val = *(uint64_t *)(l->data + index * l->elemsize);
+        break;
+    }
+}
+
+void list_set_all(uint64_t list, void *val) {
+    Obj *obj = AS_OBJ(list);
+    list_t *l = obj->list;
+    for (int i = 0; i < l->length; i++) {
+        memcpy(l->data + i * l->elemsize, val, l->elemsize);
+    }
+}
+
+void list_free(list_t *list) {
+    alloced -= list->cap * sizeof(uint64_t);
+    alloced -= sizeof(list_t);
+    free(list->data);
+    free(list);
+}
+
+int list_len(uint64_t list) {
+    Obj *obj = AS_OBJ(list);
+    return obj->list->length;
+}
+
 void mark_obj(Obj *obj) {
     if (obj == NULL) return;
     if (obj->marked) return;
@@ -321,7 +416,7 @@ void collect_garbage() {
     mark_roots();
     trace_roots();
     sweep();
-    next_gc = alloced * 1.5;
+    next_gc = alloced * 1.2;
 #ifdef DEBUG
     printf("next_gc = %ld \t alloced = %ld\n", next_gc, alloced);
 #endif

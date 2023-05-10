@@ -5,6 +5,7 @@ use rand::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::process::exit;
 
 const DEBUG: bool = true;
 
@@ -194,6 +195,7 @@ enum MemType {
     Xmm,
     Stack,
     Data,
+    Imm,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -205,6 +207,7 @@ enum Mem {
     Xmm(u8),
     Stack(u32),
     Data(u64),
+    Imm(u64),
 }
 
 #[derive(Clone)]
@@ -228,6 +231,7 @@ fn is_reg_mem(mem: &Mem) -> bool {
         Mem::Xmm(_) => true,
         Mem::Stack(_) => false,
         Mem::Data(_) => false,
+        Mem::Imm(_) => false,
     }
 }
 
@@ -240,6 +244,7 @@ fn is_stack_mem(mem: &Mem) -> bool {
         Mem::Stack(_) => true,
         Mem::Xmm(_) => false,
         Mem::Data(_) => false,
+        Mem::Imm(_) => false,
     }
 }
 
@@ -252,6 +257,7 @@ fn is_data_mem(mem: &Mem) -> bool {
         Mem::Stack(_) => false,
         Mem::Xmm(_) => false,
         Mem::Data(_) => true,
+        Mem::Imm(_) => false,
     }
 }
 
@@ -264,6 +270,7 @@ fn mem_type(mem: &Mem) -> MemType {
         Mem::Stack(_) => MemType::Stack,
         Mem::Xmm(_) => MemType::Xmm,
         Mem::Data(_) => MemType::Data,
+        Mem::Imm(_) => MemType::Imm,
     }
 }
 
@@ -276,10 +283,11 @@ impl std::fmt::Display for Mem {
             Mem::R8(r) => write!(f, "{}", r),
             Mem::Stack(i) => {
                 let i = *i;
-                write!(f, "qword [rbp - {}]", i)
+                write!(f, "[rbp - {}]", i)
             }
             Mem::Xmm(i) => write!(f, "xmm{}", i),
             Mem::Data(i) => write!(f, "[d{}]", i),
+            Mem::Imm(i) => write!(f, "{}", i),
         }
     }
 }
@@ -290,7 +298,7 @@ pub struct Asm {
     loops: Vec<(String, String)>,
     loop_count: usize,
     used_regs: [bool; 23], // first 16 are rxx, next 7 are xmmx
-    vars: HashMap<String, Mem>,
+    vars: HashMap<String, Value>,
     varty: HashMap<String, Type>,
     strings: Vec<Vec<u8>>,
     curr_fn_name: String,
@@ -302,8 +310,8 @@ pub struct Asm {
     functy: FuncEnv,
 }
 
-//  rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11
-const SCRATCH_REGS: [u8; 8] = [0, 7, 6, 2, 1, 8, 9, 10];
+//  rax, rdx, rcx, r8, r9, r10, r11
+const SCRATCH_REGS: [u8; 6] = [0, 2, 1, 8, 9, 10];
 
 // arg regs - rdi, rsi, rdx, rcx, r8, r9
 const ARG_REGS: [u8; 6] = [7, 6, 2, 1, 8, 9];
@@ -339,13 +347,14 @@ impl Asm {
                 Mem::Xmm(r) => r + 16,
                 Mem::Stack(_) => unreachable!(),
                 Mem::Data(_) => unreachable!(),
+                Mem::Imm(_) => unreachable!(),
             };
             self.used_regs[r as usize] = true;
         }
         self.stack.push(v);
     }
 
-    fn tyerr(&self, a: Type, b: Type) -> ! {
+    fn tyerr(&self, a: Type, b: &[Type]) -> ! {
         panic!("type error: {:?} != {:?}", a, b);
     }
 
@@ -385,6 +394,7 @@ impl Asm {
             }
             Mem::Stack(_) => {}
             Mem::Data(_) => {}
+            Mem::Imm(_) => {}
         }
         m
     }
@@ -445,6 +455,7 @@ impl Asm {
         header.push("extern bprint".to_string());
         header.push("extern cprint".to_string());
         header.push("extern sprint".to_string());
+        header.push("extern lprint".to_string());
 
         // arith ops
         header.push("extern ifadd".to_string());
@@ -465,6 +476,14 @@ impl Asm {
         // string
         header.push("extern newstr".to_string());
         header.push("extern strcatt".to_string());
+
+        // list
+        header.push("extern new_list".to_string());
+        header.push("extern list_append".to_string());
+        header.push("extern list_get".to_string());
+        header.push("extern list_set".to_string());
+        header.push("extern list_set_all".to_string());
+        header.push("extern list_len".to_string());
 
         // runtime
         header.push("extern register_call_frame".to_string());
@@ -598,6 +617,8 @@ impl Asm {
             let reg = self.unused_reg();
             self.emit_mov(&Mem::R64(reg), src);
             self.emit_mov(dest, &Mem::R64(reg));
+        } else if src_ty == MemType::Imm {
+            self.append(&format!("mov {}, {}", dest, src), 1);
         } else {
             panic!("unhandled mov: {:?} {:?}", dest, src);
         }
@@ -658,11 +679,7 @@ impl Asm {
             }
             Expr::Variable(v) => {
                 let var = self.vars.get(v).unwrap();
-                let val = Value {
-                    mem: *var,
-                    ty: self.varty.get(v).unwrap().clone(),
-                };
-                self.push(val);
+                self.push(var.clone());
             }
             Expr::Arith(op, e1, e2) => {
                 self.compile_expr(e1);
@@ -821,7 +838,7 @@ impl Asm {
                         });
                     }
                 } else {
-                    self.tyerr(a.ty, b.ty);
+                    self.tyerr(a.ty, &[b.ty]);
                 }
             }
             Expr::CmpOp(op, e1, e2) => {
@@ -896,7 +913,7 @@ impl Asm {
                         }
                     }
                 } else {
-                    self.tyerr(a.ty, b.ty);
+                    self.tyerr(a.ty, &[b.ty]);
                 }
                 self.push(Value {
                     mem: res,
@@ -920,10 +937,54 @@ impl Asm {
                         } else if v.ty == Type::Str {
                             self.emit_call("sprint", &[v], Type::Void, &[Type::Int]);
                         } else {
-                            self.tyerr(v.ty, Type::Int);
+                            self.tyerr(
+                                v.ty,
+                                &[Type::Int, Type::Double, Type::Bool, Type::Char, Type::Str],
+                            );
                         }
                         self.free_all_regs();
                     }
+                } else if name == "len" {
+                    if args.len() != 1 {
+                        println!("len takes exactly 1 argument");
+                        std::process::exit(1);
+                    }
+                    self.compile_expr(&args[0]);
+                    let v = self.pop();
+                    if let Type::List(_) = v.ty {
+                    } else {
+                        self.tyerr(v.ty, &[Type::List(Box::new(Type::Int))]);
+                    }
+                    self.emit_call(
+                        "list_len",
+                        &[v],
+                        Type::Int,
+                        &[Type::List(Box::new(Type::Int))],
+                    );
+                } else if name == "append" {
+                    if args.len() != 2 {
+                        println!("append takes exactly 2 argument");
+                        std::process::exit(1);
+                    }
+                    self.compile_expr(&args[0]);
+                    let list = self.peek(0);
+                    // void list_append(uint64_t list, void *val)
+                    if let Type::List(_) = list.ty {
+                    } else {
+                        self.tyerr(list.ty, &[Type::List(Box::new(Type::Int))]);
+                    }
+                    self.compile_expr(&args[1]);
+                    let val = self.peek(0);
+                    let valty = val.ty.clone();
+                    let arg1_reg = self.get_arg_mem(0);
+                    let arg2_reg = if valty == Type::Double {
+                        self.get_f_arg_mem(0)
+                    } else {
+                        self.get_arg_mem(1)
+                    };
+                    self.emit_mov(&arg1_reg, &list.mem);
+                    self.append(&format!("lea {}, {}", arg2_reg, val.mem), 1);
+                    self.append("call list_append", 1);
                 } else {
                     let args = args
                         .iter()
@@ -946,7 +1007,8 @@ impl Asm {
                     Expr::Variable(name) => {
                         self.compile_expr(rhs);
                         let v = self.pop();
-                        let mem = self.vars.get(&name).unwrap().clone();
+                        let var = self.vars.get(&name).unwrap().clone();
+                        let mem = var.mem;
                         // both stack
                         if is_stack_mem(&mem) && is_stack_mem(&v.mem) {
                             let reg = self.unused_reg();
@@ -958,10 +1020,108 @@ impl Asm {
                         }
                         self.push(Value::new(mem.clone(), v.ty));
                     }
+                    Expr::Subscr(name, idx) => {
+                        self.compile_expr(rhs);
+                        let v = self.peek(0);
+                        self.compile_expr(&idx);
+                        let idx = self.peek(0);
+                        let name_str = if let Expr::Variable(name) = *name.clone() {
+                            name
+                        } else {
+                            panic!("invalid lhs in assign")
+                        };
+                        let ls = self.vars.get(&name_str).unwrap().clone();
+                        let arg1_reg = self.get_arg_mem(0);
+                        let arg2_reg = self.get_arg_mem(1);
+                        let arg3_reg = self.get_arg_mem(2);
+                        // void list_set(uint64_t list, uint64_t index, void *val)
+                        self.emit_mov(&arg1_reg, &ls.mem);
+                        self.emit_mov(&arg2_reg, &idx.mem);
+                        self.append(&format!("lea {}, {}", arg3_reg, v.mem), 1);
+                        self.append(&format!("call list_set"), 1);
+                    }
                     _ => {
                         panic!("invalid lhs in assign")
                     }
                 }
+            }
+            Expr::Make(ty, lenex) => {
+                let elemsize = match ty.clone() {
+                    Type::List(t) | Type::Chan(t) => match *t {
+                        Type::Bool => 1,
+                        Type::Char => 1,
+                        _ => 8,
+                    },
+                    _ => {
+                        self.tyerr(
+                            ty.clone(),
+                            &[
+                                Type::List(Box::new(Type::Any)),
+                                Type::Chan(Box::new(Type::Any)),
+                            ],
+                        );
+                    }
+                };
+
+                let lenreg = match lenex {
+                    Some(ex) => {
+                        self.compile_expr(ex);
+                        let v = self.peek(0);
+                        let reg = self.unused_reg();
+                        let temp = Mem::R64(reg);
+                        self.emit_mov(&temp, &v.mem);
+                        let v = Value::new(temp.clone(), Type::Int);
+                        v
+                    }
+                    None => Value::new(Mem::Imm(0), Type::Int),
+                };
+
+                match *ty {
+                    Type::List(_) => {
+                        let reg = self.unused_reg();
+                        let temp = Mem::R64(reg);
+                        self.append(&format!("mov {}, {}", temp, elemsize), 1);
+                        let elemsize = Value::new(temp.clone(), Type::Int);
+
+                        self.emit_call(
+                            "new_list",
+                            &[elemsize, lenreg],
+                            ty.clone(),
+                            &[Type::Int, Type::Int],
+                        );
+                    }
+                    _ => {
+                        self.tyerr(ty.clone(), &[Type::List(Box::new(Type::Any))]);
+                    }
+                }
+            }
+            Expr::Subscr(name, index) => {
+                self.compile_expr(name);
+                let v = self.pop();
+                self.compile_expr(index);
+                let idx = self.pop();
+                let vty = v.clone().ty;
+                let idxty = idx.clone().ty;
+                let valty = match vty.clone() {
+                    Type::List(ty) => ty,
+                    _ => {
+                        self.tyerr(vty, &[Type::List(Box::new(Type::Any))]);
+                    }
+                };
+                let arg1_reg = self.get_arg_mem(0);
+                let arg2_reg = self.get_arg_mem(1);
+                let arg3_reg = self.get_arg_mem(2);
+                // void list_get(uint64_t list, uint64_t index, void *val)
+                self.emit_mov(&arg1_reg, &v.mem);
+                self.emit_mov(&arg2_reg, &idx.mem);
+                self.append(&format!("lea {}, {}", arg3_reg, idx.mem), 1);
+                self.append(&format!("call list_get"), 1);
+                // extract value from arg3_reg
+                let reg = self.unused_reg();
+                let temp = Mem::R64(reg);
+                self.append(&format!("mov {}, {}", temp, arg3_reg), 1);
+                let val = Value::new(temp.clone(), *valty.clone());
+                self.push(val);
             }
             _ => {
                 unimplemented!("{:?}", expr)
@@ -980,8 +1140,8 @@ impl Asm {
                 let v = self.pop();
                 let m = Mem::Stack(self.var_offset);
                 self.write_mem(&m, &v.clone());
-                self.vars.insert(name.clone(), Mem::Stack(self.var_offset));
-                self.varty.insert(name.clone(), v.ty.clone());
+                let val = Value::new(Mem::Stack(self.var_offset), v.ty);
+                self.vars.insert(name.clone(), val);
                 self.var_offset += 8;
             }
             Stmt::IfElse(expr, stmts, else_stmts) => {
@@ -1064,9 +1224,10 @@ impl Asm {
             let arg = self.get_arg_mem(i);
             let mem = Mem::Stack(self.var_offset);
             self.emit_mov(&mem, &arg);
-            self.vars.insert(func.args[i].name.clone(), mem.clone());
-            self.varty
-                .insert(func.args[i].name.clone(), func.args[i].ty.clone());
+            self.vars.insert(
+                func.args[i].name.clone(),
+                Value::new(mem.clone(), func.args[i].ty.clone()),
+            );
             self.var_offset += 8;
         }
 

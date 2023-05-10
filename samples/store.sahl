@@ -1,9 +1,23 @@
-fun main() {
-    let arr = make([int], 100000)
+fun print_list(ar: [int]) {
+    let l = len(ar)
     let i = 0
-    while i < 100000 {
+    while i < l {
+        print(ar[i])
+        i = i + 1
+        if i < l {
+            print(", ")
+        }
+    }
+    print("\n")
+}
+
+fun main() {
+    let l = 100000
+    let arr = make([int], l)
+    let i = 0
+    while i < l {
         arr[i] = i
         i = i + 1
     }
-    print(arr)
+    print_list(arr)
 }
