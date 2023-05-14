@@ -4,7 +4,7 @@ a statically typed programming language
 
 ## meaning
 
-sahl means easy. This is the easiest statically typed language I could come up with.
+sahl means easy. <s>This is the easiest statically typed language I could come up with.</s> It could be called easy before but it has become bloated now as I am adding or planning to add all sort of stuff.
 
 ## usage
 
