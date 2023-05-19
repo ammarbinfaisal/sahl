@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 nom = "7"
-inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm12-0"] }
+rand = "0.8"
