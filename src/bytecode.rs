@@ -1,4 +1,3 @@
-use crate::code::{LoopState, LoopType};
 use crate::syntax::*;
 use std::collections::HashMap;
 use std::fs::*;
@@ -50,6 +49,38 @@ const SPAWN: u8 = 42;
 const MAKE_MAP: u8 = 43;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LoopType {
+    While,
+    For,
+    Range,
+    None,
+}
+
+#[derive(Debug, Clone)]
+pub struct LoopState {
+    pub loop_type: LoopType,
+    pub loop_start: Option<usize>,
+    pub loop_end_var: Option<usize>,
+    pub loop_forw_var: Option<usize>,
+    pub idx_var: Option<usize>,
+    pub breaks: Vec<usize>,
+}
+
+impl LoopState {
+    pub fn new() -> LoopState {
+        LoopState {
+            loop_type: LoopType::None,
+            loop_start: None,
+            loop_end_var: None,
+            loop_forw_var: None,
+            idx_var: None,
+            breaks: Vec::new(),
+        }
+    }
+}
 
 pub struct Bytecode {
     code: Vec<u8>,

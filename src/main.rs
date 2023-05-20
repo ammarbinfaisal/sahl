@@ -1,10 +1,8 @@
 mod asm;
 mod bytecode;
-mod code;
 mod parser;
 mod semant;
 mod syntax;
-mod vm;
 
 use asm::*;
 use parser::*;
@@ -68,11 +66,7 @@ fn main() {
                         if verbose {
                             println!("Program is well-typed");
                         }
-                        if to_exec {
-                            let mut codegen = code::Codegen::new();
-                            codegen.compile_program(&p);
-                            codegen.execute();
-                        } else if to_compile {
+                        if to_compile {
                             let mut codebyte = bytecode::Bytecode::new();
                             codebyte.compile_program(&p);
                             codebyte.write("exe.bin");
