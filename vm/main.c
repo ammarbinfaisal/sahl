@@ -690,6 +690,8 @@ void handle_const_double(VM *vm) {
         args[i] = val;                                                         \
     }
 
+#define POST_NATIVE free(args);
+
 typedef void (*native_fn_t)(VM *vm);
 
 void native_clear_screen(VM *vm) { printf("\033[2J\033[1;1H"); }
@@ -698,26 +700,31 @@ void native_rand(VM *vm) {
     PRE_NATIVE
     int r = rand() % AS_INT(args[0]) + AS_INT(args[1]);
     push(vm, FLOAT_VAL((double)r));
+    POST_NATIVE
 }
 
 void native_sleep(VM *vm) {
     PRE_NATIVE
     sleep(args[0]);
+    POST_NATIVE
 }
 
 void native_randf(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL((float)rand() / (float)RAND_MAX));
+    POST_NATIVE
 }
 
 void native_exp(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL(exp(AS_FLOAT(args[0]))));
+    POST_NATIVE
 }
 
 void native_pow(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL(pow(AS_FLOAT(args[0]), AS_FLOAT(args[1]))));
+    POST_NATIVE
 }
 
 void native_exit(VM *vm) {
@@ -748,16 +755,19 @@ void native_print(VM *vm) {
     for (int i = 0; i < argc; ++i) {
         print_value(args[i]);
     }
+    POST_NATIVE
 }
 
 void native_tanh(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
+    POST_NATIVE
 }
 
 void native_log(VM *vm) {
     PRE_NATIVE
     push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
+    POST_NATIVE
 }
 
 void native_tcp_server(VM *vm) {
@@ -771,18 +781,21 @@ void native_tcp_server(VM *vm) {
     pthread_t thread;
     pthread_create(&thread, NULL, tcp_server_thread, (void *)server);
     APPEND_THREAD(thread)
+    POST_NATIVE
 }
 
 void native_close_chan(VM *vm) {
     PRE_NATIVE
     Chan *chan = AS_OBJ(args[0])->channel.chan;
     close_chan(chan);
+    POST_NATIVE
 }
 
 void native_is_open_chan(VM *vm) {
     PRE_NATIVE
     Chan *chan = AS_OBJ(args[0])->channel.chan;
     push(vm, BOOL_VAL(!chan->closed));
+    POST_NATIVE
 }
 
 static native_fn_t native_functions[] = {
