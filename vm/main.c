@@ -581,6 +581,7 @@ void handle_return(VM *vm) {
     }
 
     CallFrame *call_frame = vm->call_frame->prev;
+    free(vm->call_frame->locals);
     free(vm->call_frame);
     vm->call_frame = call_frame;
 }
