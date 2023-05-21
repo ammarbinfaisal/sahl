@@ -63,6 +63,7 @@ struct CallFrame {
     int locals_capacity;
     Value *locals;
     struct CallFrame *prev;
+    struct CallFrame *next;
     int depth;
 };
 

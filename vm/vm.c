@@ -77,12 +77,6 @@ void free_vm(VM *vm) {
         free_value(vm->stack[i]);
     }
     free(vm->stack);
-    CallFrame *frame = vm->call_frame;
-    while (frame) {
-        CallFrame *prev = frame->prev;
-        free_call_frame(frame);
-        frame = prev;
-    }
     for (int i = 0; i < vm->string_count; ++i) {
         free(vm->strings[i]);
     }

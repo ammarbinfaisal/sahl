@@ -580,10 +580,7 @@ void handle_return(VM *vm) {
         return;
     }
 
-    CallFrame *call_frame = vm->call_frame->prev;
-    free(vm->call_frame->locals);
-    free(vm->call_frame);
-    vm->call_frame = call_frame;
+    vm->call_frame = vm->call_frame->prev;
 }
 
 void *spawn(void *vm) {
@@ -614,15 +611,17 @@ void handle_call(VM *vm) {
         newframe = new_call_frame(vm->funcs + funcidx, frame);
     }
 
-    Value *args = allocate(nvm, sizeof(Value) * argc);
-    for (int i = argc - 1; i >= 0; --i) {
-        Value val = pop(vm);
-        args[i] = val;
+    if (argc > frame->locals_capacity) {
+        newframe->locals = realloc(newframe->locals, sizeof(Value) * argc);
+        newframe->locals_capacity = argc;
     }
 
-    newframe->locals_capacity = argc;
+    for (int i = argc - 1; i >= 0; --i) {
+        Value val = pop(vm);
+        newframe->locals[i] = val;
+    }
+
     newframe->locals_count = argc;
-    newframe->locals = args;
     newframe->depth = depth + 1;
     newframe->func = vm->funcs + funcidx;
     newframe->ip = -1;
@@ -909,6 +908,16 @@ void run(VM *vm) {
     // clear call frame
     vm->call_frame->locals_count = 0;
     collect_garbage(vm);
+    CallFrame *frame = vm->call_frame;
+    while (frame->prev) {
+        frame = frame->prev;
+    }
+    while (frame) {
+        CallFrame *next = frame->next;
+        free_call_frame(frame);
+        if (frame == next) break;
+        frame = next;
+    }
 }
 
 int main(int argc, char **argv) {
