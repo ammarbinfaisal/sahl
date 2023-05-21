@@ -623,7 +623,6 @@ void handle_call(VM *vm) {
 
     newframe->locals_count = argc;
     newframe->depth = depth + 1;
-    newframe->func = vm->funcs + funcidx;
     newframe->ip = -1;
     nvm->call_frame = newframe;
     frame->ip += 8;
