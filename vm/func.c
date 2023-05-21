@@ -1,13 +1,11 @@
 #include "func.h"
 
 CallFrame *new_call_frame(Func *func, CallFrame *prev) {
-    CallFrame *frame;
     if (prev != NULL && prev->next) {
-        frame = prev->next;
-        frame->func = func;
-        return frame;
+        prev->next->func = func;
+        return prev->next;
     }
-    frame = malloc(sizeof(CallFrame));
+    CallFrame *frame = malloc(sizeof(CallFrame));
     frame->ip = 0;
     frame->func = func;
     frame->locals_count = 0;
