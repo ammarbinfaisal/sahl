@@ -68,6 +68,26 @@ pub enum Expr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum TyExpr {
+    Literal(Lit),
+    Variable(String),
+    Neg(Box<TypedExpr>),
+    Not(Box<TypedExpr>),
+    Range(Box<TypedExpr>, Box<TypedExpr>, bool),
+    Arith(ArithOp, Box<TypedExpr>, Box<TypedExpr>),
+    BoolOp(BoolOp, Box<TypedExpr>, Box<TypedExpr>),
+    CmpOp(CmpOp, Box<TypedExpr>, Box<TypedExpr>),
+    Call(String, Vec<TypedExpr>),
+    Subscr(Box<TypedExpr>, Box<TypedExpr>),
+    Assign(Box<TypedExpr>, Box<TypedExpr>),
+    Make(Type, Option<Box<TypedExpr>>),
+    Tuple(Vec<TypedExpr>),
+    ChanRead(String),
+}
+
+pub type TypedExpr = (Type, TyExpr);
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Expr(Box<Expr>),
     Decl(String, Box<Expr>),
@@ -77,6 +97,21 @@ pub enum Stmt {
     Return(Box<Expr>),
     Coroutine(Expr),
     ChanWrite(String, Box<Expr>),
+    Continue,
+    Comment,
+    Break,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TyStmt {
+    Expr(Box<TypedExpr>),
+    Decl(String, Box<TypedExpr>),
+    For(String, Box<TypedExpr>, Vec<TyStmt>),
+    While(Box<TypedExpr>, Vec<TyStmt>),
+    IfElse(Box<TypedExpr>, Vec<TyStmt>, Option<Vec<TyStmt>>),
+    Return(Box<TypedExpr>),
+    Coroutine(TypedExpr),
+    ChanWrite(String, Box<TypedExpr>),
     Continue,
     Comment,
     Break,
@@ -97,6 +132,19 @@ pub struct Func {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct TyFunc {
+    pub name: String,
+    pub args: Vec<Param>,
+    pub body: Vec<TyStmt>,
+    pub retty: Type,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub funcs: Vec<Func>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TyProgram {
+    pub funcs: Vec<TyFunc>,
 }
