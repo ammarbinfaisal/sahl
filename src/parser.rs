@@ -365,7 +365,7 @@ fn list(source: &str) -> IResult<&str, Expr> {
         |(e, _)| e,
     ))(source)?;
     let (source, _) = tag("]")(source)?;
-    Ok((source, Expr::Literal(Lit::List(args))))
+    Ok((source, Expr::List(args)))
 }
 
 fn range(source: &str) -> IResult<&str, Expr> {

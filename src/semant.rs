@@ -253,16 +253,6 @@ impl<'a> Checker<'a> {
                 Lit::Char(_) => Ok((Type::Char, TyExpr::Literal(lit.clone()))),
                 Lit::Str(_) => Ok((Type::Str, TyExpr::Literal(lit.clone()))),
                 Lit::Double(_) => Ok((Type::Double, TyExpr::Literal(lit.clone()))),
-                Lit::List(list) => {
-                    let (type_, _tyex1) = self.check_expr(&list.iter().next().unwrap())?;
-                    for elem in list.iter().skip(1) {
-                        let (ty, _tyex2) = self.check_expr(elem)?;
-                        if type_ != ty {
-                            return Err(Error::TypeMismatch(vec![type_], vec![ty]));
-                        }
-                    }
-                    Ok((Type::List(Box::new(type_)), TyExpr::Literal(lit.clone())))
-                }
             },
             Expr::Variable(name) => self.find_var(name),
             Expr::Assign(lhs, expr) => {
@@ -302,6 +292,18 @@ impl<'a> Checker<'a> {
                 } else {
                     Err(Error::TypeMismatch(vec![Type::Bool], vec![ty.0]))
                 }
+            }
+            Expr::List(list) => {
+                let tyex = self.check_expr(&list.iter().next().unwrap())?;
+                let mut ls = vec![tyex.clone()];
+                for elem in list.iter().skip(1) {
+                    let tyex2 = self.check_expr(elem)?;
+                    if  tyex2.0.clone() != tyex.0.clone() {
+                        return Err(Error::TypeMismatch(vec![tyex.0], vec![tyex2.0]));
+                    }
+                    ls.push(tyex2);
+                }
+                Ok((Type::List(Box::new(tyex.0)), TyExpr::List(ls)))
             }
             Expr::Arith(op, ex1, ex2) => {
                 let ty1 = self.check_expr(ex1)?;

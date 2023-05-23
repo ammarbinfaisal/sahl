@@ -20,7 +20,6 @@ pub enum Lit {
     Char(u8),
     Bool(bool),
     Str(Vec<u8>),
-    List(Vec<Expr>),
     Double(f64),
 }
 
@@ -65,6 +64,7 @@ pub enum Expr {
     Make(Type, Option<Box<Expr>>),
     Tuple(Vec<Expr>),
     ChanRead(String),
+    List(Vec<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -82,6 +82,7 @@ pub enum TyExpr {
     Assign(Box<TypedExpr>, Box<TypedExpr>),
     Make(Type, Option<Box<TypedExpr>>),
     Tuple(Vec<TypedExpr>),
+    List(Vec<TypedExpr>),
     ChanRead(String),
 }
 
