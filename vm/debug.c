@@ -162,24 +162,6 @@ int print_opcode(uint8_t *code, int i) {
     case CHAN_READ:
         printf("ChanRead\n");
         break;
-
-// #define CHAN_WRITE 41
-// #define SPAWN 42
-// #define MAKE_MAP 43
-// #define FADD 44
-// #define FSUB 45
-// #define FMUL 46
-// #define FDIV 47
-// #define FNEG 48
-// #define FLESS 49
-// #define FLESS_EQUAL 50
-// #define FGREATER 51
-// #define FGREATER_EQUAL 52
-// #define SCONCAT 53
-// #define I2F 54
-// #define I2S 55
-// #define F2S 56
-// #define FMOD 57
     case MAKE_MAP:
         printf("MakeMap\n");
         break;
