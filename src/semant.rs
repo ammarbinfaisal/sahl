@@ -265,7 +265,7 @@ impl<'a> Checker<'a> {
                 };
                 if correct_lhs {
                     let lhs_ty = self.check_expr(lhs)?;
-                    if ty == lhs_ty {
+                    if ty.0 == lhs_ty.0 {
                         Ok((Type::Void, TyExpr::Assign(Box::new(lhs_ty), Box::new(ty))))
                     } else {
                         Err(Error::TypeMismatch(vec![lhs_ty.0], vec![ty.0]))
@@ -298,7 +298,7 @@ impl<'a> Checker<'a> {
                 let mut ls = vec![tyex.clone()];
                 for elem in list.iter().skip(1) {
                     let tyex2 = self.check_expr(elem)?;
-                    if  tyex2.0.clone() != tyex.0.clone() {
+                    if tyex2.0.clone() != tyex.0.clone() {
                         return Err(Error::TypeMismatch(vec![tyex.0], vec![tyex2.0]));
                     }
                     ls.push(tyex2);
@@ -362,13 +362,13 @@ impl<'a> Checker<'a> {
                     Err(Error::TypeMismatch(vec![Type::Bool], vec![ty1.0, ty2.0]))
                 }
             }
-            Expr::CmpOp(_, ex1, ex2) => {
+            Expr::CmpOp(op, ex1, ex2) => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if ty1 == ty2 {
+                if ty1.0 == ty2.0 {
                     Ok((
                         Type::Bool,
-                        TyExpr::CmpOp(CmpOp::Eq, Box::new(ty1), Box::new(ty2)),
+                        TyExpr::CmpOp(op.clone(), Box::new(ty1), Box::new(ty2)),
                     ))
                 } else {
                     Err(Error::TypeMismatch(vec![ty1.0.clone()], vec![ty1.0, ty2.0]))

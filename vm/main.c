@@ -137,107 +137,36 @@ void run(VM *vm); // to be used in handle_call;
 void handle_add(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-
-    if (IS_OBJ(a) && IS_OBJ(b)) {
-        push(vm, OBJ_VAL(concat_strings(vm, AS_OBJ(b), AS_OBJ(a))));
-    } else if (IS_CHAR(a) && IS_OBJ(b)) {
-        char c = AS_CHAR(a);
-        Obj *obj = AS_OBJ(b);
-        int len = strlen(obj->string.data);
-        char *old = obj->string.data;
-        char *chars = allocate(vm, len + 2);
-        chars[len] = c;
-        memcpy(chars, old, len);
-        chars[len + 1] = '\0';
-        push(vm, OBJ_VAL(new_string(vm, chars, len + 2)));
-        free(old);
-    } else if (IS_OBJ(a) && IS_CHAR(b)) {
-        char c = AS_CHAR(b);
-        Obj *obj = AS_OBJ(a);
-        int len = strlen(obj->string.data);
-        char *old = obj->string.data;
-        char *chars = allocate(vm, len + 2);
-        chars[0] = c;
-        memcpy(chars + 1, old, len);
-        chars[len + 1] = '\0';
-        push(vm, OBJ_VAL(new_string(vm, chars, len + 2)));
-        free(old);
-    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) + AS_FLOAT(a)));
-    } else if (IS_INT(a) && IS_INT(b)) {
-        push(vm, INT_VAL(AS_INT(b) + AS_INT(a)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) + AS_INT(a)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, FLOAT_VAL(AS_INT(b) + AS_FLOAT(a)));
-    } else {
-        error(vm, "Invalid operands for +");
-    }
+    push(vm, INT_VAL(AS_INT(b) + AS_INT(a)));
 }
 
 void handle_sub(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_FLOAT(a)));
-    } else if (IS_INT(a) && IS_INT(b)) {
-        push(vm, INT_VAL(AS_INT(b) - AS_INT(a)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) - AS_INT(a)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, FLOAT_VAL(AS_INT(b) - AS_FLOAT(a)));
-    } else {
-        error(vm, "Invalid operands for -");
-    }
+    push(vm, INT_VAL(AS_INT(b) - AS_INT(a)));
 }
 
 void handle_mul(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_FLOAT(a)));
-    } else if (IS_INT(a) && IS_INT(b)) {
-        push(vm, INT_VAL(AS_INT(b) * AS_INT(a)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) * AS_INT(a)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, FLOAT_VAL(AS_INT(b) * AS_FLOAT(a)));
-    } else {
-        error(vm, "Invalid operands for *");
-    }
+    push(vm, INT_VAL(AS_INT(b) * AS_INT(a)));
 }
 
 void handle_div(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_FLOAT(a)));
-    } else if (IS_INT(a) && IS_INT(b)) {
-        push(vm, INT_VAL(AS_INT(b) / AS_INT(a)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(AS_FLOAT(b) / AS_INT(a)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, FLOAT_VAL(AS_INT(b) / AS_FLOAT(a)));
-    } else {
-        error(vm, "Invalid operands for /");
-    }
+    push(vm, INT_VAL(AS_INT(b) / AS_INT(a)));
 }
 
 void handle_mod(VM *vm) {
     Value a = pop(vm);
     Value b = pop(vm);
-    if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, FLOAT_VAL(fmod(AS_FLOAT(b), AS_FLOAT(a))));
-    } else if (IS_INT(a) && IS_INT(b)) {
-        push(vm, INT_VAL(AS_INT(b) % AS_INT(a)));
-    } else {
-        error(vm, "Invalid operands for %");
-    }
+    push(vm, INT_VAL(AS_INT(b) % AS_INT(a)));
 }
 
 void handle_neg(VM *vm) {
     Value a = pop(vm);
-    push(vm, FLOAT_VAL(-AS_FLOAT(a)));
+    push(vm, INT_VAL(-AS_INT(a)));
 }
 
 void handle_const_u8(VM *vm) {
@@ -296,65 +225,25 @@ void handle_not_equal(VM *vm) {
 void handle_less(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    if (IS_INT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) < AS_INT(b)));
-    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) < AS_FLOAT(b)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) < AS_INT(b)));
-    } else {
-        error(vm, "Cannot compare non-numbers");
-    }
+    push(vm, BOOL_VAL(AS_INT(a) < AS_INT(b)));
 }
 
 void handle_less_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    if (IS_INT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) <= AS_INT(b)));
-    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) <= AS_FLOAT(b)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_INT(b)));
-    } else {
-        error(vm, "Cannot compare non-numbers");
-    }
+    push(vm, BOOL_VAL(AS_INT(a) <= AS_INT(b)));
 }
 
 void handle_greater(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    if (IS_INT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) > AS_INT(b)));
-    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) > AS_FLOAT(b)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) > AS_INT(b)));
-    } else {
-        error(vm, "Cannot compare non-numbers");
-    }
+    push(vm, BOOL_VAL(AS_INT(a) > AS_INT(b)));
 }
 
 void handle_greater_equal(VM *vm) {
     Value b = pop(vm);
     Value a = pop(vm);
-    if (IS_INT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) >= AS_INT(b)));
-    } else if (IS_FLOAT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
-    } else if (IS_INT(a) && IS_FLOAT(b)) {
-        push(vm, BOOL_VAL(AS_INT(a) >= AS_FLOAT(b)));
-    } else if (IS_FLOAT(a) && IS_INT(b)) {
-        push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_INT(b)));
-    } else {
-        error(vm, "Cannot compare non-numbers");
-    }
+    push(vm, BOOL_VAL(AS_INT(a) >= AS_INT(b)));
 }
 
 void handle_jump(VM *vm) {
@@ -676,6 +565,104 @@ void handle_const_double(VM *vm) {
     vm->call_frame->ip += 8;
 }
 
+void handle_fadd(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b)));
+}
+
+void handle_fsub(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(AS_FLOAT(a) - AS_FLOAT(b)));
+}
+
+void handle_fmul(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(AS_FLOAT(a) * AS_FLOAT(b)));
+}
+
+void handle_fdiv(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(AS_FLOAT(a) / AS_FLOAT(b)));
+}
+
+void handle_fmod(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(fmod(AS_FLOAT(a), AS_FLOAT(b))));
+}
+
+void handle_fless(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
+}
+
+void handle_fgreater(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
+}
+
+void handle_fless_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
+}
+
+void handle_fgreater_equal(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
+}
+
+void handle_fnegate(VM *vm) {
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL(-AS_FLOAT(a)));
+}
+
+void handle_sconcat(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    char *str1 = AS_CSTRING(a);
+    char *str2 = AS_CSTRING(b);
+    char *newstr = malloc(strlen(str1) + strlen(str2) + 1);
+    memcpy(newstr, str1, strlen(str1));
+    memcpy(newstr + strlen(str1), str2, strlen(str2));
+    newstr[strlen(str1) + strlen(str2)] = '\0';
+    push(vm, OBJ_VAL(newstr));
+}
+
+void handle_i2f(VM *vm) {
+    Value a = pop(vm);
+    push(vm, FLOAT_VAL((double)AS_INT(a)));
+}
+
+void handle_i2s(VM *vm) {
+    Value a = pop(vm);
+    char *str = malloc(32);
+    int len = sprintf(str, "%ld", AS_INT(a));
+    str = realloc(str, len + 1);
+    Obj *obj = new_obj(vm, OBJ_STRING);
+    obj->string.data = str;
+    obj->string.constant = 0;
+    push(vm, OBJ_VAL(str));
+}
+
+void handle_f2s(VM *vm) {
+    Value a = pop(vm);
+    char *str = malloc(32);
+    int len = sprintf(str, "%f", AS_FLOAT(a));
+    str = realloc(str, len + 1);
+    Obj *obj = new_obj(vm, OBJ_STRING);
+    obj->string.data = str;
+    obj->string.constant = 0;
+    push(vm, OBJ_VAL(str));
+}
+
 // ------------------ NATIVE FUNCTIONS ------------------
 
 #define PRE_NATIVE                                                             \
@@ -843,23 +830,64 @@ void handle_make_map(VM *vm) {
 }
 
 // Create function pointer table for opcodes
-static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
-    handle_add,           handle_sub,         handle_mul,
-    handle_div,           handle_mod,         handle_neg,
-    handle_not,           handle_and,         handle_or,
-    handle_equal,         handle_not_equal,   handle_less,
-    handle_less_equal,    handle_greater,     handle_greater_equal,
-    handle_true,          handle_false,       handle_jump,
-    handle_jump_if_false, handle_store,       handle_index,
-    handle_append,        handle_length,      handle_list,
-    handle_const_64,      handle_const_32,    handle_const_8,
-    handle_string,        handle_def_local,   handle_get_local,
-    handle_assign,        handle_call,        handle_return,
-    handle_print,         handle_pop,         handle_make_list,
-    handle_make_tuple,    handle_native_call, handle_const_double,
-    handle_make_chan,     handle_chan_read,   handle_chan_write,
-    handle_spawn,         handle_make_map,
-};
+static OpcodeHandler opcode_handlers[NUM_OPCODES] = {handle_add,
+                                                     handle_sub,
+                                                     handle_mul,
+                                                     handle_div,
+                                                     handle_mod,
+                                                     handle_neg,
+                                                     handle_not,
+                                                     handle_and,
+                                                     handle_or,
+                                                     handle_equal,
+                                                     handle_not_equal,
+                                                     handle_less,
+                                                     handle_less_equal,
+                                                     handle_greater,
+                                                     handle_greater_equal,
+                                                     handle_true,
+                                                     handle_false,
+                                                     handle_jump,
+                                                     handle_jump_if_false,
+                                                     handle_store,
+                                                     handle_index,
+                                                     handle_append,
+                                                     handle_length,
+                                                     handle_list,
+                                                     handle_const_64,
+                                                     handle_const_32,
+                                                     handle_const_8,
+                                                     handle_string,
+                                                     handle_def_local,
+                                                     handle_get_local,
+                                                     handle_assign,
+                                                     handle_call,
+                                                     handle_return,
+                                                     handle_print,
+                                                     handle_pop,
+                                                     handle_make_list,
+                                                     handle_make_tuple,
+                                                     handle_native_call,
+                                                     handle_const_double,
+                                                     handle_make_chan,
+                                                     handle_chan_read,
+                                                     handle_chan_write,
+                                                     handle_spawn,
+                                                     handle_make_map,
+                                                     handle_fadd,
+                                                     handle_fsub,
+                                                     handle_fmul,
+                                                     handle_fdiv,
+                                                     handle_fnegate,
+                                                     handle_fless,
+                                                     handle_fless_equal,
+                                                     handle_fgreater,
+                                                     handle_fgreater_equal,
+                                                     handle_sconcat,
+                                                     handle_i2f,
+                                                     handle_i2s,
+                                                     handle_f2s,
+                                                     handle_fmod};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {

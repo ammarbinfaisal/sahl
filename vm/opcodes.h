@@ -2,29 +2,29 @@
 
 #define OPCODES_H
 
-#define ADD 0
-#define SUB 1
-#define MUL 2
-#define DIV 3
-#define MOD 4
-#define NEG 5
+#define IADD 0
+#define ISUB 1
+#define IMUL 2
+#define IDIV 3
+#define IMOD 4
+#define INEG 5
 #define NOT 6
 #define AND 7
 #define OR 8
 #define EQUAL 9
 #define NOT_EQUAL 10
-#define LESS 11
-#define LESS_EQUAL 12
-#define GREATER 13
-#define GREATER_EQUAL 14
+#define ILESS 11
+#define ILESS_EQUAL 12
+#define IGREATER 13
+#define IGREATER_EQUAL 14
 #define TRUE 15
 #define FALSE 16
 #define JUMP 17
 #define JUMP_IF_FALSE 18
 #define STORE 19
-#define INDEX 20
-#define APPEND 21
-#define LENGTH 22
+#define LIST_INDEX 20
+#define LIST_APPEND 21
+#define LIST_LENGTH 22
 #define LIST 23
 #define CONST_U64 24
 #define CONST_U32 25
@@ -46,6 +46,21 @@
 #define CHAN_WRITE 41
 #define SPAWN 42
 #define MAKE_MAP 43
-#define NUM_OPCODES 44
+#define FADD 44
+#define FSUB 45
+#define FMUL 46
+#define FDIV 47
+#define FNEG 48
+#define FLESS 49
+#define FLESS_EQUAL 50
+#define FGREATER 51
+#define FGREATER_EQUAL 52
+#define SCONCAT 53
+#define I2F 54
+#define I2S 55
+#define F2S 56
+#define FMOD 57
+
+#define NUM_OPCODES 58
 
 #endif

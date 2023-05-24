@@ -5,23 +5,23 @@
 
 int print_opcode(uint8_t *code, int i) {
     switch (code[i]) {
-    case ADD:
-        printf("Add\n");
+    case IADD:
+        printf("IAdd\n");
         break;
-    case SUB:
-        printf("Sub\n");
+    case ISUB:
+        printf("ISub\n");
         break;
-    case MUL:
-        printf("Mul\n");
+    case IMUL:
+        printf("IMul\n");
         break;
-    case DIV:
-        printf("Div\n");
+    case IDIV:
+        printf("IDiv\n");
         break;
-    case MOD:
-        printf("Mod\n");
+    case IMOD:
+        printf("IMod\n");
         break;
-    case NEG:
-        printf("Neg\n");
+    case INEG:
+        printf("INeg\n");
         break;
     case NOT:
         printf("Not\n");
@@ -38,17 +38,17 @@ int print_opcode(uint8_t *code, int i) {
     case NOT_EQUAL:
         printf("NotEqual\n");
         break;
-    case LESS:
+    case ILESS:
         printf("Less\n");
         break;
-    case LESS_EQUAL:
+    case ILESS_EQUAL:
         printf("LessEqual\n");
         break;
-    case GREATER:
-        printf("Greater\n");
+    case IGREATER:
+        printf("IGreater\n");
         break;
-    case GREATER_EQUAL:
-        printf("GreaterEqual\n");
+    case IGREATER_EQUAL:
+        printf("IGreaterEqual\n");
         break;
     case TRUE:
         printf("True\n");
@@ -70,7 +70,7 @@ int print_opcode(uint8_t *code, int i) {
         // u8 index
         printf("Store");
         break;
-    case INDEX:
+    case LIST_INDEX:
         printf("Index\n");
         break;
     case CONST_U32:
@@ -103,7 +103,7 @@ int print_opcode(uint8_t *code, int i) {
         printf("string at index %d\n", stridx);
         break;
     }
-    case APPEND:
+    case LIST_APPEND:
         printf("Append\n");
         break;
     case DEF_LOCAL:
@@ -121,7 +121,7 @@ int print_opcode(uint8_t *code, int i) {
         printf("Assign %u\n", read_u32(code, i + 1));
         i += 4;
         break;
-    case LENGTH:
+    case LIST_LENGTH:
         printf("Length\n");
         break;
     case CALL:
@@ -161,6 +161,69 @@ int print_opcode(uint8_t *code, int i) {
         break;
     case CHAN_READ:
         printf("ChanRead\n");
+        break;
+
+// #define CHAN_WRITE 41
+// #define SPAWN 42
+// #define MAKE_MAP 43
+// #define FADD 44
+// #define FSUB 45
+// #define FMUL 46
+// #define FDIV 47
+// #define FNEG 48
+// #define FLESS 49
+// #define FLESS_EQUAL 50
+// #define FGREATER 51
+// #define FGREATER_EQUAL 52
+// #define SCONCAT 53
+// #define I2F 54
+// #define I2S 55
+// #define F2S 56
+// #define FMOD 57
+    case MAKE_MAP:
+        printf("MakeMap\n");
+        break;
+    case FADD:
+        printf("FAdd\n");
+        break;
+    case FSUB:
+        printf("FSub\n");
+        break;
+    case FMUL:
+        printf("FMul\n");
+        break;
+    case FDIV:
+        printf("FDiv\n");
+        break;
+    case FNEG:
+        printf("FNeg\n");
+        break;
+    case FLESS:
+        printf("FLess\n");
+        break;
+    case FLESS_EQUAL:
+        printf("FLessEqual\n");
+        break;
+    case FGREATER:
+        printf("FGreater\n");
+        break;
+    case FGREATER_EQUAL:
+        printf("FGreaterEqual\n");
+        break;
+    case SCONCAT:
+        printf("SConcat\n");
+        break;
+    case I2F:
+        printf("I2F\n");
+        break;
+    case I2S:
+        printf("I2S\n");
+        break;
+    case F2S:
+        printf("F2S\n");
+        break;
+    case FMOD:
+        printf("FMod\n");
         break;
     default:
         printf("Unknown opcode %u\n", code[i]);

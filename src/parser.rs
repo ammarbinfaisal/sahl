@@ -2,7 +2,10 @@ use crate::syntax::*;
 extern crate nom;
 use nom::{
     branch::alt,
-    bytes::{complete::{tag, take_while, take_while_m_n}, streaming::escaped},
+    bytes::{
+        complete::{tag, take_while, take_while_m_n},
+        streaming::escaped,
+    },
     character::complete::{none_of, space0},
     combinator::{map, opt},
     error::ErrorKind,

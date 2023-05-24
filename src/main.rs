@@ -14,7 +14,6 @@ fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
     println!("Options:");
     println!("  -c: Compile to bytecode");
-    println!("  -e: Execute code on rust backend");
     println!("  -n: Compile to native code");
     println!("Verbose:");
     println!("  -v: Verbose mode");
@@ -60,7 +59,7 @@ fn main() {
                         }
                         if to_compile {
                             let mut codebyte = bytecode::Bytecode::new();
-                            codebyte.compile_program(&p);
+                            codebyte.compile_program(&typrog);
                             codebyte.write("exe.bin");
                         } else {
                             let mut asm = Asm::new(env);
