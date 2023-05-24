@@ -1,6 +1,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -348,7 +349,7 @@ void handle_append(VM *vm) {
 void handle_length(VM *vm) {
     Value value = pop(vm);
     Obj *obj = AS_OBJ(value);
-    push(vm, FLOAT_VAL(obj->list.length));
+    push(vm, INT_VAL(obj->list.length));
 }
 
 void handle_index(VM *vm) {
@@ -637,30 +638,40 @@ void handle_sconcat(VM *vm) {
 }
 
 void handle_i2f(VM *vm) {
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL((double)AS_INT(a)));
+    // read the next u32 to knwo the index
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    vm->call_frame->ip += 4;
+    Value a = vm->stack[vm->stack_size - index];
+    vm->stack[vm->stack_size - index] = FLOAT_VAL(AS_INT(a));
 }
 
 void handle_i2s(VM *vm) {
-    Value a = pop(vm);
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    vm->call_frame->ip += 4;
+    Value a = vm->stack[vm->stack_size - index];
     char *str = malloc(32);
     int len = sprintf(str, "%ld", AS_INT(a));
     str = realloc(str, len + 1);
     Obj *obj = new_obj(vm, OBJ_STRING);
     obj->string.data = str;
     obj->string.constant = 0;
-    push(vm, OBJ_VAL(str));
+    vm->stack[vm->stack_size - index] = OBJ_VAL(str);
 }
 
 void handle_f2s(VM *vm) {
-    Value a = pop(vm);
+    uint32_t index =
+        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
+    vm->call_frame->ip += 4;
+    Value a = vm->stack[vm->stack_size - index];
     char *str = malloc(32);
     int len = sprintf(str, "%f", AS_FLOAT(a));
     str = realloc(str, len + 1);
     Obj *obj = new_obj(vm, OBJ_STRING);
     obj->string.data = str;
     obj->string.constant = 0;
-    push(vm, OBJ_VAL(str));
+    vm->stack[vm->stack_size - index] = OBJ_VAL(str);
 }
 
 // ------------------ NATIVE FUNCTIONS ------------------
