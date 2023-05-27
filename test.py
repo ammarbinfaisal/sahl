@@ -65,4 +65,5 @@ if __name__ == "__main__":
         run_file(file, only_rc_check=True)
     result = f"{passing}/{total}"
     print(f"{result} tests passed")
-    environ["TEST_RESULT"] = result
+    with open(environ["GITHUB_ENV"], "w") as f:
+        f.write(f"TEST_RESULT={result}")
