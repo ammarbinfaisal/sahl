@@ -763,8 +763,8 @@ pub fn check_program(program: &Program) -> Result<(FuncEnv, TyProgram), Error> {
         });
         if func.retty != Type::Void {
             let cfg = gen_cfg(func.body.as_slice());
-            println!("{:?}", func.name);
-            println!("{:?}", cfg);
+            // println!("{:?}", func.name);
+            // println!("{:?}", cfg);
             if !validate_cfg(&cfg) {
                 return Err(Error::NoReturn);
             }
