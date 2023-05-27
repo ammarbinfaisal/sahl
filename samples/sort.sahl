@@ -4,7 +4,6 @@ fun merge(arr: [int], left: int, mid: int, right: int) {
     let arr1 = make([int], a1)
     let arr2 = make([int], a2)
     
-    //copy
     let i = 0
 
     while i < a1 {
@@ -22,7 +21,6 @@ fun merge(arr: [int], left: int, mid: int, right: int) {
     let i2 = 0
     let i_merged = left
 
-    //merge
     while i1 < a1 && i2 < a2 {
         if arr1[i1] < arr2[i2] {
             arr[i_merged] = arr1[i1]
