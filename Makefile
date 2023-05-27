@@ -1,4 +1,5 @@
-.PHONY: all
+.PHONY: vm
+
 all: codegen vm
 
 codegen:
