@@ -12,5 +12,4 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
-./target/debug/sahl $1 -c
-./sahl exe.bin
+./target/debug/sahl $1 -c && ./sahl exe.bin
