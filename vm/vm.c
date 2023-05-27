@@ -1,12 +1,16 @@
 #include "vm.h"
 #include "read.h"
+#include <stdio.h>
 
 VM *new_vm(uint8_t *code, int code_length) {
     VM *vm = malloc(sizeof(struct VM));
-    vm->start_func = read_u32(code, 0);
-    vm->string_count = read_u32(code, 4);
+    int filename_length = read_u32(code, 0);
+    vm->filename = read_string(code, 4, filename_length);
+    int offset = filename_length + 4;
+    vm->start_func = read_u32(code, offset);
+    vm->string_count = read_u32(code, offset + 4);
     vm->strings = malloc(sizeof(char *) * vm->string_count);
-    int offset = 8;
+    offset += 8;
     for (int i = 0; i < vm->string_count; ++i) {
         uint32_t strlength = read_u32(code, offset);
         offset += 4;
@@ -44,6 +48,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->thread_count = 0;
     vm->threads = NULL;
     vm->coro_to_be_spawned = false;
+    vm->coro_id = 0;
 
     return vm;
 }

@@ -34,7 +34,7 @@ fn main() {
             return;
         }
         let mut source = String::new();
-        let file = File::open(filename.unwrap());
+        let file = File::open(filename.clone().unwrap());
         match file {
             Ok(mut f) => {
                 f.read_to_string(&mut source).unwrap();
@@ -44,6 +44,39 @@ fn main() {
                 return;
             }
         }
+
+        // vbankulkm <error>
+        //           ^^^^^^
+        let show_error_line = |idx: usize, source: &str| {
+            if idx == 0 {
+                return;
+            }
+            let mut line = 1;
+            let mut col = 1;
+            let mut idx2 = 0;
+            for c in source.chars() {
+                if c == '\n' {
+                    line += 1;
+                    col = 1;
+                } else {
+                    col += 1;
+                }
+                idx2 += 1;
+                if idx2 == idx {
+                    break;
+                }
+            }
+            let mut col2 = col;
+            for c in source.chars().skip(idx2) {
+                if c == '\n' {
+                    break;
+                }
+                col2 += 1;
+            }
+            println!("{}:{}", line, col);
+            println!("{}", source.lines().nth(line - 1).unwrap());
+            println!("{}^{}", " ".repeat(col - 1), "^".repeat(col2 - col));
+        };
 
         let res = program(&source);
         match res {
@@ -59,7 +92,8 @@ fn main() {
                             println!("Program is well-typed");
                         }
                         if to_compile {
-                            let mut codebyte = bytecode::Bytecode::new();
+                            let mut codebyte =
+                                bytecode::Bytecode::new(filename.unwrap().to_string());
                             codebyte.compile_program(&p);
                             codebyte.write("exe.bin");
                         } else {
@@ -68,13 +102,20 @@ fn main() {
                         }
                     }
                     Err(e) => {
-                        println!("Program is not well-typed: {}", e);
+                        show_error_line(e.0, &source);
+                        println!("{}", e.1);
                         exit(1)
                     }
                 }
             }
             Err(e) => {
-                println!("{}", e);
+                e.map(|errr| {
+                    show_error_line(errr.idx, &source);
+                    if let ErrorParse::Unconsumed(s) = errr.error {
+                        println!("Failed to parse the below code:");
+                        println!("{}", s);
+                    }
+                });
                 exit(1)
             }
         }

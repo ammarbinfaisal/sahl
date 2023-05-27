@@ -28,7 +28,7 @@ const LIST_APPEND: u8 = 21;
 const LIST_LENGTH: u8 = 22;
 const LIST: u8 = 23;
 const CONST_U64: u8 = 24;
-const CONST_U32: u8 = 25;
+// const CONST_U32: u8 = 25;
 const CONST_U8: u8 = 26;
 const STRING: u8 = 27;
 const DEF_LOCAL: u8 = 28;
@@ -36,8 +36,8 @@ const GET_LOCAL: u8 = 29;
 const ASSIGN: u8 = 30;
 const CALL: u8 = 31;
 const RETURN: u8 = 32;
-const PRINT: u8 = 33;
-const POP: u8 = 34;
+// const PRINT: u8 = 33;
+// const POP: u8 = 34;
 const MAKE_LIST: u8 = 35;
 const MAKE_TUPLE: u8 = 36;
 const NATIVE_CALL: u8 = 37;
@@ -61,7 +61,6 @@ const I2F: u8 = 54;
 const I2S: u8 = 55;
 const F2S: u8 = 56;
 const FMOD: u8 = 57;
-const ARG_LEN: u8 = 58;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -107,6 +106,9 @@ pub struct Bytecode {
     loop_state: LoopState,
     start_func_idx: usize,
     curr_func: usize,
+    opcode_span: HashMap<usize, (usize, usize)>,
+    span: (usize, usize),
+    source_name: String,
 }
 
 fn u32_to_bytes(n: u32) -> [u8; 4] {
@@ -114,7 +116,7 @@ fn u32_to_bytes(n: u32) -> [u8; 4] {
 }
 
 impl Bytecode {
-    pub fn new() -> Bytecode {
+    pub fn new(filename: String) -> Bytecode {
         Bytecode {
             code: Vec::new(),
             locals: HashMap::new(),
@@ -126,20 +128,26 @@ impl Bytecode {
             func_args_len: Vec::new(),
             start_func_idx: 0,
             curr_func: 0,
+            opcode_span: HashMap::new(),
+            span: (0, 0),
+            source_name: filename,
         }
     }
 
     fn add(&mut self, op: u8) {
+        self.opcode_span.insert(self.code.len(), self.span);
         self.code.push(op);
     }
 
     fn add_u8(&mut self, op: u8, arg: u8) -> usize {
+        self.opcode_span.insert(self.code.len(), self.span);
         self.code.push(op);
         self.code.push(arg);
         self.code.len() - 1
     }
 
     fn add_u32(&mut self, op: u8, n: u32) -> usize {
+        self.opcode_span.insert(self.code.len(), self.span);
         self.code.push(op);
         self.code.push(n as u8);
         self.code.push((n >> 8) as u8);
@@ -149,6 +157,7 @@ impl Bytecode {
     }
 
     fn add_u64(&mut self, op: u8, n: u64) -> usize {
+        self.opcode_span.insert(self.code.len(), self.span);
         self.code.push(op);
         self.code.push(n as u8);
         self.code.push((n >> 8) as u8);
@@ -162,6 +171,7 @@ impl Bytecode {
     }
 
     fn add_2_u32(&mut self, op: u8, n1: u32, n2: u32) -> (usize, usize) {
+        self.opcode_span.insert(self.code.len(), self.span);
         self.code.push(op);
         self.code.push(n1 as u8);
         self.code.push((n1 >> 8) as u8);
@@ -201,6 +211,11 @@ impl Bytecode {
 
     pub fn write(&self, path: &str) {
         let mut file = File::create(path).unwrap();
+        // filename length
+        file.write_all(&u32_to_bytes(self.source_name.len() as u32))
+            .unwrap();
+        // filename
+        file.write_all(self.source_name.as_bytes()).unwrap();
         file.write_all(&self.header()).unwrap();
         // u32 for number of strings
         file.write_all(&u32_to_bytes(self.strings.len() as u32))
@@ -218,6 +233,14 @@ impl Bytecode {
                 .unwrap();
             file.write_all(&f).unwrap();
             i += 1;
+        }
+        // write opcode mapping to source file
+        file.write_all(&u32_to_bytes((self.opcode_span.len() * 3) as u32))
+            .unwrap();
+        for (ip, span) in &self.opcode_span {
+            file.write_all(&u32_to_bytes(*ip as u32)).unwrap();
+            file.write_all(&u32_to_bytes(span.0 as u32)).unwrap();
+            file.write_all(&u32_to_bytes(span.1 as u32)).unwrap();
         }
     }
 
@@ -240,10 +263,10 @@ impl Bytecode {
         use_float
     }
 
-    fn compile_expr(&mut self, expr: &Expr) {
-        let ty = &expr.get_type();
-        match expr.clone() {
-            Expr::Literal { lit, ty } => match lit {
+    fn compile_expr(&mut self, expr: &Spanned<Expr>) {
+        self.span = (expr.0, expr.2);
+        match expr.1.clone() {
+            Expr::Literal { lit, ty: _ } => match lit {
                 Lit::Int(i) => {
                     self.add_u64(CONST_U64, i as u64);
                 }
@@ -267,7 +290,7 @@ impl Bytecode {
                     self.add_u32(STRING, idx as u32);
                 }
             },
-            Expr::Variable { name, ty }=> {
+            Expr::Variable { name, ty: _ } => {
                 let local = self.get_local(&name);
                 if local.is_some() {
                     let local = *local.unwrap();
@@ -276,7 +299,7 @@ impl Bytecode {
                     panic!("Unknown variable: {}", name);
                 }
             }
-            Expr::Neg { expr, ty }=> {
+            Expr::Neg { expr, ty } => {
                 self.compile_expr(&expr);
                 if ty.unwrap() == Type::Double {
                     self.add_u32(FNEG, 0);
@@ -284,22 +307,27 @@ impl Bytecode {
                     self.add_u32(INEG, 0);
                 }
             }
-            Expr::Not { expr, ty } => {
+            Expr::Not { expr, ty: _ } => {
                 self.compile_expr(&expr);
                 self.add(NOT);
             }
-            Expr::Arith { op, left: ex1, right: ex2, ty }=> {
+            Expr::Arith {
+                op,
+                left: ex1,
+                right: ex2,
+                ty: _,
+            } => {
                 self.compile_expr(&ex1);
                 self.compile_expr(&ex2);
                 // if one of the operands is a double, use double arithmetic
                 // also use I2F <i> to convert the int to a double...
                 // ... this instruction would not pop the value from the stack but convert it in place
                 // <i> denotes the index of the value on the stack from the top
-                let use_float = self.float_check(&ex1, &ex2);
+                let use_float = self.float_check(&ex1.1, &ex2.1);
                 match op {
                     ArithOp::Add => {
                         let mut s_concat = false;
-                        match ex1.get_type() {
+                        match ex1.1.get_type() {
                             Type::Str => {
                                 if use_float {
                                     self.add_u32(F2S, 0);
@@ -308,7 +336,7 @@ impl Bytecode {
                             }
                             _ => {}
                         }
-                        match ex2.get_type() {
+                        match ex2.1.get_type() {
                             Type::Str => {
                                 if use_float {
                                     self.add_u32(F2S, 1);
@@ -359,7 +387,12 @@ impl Bytecode {
                     }
                 }
             }
-            Expr::BoolOp { op, left: ex1, right: ex2, ty } => {
+            Expr::BoolOp {
+                op,
+                left: ex1,
+                right: ex2,
+                ty: _,
+            } => {
                 self.compile_expr(&ex1);
                 self.compile_expr(&ex2);
                 match op {
@@ -371,10 +404,15 @@ impl Bytecode {
                     }
                 }
             }
-            Expr::CmpOp { op, left: ex1, right: ex2, ty }=> {
+            Expr::CmpOp {
+                op,
+                left: ex1,
+                right: ex2,
+                ty: _,
+            } => {
                 self.compile_expr(&ex1);
                 self.compile_expr(&ex2);
-                let use_float = self.float_check(&ex1, &ex2);
+                let use_float = self.float_check(&ex1.1, &ex2.1);
                 match op {
                     CmpOp::Eq => {
                         self.add(EQUAL);
@@ -412,7 +450,7 @@ impl Bytecode {
                     }
                 }
             }
-            Expr::Call { name, args, ty } => {
+            Expr::Call { name, args, ty: _ } => {
                 for arg in args.iter() {
                     self.compile_expr(&arg);
                 }
@@ -453,15 +491,18 @@ impl Bytecode {
                     self.calls[func_idx].push((call_offset, self.curr_func));
                 }
             }
-            Expr::Subscr { expr, index, ty } => {
+            Expr::Subscr { expr, index, ty: _ } => {
                 self.compile_expr(&expr);
                 self.compile_expr(&index);
                 self.add(LIST_INDEX);
             }
-            Expr::Assign { left: lhs, right: rhs } => {
+            Expr::Assign {
+                left: lhs,
+                right: rhs,
+            } => {
                 self.compile_expr(&rhs);
-                match *lhs {
-                    Expr::Variable { name, ty } => {
+                match lhs.1 {
+                    Expr::Variable { name, ty: _ } => {
                         let local = self.get_local(&name);
                         if local.is_some() {
                             let local = *local.unwrap();
@@ -470,7 +511,7 @@ impl Bytecode {
                             panic!("Unknown variable: {}", name);
                         }
                     }
-                    Expr::Subscr { expr, index, ty }=> {
+                    Expr::Subscr { expr, index, ty: _ } => {
                         self.compile_expr(&expr);
                         self.compile_expr(&index);
                         self.add(STORE)
@@ -522,18 +563,18 @@ impl Bytecode {
                     }
                 }
             }
-            Expr::Tuple { exprs, ty } => {
+            Expr::Tuple { exprs, ty: _ } => {
                 for expr in exprs.iter() {
                     self.compile_expr(&expr);
                 }
                 self.add_u32(MAKE_TUPLE, exprs.len() as u32);
             }
-            Expr::ChanRead { name, ty } => {
+            Expr::ChanRead { name, ty: _ } => {
                 let local = self.get_local(&name).unwrap();
                 self.add_u32(GET_LOCAL, *local as u32);
                 self.add(CHAN_READ);
             }
-            Expr::List { exprs, ty } => {
+            Expr::List { exprs, ty: _ } => {
                 for ex in exprs.iter() {
                     self.compile_expr(&ex);
                 }
@@ -569,8 +610,8 @@ impl Bytecode {
         self.add_u32(JUMP, start as u32);
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) {
-        match stmt {
+    fn compile_stmt(&mut self, stmt: &Spanned<Stmt>) {
+        match &stmt.1 {
             Stmt::Expr(expr) => {
                 self.compile_expr(expr);
                 // self.add(POP);
@@ -621,7 +662,12 @@ impl Bytecode {
                 self.loop_state = parent;
             }
             Stmt::For(var, expr, body) => {
-                if let Expr::Range { start, end, inclusive } = *expr.clone() {
+                if let Expr::Range {
+                    start,
+                    end,
+                    inclusive,
+                } = expr.1.clone()
+                {
                     self.compile_expr(&start);
                     let start_var = self.add_local("<start>");
                     self.add_u32(DEF_LOCAL, start_var as u32);
@@ -670,7 +716,7 @@ impl Bytecode {
                     }
                     self.loop_state = parent;
                 } else {
-                    let arr_var = if let Expr::Variable { name, ty } = *expr.clone() {
+                    let arr_var = if let Expr::Variable { name, ty: _ } = expr.1.clone() {
                         *self.get_local(name.as_str()).unwrap()
                     } else {
                         self.compile_expr(expr);
@@ -761,7 +807,7 @@ impl Bytecode {
         }
     }
 
-    fn compile_fn(&mut self, args: &[String], body: &[Stmt]) {
+    fn compile_fn(&mut self, args: &[String], body: &[Spanned<Stmt>]) {
         for arg in args {
             self.add_local(arg);
         }

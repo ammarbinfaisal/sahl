@@ -1,5 +1,5 @@
 use crate::syntax::*;
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 pub enum Error {
     TypeMismatch(Vec<Type>, Vec<Type>),
@@ -10,12 +10,11 @@ pub enum Error {
     ContinueOutsideLoop,
     BreakOutsideLoop,
     IncorrectLHS(Expr),
-    NoReturn,
+    NoReturn(String),
     NoMain,
     MainArgs,
     MainNotVoid,
-    TupleIndexOutOfBounds,
-    TupleIndexNotInt,
+    TupleIndexOutOfBounds(usize, usize),
 }
 
 impl std::fmt::Display for Error {
@@ -47,8 +46,8 @@ impl std::fmt::Display for Error {
             Error::IncorrectLHS(expr) => {
                 write!(f, "Incorrect LHS: {:?}", expr)
             }
-            Error::NoReturn => {
-                write!(f, "There is a path in control flow that does not return")
+            Error::NoReturn(name) => {
+                write!(f, "Function {} does not return", name)
             }
             Error::NoMain => {
                 write!(f, "No main function")
@@ -59,11 +58,8 @@ impl std::fmt::Display for Error {
             Error::MainNotVoid => {
                 write!(f, "Main function must return void")
             }
-            Error::TupleIndexOutOfBounds => {
-                write!(f, "Tuple index out of bounds")
-            }
-            Error::TupleIndexNotInt => {
-                write!(f, "Tuple index must be an integer")
+            Error::TupleIndexOutOfBounds(index, len) => {
+                write!(f, "Tuple index {} out of bounds for tuple of length {}", index, len)
             }
         }
     }
@@ -72,7 +68,7 @@ impl std::fmt::Display for Error {
 type TypeEnv = Vec<HashMap<String, Type>>;
 pub type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
 
-fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
+fn builtin_fn(name: &str, args: &[Type], start: usize, end: usize) -> Result<Type, Spanned<Error>> {
     match name {
         "print" => Ok(Type::Void),
         "append" => {
@@ -83,16 +79,24 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                         if ty == args[1] {
                             Ok(Type::List(Box::new(ty)))
                         } else {
-                            Err(Error::TypeMismatch(vec![ty], vec![args[1].clone()]))
+                            Err((
+                                start,
+                                Error::TypeMismatch(vec![ty.clone()], vec![args[1].clone()]),
+                                end,
+                            ))
                         }
                     }
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::List(Box::new(Type::Void))],
-                        vec![args[0].clone()],
+                    _ => Err((
+                        start,
+                        Error::TypeMismatch(
+                            vec![Type::List(Box::new(Type::Void))],
+                            vec![args[0].clone()],
+                        ),
+                        end,
                     )),
                 }
             } else {
-                Err(Error::ArityMismatch(2, args.len()))
+                Err((start, Error::ArityMismatch(2, args.len()), end))
             }
         }
         "len" => {
@@ -108,7 +112,7 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 // arg can be either a list or a string
                 Ok(Type::Int)
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "clear" => Ok(Type::Void),
@@ -116,56 +120,56 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
             if args.len() == 1 {
                 Ok(Type::Void)
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "rand" => {
             if args.len() == 2 {
                 Ok(Type::Int)
             } else {
-                Err(Error::ArityMismatch(2, args.len()))
+                Err((start, Error::ArityMismatch(2, args.len()), end))
             }
         }
         "randf" => {
             if args.len() == 0 {
                 Ok(Type::Double)
             } else {
-                Err(Error::ArityMismatch(0, args.len()))
+                Err((start, Error::ArityMismatch(0, args.len()), end))
             }
         }
         "exp" => {
             if args.len() == 1 {
                 Ok(Type::Double)
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "pow" => {
             if args.len() == 2 {
                 Ok(Type::Double)
             } else {
-                Err(Error::ArityMismatch(2, args.len()))
+                Err((start, Error::ArityMismatch(2, args.len()), end))
             }
         }
         "exit" => {
             if args.len() == 1 {
                 Ok(Type::Void)
             } else {
-                Err(Error::ArityMismatch(0, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "tanh" => {
             if args.len() == 1 {
                 Ok(Type::Double)
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "log" => {
             if args.len() == 1 {
                 Ok(Type::Double)
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "tcp_server" => {
@@ -175,13 +179,24 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                         // TODO: check that ch is [chan<string>]
                         Ok(Type::Void)
                     } else {
-                        Err(Error::TypeMismatch(vec![Type::Int], vec![args[1].clone()]))
+                        Err((
+                            start,
+                            Error::TypeMismatch(
+                                vec![Type::Chan(Box::new(Type::Void))],
+                                vec![args[1].clone()],
+                            ),
+                            end,
+                        ))
                     }
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int], vec![args[0].clone()]))
+                    Err((
+                        start,
+                        Error::TypeMismatch(vec![Type::Int], vec![args[0].clone()]),
+                        end,
+                    ))
                 }
             } else {
-                Err(Error::ArityMismatch(2, args.len()))
+                Err((start, Error::ArityMismatch(2, args.len()), end))
             }
         }
         "close_chan" => {
@@ -189,13 +204,17 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 if let Type::Chan(_) = args[0] {
                     Ok(Type::Void)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Chan(Box::new(Type::Void))],
-                        vec![args[0].clone()],
+                    Err((
+                        start,
+                        Error::TypeMismatch(
+                            vec![Type::Chan(Box::new(Type::Void))],
+                            vec![args[0].clone()],
+                        ),
+                        end,
                     ))
                 }
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
         "is_open_chan" => {
@@ -203,16 +222,20 @@ fn builtin_fn(name: &str, args: &[Type]) -> Result<Type, Error> {
                 if let Type::Chan(_) = args[0] {
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Chan(Box::new(Type::Void))],
-                        vec![args[0].clone()],
+                    Err((
+                        start,
+                        Error::TypeMismatch(
+                            vec![Type::Chan(Box::new(Type::Void))],
+                            vec![args[0].clone()],
+                        ),
+                        end,
                     ))
                 }
             } else {
-                Err(Error::ArityMismatch(1, args.len()))
+                Err((start, Error::ArityMismatch(1, args.len()), end))
             }
         }
-        _ => Err(Error::UndefinedVariable(name.to_string())),
+        _ => Err((start, Error::UndefinedFunction(name.to_string()), end)),
     }
 }
 
@@ -235,31 +258,32 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn find_var(&self, name: &str) -> Result<Type, Error> {
+    fn find_var(&self, name: &str, start: usize, end: usize) -> Result<Type, Spanned<Error>> {
         for i in (0..self.scope).rev() {
             if let Some(ty) = self.type_env[i].get(name) {
                 return Ok(ty.clone());
             }
         }
-        Err(Error::UndefinedVariable(name.to_string()))
+        Err((start, Error::UndefinedVariable(name.to_string()), end))
     }
 
-    fn check_expr(&self, expr: &mut Expr) -> Result<Type, Error> {
+    fn check_expr(&self, expr: &mut Spanned<Expr>) -> Result<Type, Spanned<Error>> {
         // println!("Checking expr: {:?}", expr);
-        match expr {
+        let immut_expr = expr.1.clone();
+        match &mut expr.1 {
             Expr::Literal { lit: _, ty } => Ok(ty.clone()),
             Expr::Variable { name, ty } => {
                 if let Some(t) = ty {
                     Ok(t.clone())
                 } else {
-                    let t = self.find_var(name)?;
+                    let t = self.find_var(name, expr.0, expr.2)?;
                     *ty = Some(t.clone());
                     Ok(t)
                 }
-            },
+            }
             Expr::Assign { left, right } => {
                 let ty = self.check_expr(right)?;
-                let correct_lhs = match *left.clone() {
+                let correct_lhs = match left.1.clone() {
                     Expr::Variable { .. } => true,
                     Expr::Subscr { .. } => true,
                     _ => false,
@@ -269,10 +293,10 @@ impl<'a> Checker<'a> {
                     if ty == lhs_ty {
                         Ok(Type::Void)
                     } else {
-                        Err(Error::TypeMismatch(vec![lhs_ty], vec![ty]))
+                        Err((left.0, Error::TypeMismatch(vec![ty], vec![lhs_ty]), left.2))
                     }
                 } else {
-                    Err(Error::IncorrectLHS(*left.clone()))
+                    Err((left.0, Error::IncorrectLHS(immut_expr), left.2.clone()))
                 }
             }
             Expr::Neg { expr, ty: t } => {
@@ -281,7 +305,11 @@ impl<'a> Checker<'a> {
                     *t = Some(ty.clone());
                     Ok(ty)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty]),
+                        expr.2,
+                    ))
                 }
             }
             Expr::Not { expr, ty: t } => {
@@ -290,7 +318,11 @@ impl<'a> Checker<'a> {
                     *t = Some(ty.clone());
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Bool], vec![ty]),
+                        expr.2,
+                    ))
                 }
             }
             Expr::List { exprs, ty: t } => {
@@ -298,7 +330,7 @@ impl<'a> Checker<'a> {
                 for elem in exprs.iter_mut().skip(1) {
                     let tyex2 = self.check_expr(elem)?;
                     if tyex2.clone() != tyex.clone() {
-                        return Err(Error::TypeMismatch(vec![tyex], vec![tyex2]));
+                        return Err((elem.0, Error::TypeMismatch(vec![tyex], vec![tyex2]), elem.2));
                     }
                 }
                 *t = Some(Type::List(Box::new(tyex.clone())));
@@ -326,9 +358,10 @@ impl<'a> Checker<'a> {
                         *t = Some(Type::Double);
                         Ok(Type::Double)
                     } else {
-                        Err(Error::TypeMismatch(
-                            vec![Type::Str, Type::Char],
-                            vec![ty1, ty2],
+                        Err((
+                            expr.0,
+                            Error::TypeMismatch(vec![Type::Str, Type::Char], vec![ty1, ty2]),
+                            expr.2,
                         ))
                     }
                 } else if ty1 == Type::Int && ty2 == Type::Int {
@@ -338,9 +371,10 @@ impl<'a> Checker<'a> {
                     *t = Some(Type::Double);
                     Ok(Type::Double)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Int, Type::Double],
-                        vec![ty1, ty2],
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty1, ty2]),
+                        expr.2,
                     ))
                 }
             }
@@ -356,7 +390,11 @@ impl<'a> Checker<'a> {
                     *t = Some(Type::Bool);
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty1, ty2]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Bool], vec![ty1, ty2]),
+                        expr.2,
+                    ))
                 }
             }
             Expr::CmpOp {
@@ -371,10 +409,10 @@ impl<'a> Checker<'a> {
                     *t = Some(Type::Bool);
                     Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![ty1.clone()], vec![ty1, ty2]))
+                    Err((expr.0, Error::TypeMismatch(vec![ty1], vec![ty2]), expr.2))
                 }
             }
-            Expr::Call { name, args, ty : t} => {
+            Expr::Call { name, args, ty: t } => {
                 let argsty = args
                     .iter_mut()
                     .map(|e| self.check_expr(e))
@@ -386,10 +424,12 @@ impl<'a> Checker<'a> {
                         .map(|ty| ty.clone())
                         .collect::<Vec<_>>()
                         .as_slice(),
+                    expr.0,
+                    expr.2,
                 );
 
                 match res {
-                    Err(Error::UndefinedVariable(_)) => {} // if builtin function not found, continue
+                    Err((_, Error::UndefinedFunction(_), _)) => {} 
                     Err(e) => return Err(e),
                     Ok(ty) => {
                         *t = Some(ty.clone());
@@ -397,20 +437,26 @@ impl<'a> Checker<'a> {
                     }
                 }
 
-                let (formal_types, ret_type) = self
-                    .func_env
-                    .get(name)
-                    .ok_or(Error::UndefinedFunction(name.clone()))?;
+                let (formal_types, ret_type) = self.func_env.get(name).ok_or((
+                    expr.0,
+                    Error::UndefinedFunction(name.clone()),
+                    expr.2,
+                ))?;
 
                 if argsty.len() != formal_types.len() {
-                    return Err(Error::ArityMismatch(formal_types.len(), args.len()));
+                    return Err((
+                        expr.0,
+                        Error::ArityMismatch(formal_types.len(), argsty.len()),
+                        expr.2,
+                    ));
                 }
 
                 for (argty, formal_type) in argsty.iter().zip(formal_types) {
                     if argty != formal_type {
-                        return Err(Error::TypeMismatch(
-                            vec![argty.clone()],
-                            vec![formal_type.clone()],
+                        return Err((
+                            expr.0,
+                            Error::TypeMismatch(vec![argty.clone()], vec![formal_type.clone()]),
+                            expr.2,
                         ));
                     }
                 }
@@ -426,7 +472,11 @@ impl<'a> Checker<'a> {
                             *t = Some(*tyy.clone());
                             Ok(*tyy)
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
+                            Err((
+                                expr.0,
+                                Error::TypeMismatch(vec![Type::Int], vec![index_ty]),
+                                expr.2,
+                            ))
                         }
                     }
                     Type::Map(key, val) => {
@@ -434,7 +484,11 @@ impl<'a> Checker<'a> {
                             *t = Some(*val.clone());
                             Ok(*val)
                         } else {
-                            Err(Error::TypeMismatch(vec![*key], vec![index_ty]))
+                            Err((
+                                expr.0,
+                                Error::TypeMismatch(vec![*key.clone()], vec![index_ty]),
+                                expr.2,
+                            ))
                         }
                     }
                     Type::Str => {
@@ -442,51 +496,76 @@ impl<'a> Checker<'a> {
                             *t = Some(Type::Char);
                             Ok(Type::Char)
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
+                            Err((
+                                expr.0,
+                                Error::TypeMismatch(vec![Type::Int], vec![index_ty]),
+                                expr.2,
+                            ))
                         }
                     }
                     Type::Tuple(tys) => {
                         // can only have integer literals as index
-                        if let Expr::Literal { lit, ty: _ } = *index.clone() {
+                        if let Expr::Literal { lit, ty: _ } = index.1.clone() {
                             if let Lit::Int(i) = lit {
                                 if i < tys.len() as i64 {
                                     Ok(tys[i as usize].clone())
                                 } else {
-                                    Err(Error::TupleIndexOutOfBounds)
+                                    Err((
+                                        expr.0,
+                                        Error::TupleIndexOutOfBounds(i as usize, tys.len()),
+                                        expr.2,
+                                    ))
                                 }
                             } else {
-                                Err(Error::TupleIndexNotInt)
+                                Err((
+                                    expr.0,
+                                    Error::TypeMismatch(vec![Type::Int], vec![index_ty]),
+                                    expr.2,
+                                ))
                             }
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
+                            Err((
+                                expr.0,
+                                Error::TypeMismatch(vec![Type::Int], vec![index_ty]),
+                                expr.2,
+                            ))
                         }
                     }
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::List(Box::new(Type::Void))],
-                        vec![ty],
+                    _ => Err((
+                        expr.0,
+                        Error::TypeMismatch(
+                            vec![Type::List(Box::new(Type::Void))],
+                            vec![ty.clone()],
+                        ),
+                        expr.2,
                     )),
                 }
             }
             Expr::ChanRead { name, ty: t } => {
-                let ty = self.find_var(&name)?;
+                let ty = self.find_var(&name, expr.0, expr.2)?;
                 match ty {
                     Type::Chan(ty) => {
                         *t = Some(*ty.clone());
                         Ok(*ty)
                     }
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::Chan(Box::new(Type::Void))],
-                        vec![ty],
+                    _ => Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![ty]),
+                        expr.2,
                     )),
                 }
             }
-            Expr::Make { ty, expr } => {
-                if let Some(ex) = expr {
+            Expr::Make { ty, expr: ex } => {
+                if let Some(ex) = ex {
                     let exty = self.check_expr(ex)?;
                     if exty == Type::Int {
                         Ok(ty.clone())
                     } else {
-                        Err(Error::TypeMismatch(vec![(ty).clone()], vec![exty]))
+                        Err((
+                            expr.0,
+                            Error::TypeMismatch(vec![Type::Int], vec![exty]),
+                            expr.2,
+                        ))
                     }
                 } else {
                     Ok(ty.clone())
@@ -497,9 +576,7 @@ impl<'a> Checker<'a> {
                     .iter_mut()
                     .map(|e| self.check_expr(e))
                     .collect::<Result<Vec<_>, _>>()?;
-                let tyy = Type::Tuple(
-                    tys.iter().map(|ty| ty.clone()).collect::<Vec<_>>(),
-                );
+                let tyy = Type::Tuple(tys.iter().map(|ty| ty.clone()).collect::<Vec<_>>());
                 *t = Some(tyy.clone());
                 Ok(tyy)
             }
@@ -513,15 +590,19 @@ impl<'a> Checker<'a> {
                 if ty1 == Type::Int && ty2 == Type::Int {
                     Ok(Type::List(Box::new(Type::Int)))
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]),
+                        expr.2,
+                    ))
                 }
             }
         }
     }
 
-    fn check_stmt(&mut self, stmt: &mut Stmt) -> Result<(), Error> {
+    fn check_stmt(&mut self, stmt: &mut Spanned<Stmt>) -> Result<(), Spanned<Error>> {
         // println!("check_stmt: {:?}", stmt);
-        match stmt {
+        match &mut stmt.1 {
             Stmt::Expr(expr) => {
                 self.check_expr(expr)?;
                 Ok(())
@@ -554,7 +635,11 @@ impl<'a> Checker<'a> {
                     };
                     Ok(())
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![cond]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Bool], vec![cond]),
+                        expr.2,
+                    ))
                 }
             }
             Stmt::While(expr, stmts) => {
@@ -572,7 +657,11 @@ impl<'a> Checker<'a> {
                     self.scope -= 1;
                     Ok(())
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty]))
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Bool], vec![ty]),
+                        expr.2,
+                    ))
                 }
             }
             Stmt::For(var, in_ex, block) => {
@@ -609,16 +698,23 @@ impl<'a> Checker<'a> {
                         self.scope -= 1;
                         Ok(())
                     }
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::List(Box::new(Type::Void))],
-                        vec![in_ex_ty],
+                    _ => Err((
+                        in_ex.0,
+                        Error::TypeMismatch(vec![Type::List(Box::new(Type::Any))], vec![in_ex_ty]),
+                        in_ex.2,
                     )),
                 }
             }
             Stmt::Decl(var, ex) => {
                 let ty = self.check_expr(ex)?;
                 match ty {
-                    Type::Void => return Err(Error::TypeMismatch(vec![Type::Any], vec![ty])),
+                    Type::Void => {
+                        return Err((
+                            ex.0,
+                            Error::TypeMismatch(vec![Type::Void], vec![Type::Any]),
+                            ex.2,
+                        ))
+                    }
                     _ => {
                         if let Some(scope_env) = self.type_env.last_mut() {
                             scope_env.insert(var.clone(), ty.clone());
@@ -632,22 +728,23 @@ impl<'a> Checker<'a> {
                 if ty == self.func_ret_type {
                     Ok(())
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![self.func_ret_type.clone()],
-                        vec![ty],
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![self.func_ret_type.clone()], vec![ty]),
+                        expr.2,
                     ))
                 }
             }
             Stmt::Break => {
                 if self.loop_depth == 0 {
-                    Err(Error::BreakOutsideLoop)
+                    Err((stmt.0, Error::BreakOutsideLoop, stmt.2))
                 } else {
                     Ok(())
                 }
             }
             Stmt::Continue => {
                 if self.loop_depth == 0 {
-                    Err(Error::ContinueOutsideLoop)
+                    Err((stmt.0, Error::ContinueOutsideLoop, stmt.2))
                 } else {
                     Ok(())
                 }
@@ -655,26 +752,31 @@ impl<'a> Checker<'a> {
             Stmt::Comment => Ok(()),
             Stmt::Coroutine(expr) => {
                 self.check_expr(expr)?;
-                if let Expr::Call { .. } = expr {
+                if let Expr::Call { .. } = expr.1 {
                     Ok(())
                 } else {
-                    Err(Error::CoroutineNotFunction)
+                    Err((expr.0, Error::CoroutineNotFunction, expr.2))
                 }
             }
             Stmt::ChanWrite(chan_name, expr) => {
-                let chan_ty = self.find_var(chan_name)?;
+                let chan_ty = self.find_var(chan_name, stmt.0, stmt.2)?;
                 let expr_ty = self.check_expr(expr)?;
                 match chan_ty {
                     Type::Chan(ty) => {
                         if *ty.clone() == expr_ty {
                             Ok(())
                         } else {
-                            Err(Error::TypeMismatch(vec![*ty.clone()], vec![expr_ty]))
+                            Err((
+                                stmt.0,
+                                Error::TypeMismatch(vec![*ty.clone()], vec![expr_ty]),
+                                stmt.2,
+                            ))
                         }
                     }
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::Chan(Box::new(Type::Void))],
-                        vec![chan_ty],
+                    _ => Err((
+                        stmt.0,
+                        Error::TypeMismatch(vec![Type::Chan(Box::new(Type::Void))], vec![chan_ty]),
+                        stmt.2,
                     )),
                 }
             }
@@ -701,19 +803,35 @@ fn gen_cfg(stmts: &[Stmt]) -> CFG {
             let cfg_alt = if alt.is_none() {
                 gen_cfg(stmts)
             } else {
-                let statements = vec![alt.as_ref().unwrap().as_slice(), stmts].concat();
-                gen_cfg(statements.as_slice())
+                // convert Vec<(usize, Stmt, usize)> to Vec<Stmt>
+                let statements = alt
+                    .as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|(_, stmt, _)| stmt.clone())
+                    .collect::<Vec<Stmt>>();
+                let sts = vec![statements.as_slice(), stmts].concat();
+                gen_cfg(sts.as_slice())
             };
-            let statements = vec![cons.as_slice(), stmts].concat();
+            let statements = cons
+                .iter()
+                .map(|(_, stmt, _)| stmt.clone())
+                .collect::<Vec<Stmt>>();
+            let sts = vec![statements.as_slice(), stmts].concat();
             CFG::Branch(
                 false,
-                Box::new(gen_cfg(statements.as_slice())),
+                Box::new(gen_cfg(sts.as_slice())),
                 Box::new(cfg_alt),
             )
         }
         Stmt::While(_, block) | Stmt::For(_, _, block) => {
-            let statements = vec![block.as_slice(), stmts].concat();
-            CFG::Seq(false, Box::new(gen_cfg(statements.as_slice())))
+            let statements = block
+                .iter()
+                .map(|(_, stmt, _)| stmt.clone())
+                .collect::<Vec<Stmt>>()
+                .clone();
+            let sts = vec![statements.as_slice(), stmts].concat();
+            CFG::Seq(false, Box::new(gen_cfg(sts.as_slice())))
         }
         _ => CFG::Seq(false, Box::new(gen_cfg(stmts))),
     }
@@ -733,7 +851,7 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
-pub fn check_program(program: &mut Program) -> Result<FuncEnv, Error> {
+pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
     let mut func_env: FuncEnv = HashMap::new();
     for func in &program.funcs {
         let args_ty = func
@@ -756,28 +874,38 @@ pub fn check_program(program: &mut Program) -> Result<FuncEnv, Error> {
                 .insert(arg.name.clone(), arg.ty.clone());
         }
         for stmt in func.body.iter_mut() {
-            checker.check_stmt(stmt)?
+            checker.check_stmt(stmt)?;
         }
         if func.retty != Type::Void {
-            let cfg = gen_cfg(func.body.as_slice());
+            let cfg = gen_cfg(
+                func.body
+                    .iter()
+                    .map(|(_, stmt, _)| stmt.clone())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            );
             // println!("{:?}", func.name);
             // println!("{:?}", cfg);
             if !validate_cfg(&cfg) {
-                return Err(Error::NoReturn);
+                return Err((
+                    func.body[func.body.len() - 1].0,
+                    Error::NoReturn(func.name.clone()),
+                    func.body[func.body.len() - 1].2,
+                ));
             }
         }
     }
 
     let mainfn = func_env.get("main");
     if mainfn.is_none() {
-        return Err(Error::NoMain);
+        return Err((0, Error::NoMain, 0));
     }
     let mainfn = mainfn.unwrap();
     if mainfn.0.len() != 0 {
-        return Err(Error::MainArgs);
+        return Err((0, Error::MainArgs, 0));
     }
     if mainfn.1 != Type::Void {
-        return Err(Error::MainNotVoid);
+        return Err((0, Error::MainNotVoid, 0));
     }
     Ok(func_env)
 }

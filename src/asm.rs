@@ -681,8 +681,8 @@ impl Asm {
                 self.push(var.clone());
             }
             Expr::Arith { op, left, right, ty } => {
-                self.compile_expr(left);
-                self.compile_expr(right);
+                self.compile_expr(&(*left).1);
+                self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let func = match op.clone() {
                     ArithOp::Add => "add",
@@ -800,8 +800,8 @@ impl Asm {
                 }
             }
             Expr::BoolOp { op, left, right, ty }=> {
-                self.compile_expr(left);
-                self.compile_expr(right);
+                self.compile_expr(&(*left).1);
+                self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let func = match op.clone() {
                     BoolOp::And => "and",
@@ -841,8 +841,8 @@ impl Asm {
                 }
             }
             Expr::CmpOp { op, left, right, ty } => {
-                self.compile_expr(left);
-                self.compile_expr(right);
+                self.compile_expr(&(*left).1);
+                self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let res = self.get_result_mem(Type::Bool);
                 if a.ty == Type::Int && b.ty == Type::Int {
@@ -923,7 +923,7 @@ impl Asm {
                 if name == "print" {
                     // call respective print for each value
                     for arg in args {
-                        self.compile_expr(arg);
+                        self.compile_expr(&(*arg).1);
                         let v = self.pop();
                         if v.ty == Type::Int {
                             self.emit_call("iprint", &[v], Type::Void, &[Type::Int]);
@@ -948,7 +948,7 @@ impl Asm {
                         println!("len takes exactly 1 argument");
                         std::process::exit(1);
                     }
-                    self.compile_expr(&args[0]);
+                    self.compile_expr(&args[0].1);
                     let v = self.pop();
                     if let Type::List(_) = v.ty {
                     } else {
@@ -965,14 +965,14 @@ impl Asm {
                         println!("append takes exactly 2 argument");
                         std::process::exit(1);
                     }
-                    self.compile_expr(&args[0]);
+                    self.compile_expr(&args[0].1);
                     let list = self.peek(0);
                     // void list_append(uint64_t list, void *val)
                     if let Type::List(_) = list.ty {
                     } else {
                         self.tyerr(list.ty, &[Type::List(Box::new(Type::Int))]);
                     }
-                    self.compile_expr(&args[1]);
+                    self.compile_expr(&args[1].1);
                     let val = self.peek(0);
                     let valty = val.ty.clone();
                     let arg1_reg = self.get_arg_mem(0);
@@ -988,7 +988,7 @@ impl Asm {
                     let args = args
                         .iter()
                         .map(|arg| {
-                            self.compile_expr(arg);
+                            self.compile_expr(&(*arg).1);
                             self.peek(0)
                         })
                         .collect::<Vec<_>>();
@@ -1002,9 +1002,9 @@ impl Asm {
                 }
             }
             Expr::Assign { left, right } => {
-                match *left.clone() {
+                match left.1.clone() {
                     Expr::Variable { name, ty } => {
-                        self.compile_expr(right);
+                        self.compile_expr(&(*right).1);
                         let v = self.pop();
                         let var = self.vars.get(&name).unwrap().clone();
                         let mem = var.mem;
@@ -1020,11 +1020,11 @@ impl Asm {
                         self.push(Value::new(mem.clone(), v.ty));
                     }
                     Expr::Subscr { expr, index, ty } => {
-                        self.compile_expr(&expr);
+                        self.compile_expr(&(*expr).1);
                         let v = self.peek(0);
-                        self.compile_expr(&index);
+                        self.compile_expr(&(*index).1);
                         let idx = self.peek(0);
-                        let name_str = if let Expr::Variable { name, ty } = *expr.clone() {
+                        let name_str = if let Expr::Variable { name, ty } = expr.1.clone() {
                             name
                         } else {
                             panic!("invalid lhs in assign")
@@ -1064,7 +1064,7 @@ impl Asm {
 
                 let lenreg = match expr {
                     Some(ex) => {
-                        self.compile_expr(ex);
+                        self.compile_expr(&(*ex).1);
                         let v = self.peek(0);
                         let reg = self.unused_reg();
                         let temp = Mem::R64(reg);
@@ -1095,9 +1095,9 @@ impl Asm {
                 }
             }
             Expr::Subscr { expr, index, ty } => {
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 let v = self.pop();
-                self.compile_expr(index);
+                self.compile_expr(&(*index).1);
                 let idx = self.pop();
                 let vty = v.clone().ty;
                 let idxty = idx.clone().ty;
@@ -1131,11 +1131,11 @@ impl Asm {
     fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Expr(expr) => {
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 self.free_all_regs();
             }
             Stmt::Decl(name, expr) => {
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 let v = self.pop();
                 let m = Mem::Stack(self.var_offset);
                 self.write_mem(&m, &v.clone());
@@ -1146,14 +1146,14 @@ impl Asm {
             Stmt::IfElse(expr, stmts, else_stmts) => {
                 let label_else = self.rand_label();
                 let label_end = self.rand_label();
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 let v = self.pop();
                 self.append(&format!("cmp {}, 0", v.mem), 1);
                 if !else_stmts.is_none() {
                     self.append(&format!("je {}", label_else), 1);
                 }
                 for stmt in stmts {
-                    self.compile_stmt(stmt);
+                    self.compile_stmt(&(*stmt).1);
                 }
                 if !else_stmts.is_none() {
                     self.append(&format!("jmp {}", label_end), 1);
@@ -1161,7 +1161,7 @@ impl Asm {
                 }
                 for els in else_stmts {
                     for stmt in els {
-                        self.compile_stmt(stmt);
+                        self.compile_stmt(&(*stmt).1);
                     }
                 }
                 self.append(&format!("{}:", label_end), 0);
@@ -1170,19 +1170,19 @@ impl Asm {
                 let label_start = self.rand_label();
                 let label_end = self.rand_label();
                 self.append(&format!("{}:", label_start.clone()), 0);
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 let v = self.pop();
                 self.append(&format!("cmp {}, 0", v.mem), 1);
                 self.append(&format!("je {}", label_end.clone()), 1);
                 self.loops.push((label_start.clone(), label_end.clone()));
                 for stmt in stmts {
-                    self.compile_stmt(stmt);
+                    self.compile_stmt(&(*stmt).1);
                 }
                 self.append(&format!("jmp {}", label_start), 1);
                 self.append(&format!("{}:", label_end), 0);
             }
             Stmt::Return(expr) => {
-                self.compile_expr(expr);
+                self.compile_expr(&(*expr).1);
                 let v = self.pop();
                 self.emit_mov(&Mem::Stack(self.return_stack_space), &v.mem);
                 self.append(&format!("jmp {}", self.return_label), 1);
@@ -1242,7 +1242,7 @@ impl Asm {
         );
 
         for stmt in &func.body {
-            self.compile_stmt(stmt);
+            self.compile_stmt(&(*stmt).1);
         }
         self.append(&format!("{}:", self.return_label), 0);
         self.code

@@ -219,10 +219,19 @@ int print_opcode(uint8_t *code, int i) {
 }
 
 void dissassemble(uint8_t *code, int length) {
-    int start_ = read_u32(code, 0);
+    int i = 0;
+    int filename_length = read_u32(code, i);
+    i += 4;
+    char *filename = read_string(code, i, filename_length);
+    printf("filename: %s\n", filename);
+    i += filename_length;
+    printf("i: %d\n", i);
+    int start_ = read_u32(code, i);
+    printf("start: %d\n", start_);
+    i += 4;
     puts("strings:");
-    int i = 4;
     int strings_count = read_u32(code, i);
+    printf("string count: %d\n", strings_count);
     i += 4;
     while (strings_count-- && i < length) {
         uint32_t len = read_u32(code, i);

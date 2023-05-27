@@ -59,56 +59,56 @@ pub enum Expr {
         ty: Option<Type>,
     },
     Neg {
-        expr: Box<Expr>,
+        expr: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     Not {
-        expr: Box<Expr>,
+        expr: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     Range {
-        start: Box<Expr>,
-        end: Box<Expr>,
+        start: Box<Spanned<Expr>>,
+        end: Box<Spanned<Expr>>,
         inclusive: bool,
     },
     Arith {
         op: ArithOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Spanned<Expr>>,
+        right: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     BoolOp {
         op: BoolOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Spanned<Expr>>,
+        right: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     CmpOp {
         op: CmpOp,
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Spanned<Expr>>,
+        right: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     Call {
         name: String,
-        args: Vec<Expr>,
+        args: Vec<Spanned<Expr>>,
         ty: Option<Type>,
     },
     Subscr {
-        expr: Box<Expr>,
-        index: Box<Expr>,
+        expr: Box<Spanned<Expr>>,
+        index: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
     Assign {
-        left: Box<Expr>,
-        right: Box<Expr>,
+        left: Box<Spanned<Expr>>,
+        right: Box<Spanned<Expr>>,
     },
     Make {
         ty: Type,
-        expr: Option<Box<Expr>>,
+        expr: Option<Box<Spanned<Expr>>>,
     },
     Tuple {
-        exprs: Vec<Expr>,
+        exprs: Vec<Spanned<Expr>>,
         ty: Option<Type>,
     },
     ChanRead {
@@ -116,7 +116,7 @@ pub enum Expr {
         ty: Option<Type>,
     },
     List {
-        exprs: Vec<Expr>,
+        exprs: Vec<Spanned<Expr>>,
         ty: Option<Type>,
     },
 }
@@ -145,18 +145,24 @@ impl Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
-    Expr(Box<Expr>),
-    Decl(String, Box<Expr>),
-    For(String, Box<Expr>, Vec<Stmt>),
-    While(Box<Expr>, Vec<Stmt>),
-    IfElse(Box<Expr>, Vec<Stmt>, Option<Vec<Stmt>>),
-    Return(Box<Expr>),
-    Coroutine(Expr),
-    ChanWrite(String, Box<Expr>),
+    Expr(Box<Spanned<Expr>>),
+    Decl(String, Box<Spanned<Expr>>),
+    For(String, Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
+    While(Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
+    IfElse(
+        Box<Spanned<Expr>>,
+        Vec<Spanned<Stmt>>,
+        Option<Vec<Spanned<Stmt>>>,
+    ),
+    Return(Box<Spanned<Expr>>),
+    Coroutine(Spanned<Expr>),
+    ChanWrite(String, Box<Spanned<Expr>>),
     Continue,
     Comment,
     Break,
 }
+
+pub type Spanned<T> = (usize, T, usize);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
@@ -168,7 +174,7 @@ pub struct Param {
 pub struct Func {
     pub name: String,
     pub args: Vec<Param>,
-    pub body: Vec<Stmt>,
+    pub body: Vec<Spanned<Stmt>>,
     pub retty: Type,
 }
 
