@@ -1,12 +1,12 @@
 fun forin(start: int, end: int) {
     for i in start..end {
-        print(i)
+        print(i, "\n")
     }
 }
 
 fun forininc(start: int, end: int) {
     for i in start..=end {
-        print(i)
+        print(i, "\n")
     }
 }
 
@@ -15,7 +15,7 @@ fun contnue() {
         if i % 2 == 0 {
             continue
         }
-        print(i)
+        print(i, "\n")
     }
 }
 
@@ -24,7 +24,7 @@ fun brek() {
         if i == 5 {
             break
         }
-        print(i)
+        print(i, "\n")
     }
 }
 

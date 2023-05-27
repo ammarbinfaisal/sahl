@@ -5,7 +5,7 @@ fun fn(i: int) -> (int, int) {
 fun main() {
     let i = 0
     while i < 10000 {
-        print(fn(i))
+        print(fn(i), "\n")
         i = i + 1
     }
 }

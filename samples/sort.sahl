@@ -64,5 +64,5 @@ fun main() {
         i = i + 1
     }
     sort(arr, 0, 100000 - 1)
-    print(arr)
+    print(arr, "\n")
 }

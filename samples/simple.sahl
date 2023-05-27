@@ -5,9 +5,9 @@ fun main() {
     let d = 4000
     a = a + b
     b = b + c
-    print(a)
-    print(b)
-    print(c)
-    print(d)
-    print(a + b + c + d + 9000 + 7000 + 8000)
+    print(a, "\n")
+    print(b, "\n")
+    print(c, "\n")
+    print(d, "\n")
+    print(a + b + c + d + 9000 + 7000 + 8000, "\n")
 }

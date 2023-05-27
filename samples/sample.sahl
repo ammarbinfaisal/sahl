@@ -46,12 +46,12 @@ fun main() {
         append(list, i)
         i = i + 1
     }
-    print(list)
+    print(list, "\n")
     for n in list {
-        print(n)
+        print(n, "\n")
     }
-    print(getEvenNumbers(list))
-    print(fizzBuzz(list))
-    print(factorial(5))
-    print(fibonacci(5))
+    print(getEvenNumbers(list), "\n")
+    print(fizzBuzz(list), "\n")
+    print(factorial(5), "\n")
+    print(fibonacci(5), "\n")
 }

@@ -1,0 +1,15 @@
+fun int_list_2_map(list: [int]) {
+    let m = make(map<int, int>)
+    let i = 0
+    let l = len(list)
+    while i < l {
+        m[list[i]] = i
+        i = i + 1
+    }
+    print(m, "\n")
+}
+
+fun main() {
+    let list = [1, 2, 3, 4, 5,]
+    int_list_2_map(list)
+}

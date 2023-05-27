@@ -7,5 +7,5 @@ fun main() {
     let a_gt_b = a > b
     let a_le_b = a <= b
     let a_ge_b = a >= b
-    print(a_eq_b || a_ne_b && a_lt_b || a_gt_b && a_le_b || a_ge_b)
+    print(a_eq_b || a_ne_b && a_lt_b || a_gt_b && a_le_b || a_ge_b, "\n")
 }

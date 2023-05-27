@@ -6,5 +6,5 @@ fun fib(n: int) -> int {
 }
 
 fun main() {
-    print(fib(20))
+    print(fib(20), "\n")
 }

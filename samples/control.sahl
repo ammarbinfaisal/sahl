@@ -3,7 +3,7 @@ fun brk(i: int, j: int) {
         if i % 5 == 0 {
             break
         }
-        print(i)
+        print(i, "\n")
         i = i + 1
     }
 }
@@ -14,7 +14,7 @@ fun contn(i: int, j: int) {
             i = i + 1
             continue
         }
-        print(i)
+        print(i, "\n")
         i = i + 1
     }
 }
@@ -24,7 +24,7 @@ fun brkfor(list: [int]) {
         if i % 5 == 0 {
             break
         }
-        print(i)
+        print(i, "\n")
     }
 }
 
@@ -33,7 +33,7 @@ fun contnfor(list: [int]) {
         if i % 5 == 0 {
             continue
         }
-        print(i)
+        print(i, "\n")
     }
 }
 

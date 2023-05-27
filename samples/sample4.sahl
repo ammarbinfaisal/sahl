@@ -5,11 +5,11 @@ fun main() {
         append(list, i)
         i = i + 1
     }
-    print(list)
+    print(list, "\n")
 
     let fizzBuzzList = make([string])
     for number in list {
-        print(number)
+        print(number, "\n")
         if number % 3 == 0 && number % 5 == 0 {
             append(fizzBuzzList, "FizzBuzz")
         } else if number % 3 == 0 {
@@ -18,5 +18,5 @@ fun main() {
             append(fizzBuzzList, "Buzz")
         }
     }
-    print(fizzBuzzList)
+    print(fizzBuzzList, "\n")
 }
