@@ -476,7 +476,7 @@ impl<'a> Checker<'a> {
             Expr::Make(ty, ex) => {
                 let exty = if let Some(ex) = ex {
                     let exty = self.check_expr(ex)?;
-                    if exty.0 == (ty).clone() {
+                    if exty.0 == Type::Int {
                         Some(Box::new(exty))
                     } else {
                         return Err(Error::TypeMismatch(vec![(ty).clone()], vec![exty.0]));
