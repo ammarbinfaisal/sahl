@@ -432,6 +432,7 @@ void handle_make_list(VM *vm) {
     Value def = pop(vm);
     uint64_t len = AS_INT(pop(vm));
     Obj *obj = new_obj(vm, OBJ_LIST);
+    obj->list.length = 0; // premptive GC prevention
     push(vm, OBJ_VAL(obj)); // premptive GC prevention
     size_t cap = GROW_CAPACITY(len);
     obj->list.items = allocate(vm, sizeof(Value) * cap);
