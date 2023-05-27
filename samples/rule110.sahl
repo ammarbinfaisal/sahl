@@ -20,7 +20,6 @@ fun applyRule110(left: int, middle: int, right: int) -> int {
 }
 
 fun rule110(input: [int]) -> [int] {
-    //Create initial list with 0 padding on either side
     let currentList = make([int])
     append(currentList, 0)
     for number in input {
@@ -28,15 +27,15 @@ fun rule110(input: [int]) -> [int] {
     }
     append(currentList, 0)
 
-    //Define Rule 110 logic
-    //Apply rule 110 to each element in currentList and generate nextList
     let nextList = make([int])
     let length = len(currentList) - 1
-    for i in 1..length {
+    let i = 1
+    while i < length {
         let left = currentList[i - 1]
         let middle = currentList[i]
         let right = currentList[i + 1]
         append(nextList, applyRule110(left, middle, right))
+        i = i + 1
     }
 
     return nextList

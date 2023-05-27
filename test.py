@@ -20,11 +20,11 @@ files_all_checks = [
     "store",
     "tuple",
     "while",
+    "rule110",
 ]
 files_retcode_check = [
     "chan",
     "neuralnet",
-    "rule110",
     "coroutine",
 ]
 
@@ -85,7 +85,8 @@ if __name__ == "__main__":
         run_file_byte(file, only_rc_check=True)
         run_file_aot(file, only_rc_check=True)
     result = f"{passing}/{total}"
-    print(f"{result} tests passed")
+    print(f"{result} bytecode tests passed")
+    print(f"{passing_aot}/{total} aot tests passed")
     if not "GITHUB_ENV" in environ:
         exit(0)
     with open(environ["GITHUB_ENV"], "w") as f:
