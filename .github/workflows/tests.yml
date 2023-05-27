@@ -26,7 +26,7 @@ jobs:
         gistID: 2bc57fe31c6d742b25defe3549e78433
         auth: ${{ secrets.GHSECRET }}
         filename: tests.json
-        label: Passing
+        label: bytecode
         message: ${{ env.TEST_RESULT }}
         valColorRange: ${{ env.COLOR }}
         maxColorRange: 100
@@ -37,7 +37,7 @@ jobs:
         gistID: 2bc57fe31c6d742b25defe3549e78433
         auth: ${{ secrets.GHSECRET }}
         filename: aot.json
-        label: Passing
+        label: executable
         message: ${{ env.AOT_TEST_RESULT }}
         valColorRange: ${{ env.AOT_COLOR }}
         maxColorRange: 100
