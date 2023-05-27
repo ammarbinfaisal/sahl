@@ -197,13 +197,16 @@ int print_opcode(uint8_t *code, int i) {
         printf("SConcat\n");
         break;
     case I2F:
-        printf("I2F\n");
+        printf("I2F %d\n", read_u32(code, i + 1));
+        i += 5;
         break;
     case I2S:
-        printf("I2S\n");
+        printf("I2F %d\n", read_u32(code, i + 1));
+        i += 5;
         break;
     case F2S:
-        printf("F2S\n");
+        printf("I2F %d\n", read_u32(code, i + 1));
+        i += 5;
         break;
     case FMOD:
         printf("FMod\n");
