@@ -62,7 +62,10 @@ def run_file_byte(file, only_rc_check=False):
 def run_file_aot(file, only_rc_check=False):
     print(f"compiling {file} to x86_64")
     p = Popen(["./run_aot.sh", f"samples/{file}.sahl"], stdout=PIPE, stderr=PIPE)
-    p.wait()
+    rc = p.wait()
+    if rc != 0:
+        print(f"couldn't compile {file}")
+        return
     p = Popen(["./exe"], stdout=PIPE, stderr=PIPE)
     output, err = p.communicate(b"")
     rc = p.returncode
