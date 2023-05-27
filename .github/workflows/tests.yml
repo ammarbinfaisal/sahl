@@ -27,6 +27,7 @@ jobs:
     - name: Badge
       uses: schneegans/dynamic-badges-action@v1.6.0
       with:
+        gistID: 2bc57fe31c6d742b25defe3549e78433
         auth: ${{ secrets.GHSECRET }}
         filename: tests.json
         label: Passing
