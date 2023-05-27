@@ -484,10 +484,6 @@ impl Asm {
         header.push("extern list_set_all".to_string());
         header.push("extern list_len".to_string());
 
-        // runtime
-        header.push("extern register_call_frame".to_string());
-        header.push("extern unregister_call_frame".to_string());
-
         return header;
     }
 
@@ -1230,24 +1226,12 @@ impl Asm {
             self.var_offset += 8;
         }
 
-        let rbp_rsp = [
-            Value::new(Mem::R64(Reg64::Rbp), Type::Int),
-            Value::new(Mem::R64(Reg64::Rsp), Type::Int),
-        ];
-        self.emit_call(
-            "register_call_frame",
-            &rbp_rsp,
-            Type::Void,
-            &[Type::Int, Type::Int],
-        );
-
         for stmt in &func.body {
             self.compile_stmt(&(*stmt).1);
         }
         self.append(&format!("{}:", self.return_label), 0);
         self.code
             .insert(stack_init_idx, format!("    sub rsp, {}", self.var_offset));
-        self.emit_call("unregister_call_frame", &[], Type::Void, &[]);
         self.emit_mov(&Mem::R64(Reg64::Rax), &Mem::Stack(self.return_stack_space));
         if func.name == "main" {
             self.append("mov rax, 60", 1);
