@@ -66,4 +66,5 @@ if __name__ == "__main__":
     result = f"{passing}/{total}"
     print(f"{result} tests passed")
     with open(environ["GITHUB_ENV"], "w") as f:
-        f.write(f"TEST_RESULT={result}")
+        f.write(f"TEST_RESULT={result}\n")
+        f.write(f"COLOR={int((passing / total) * 100)}\n")
