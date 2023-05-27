@@ -103,9 +103,9 @@ fun summat(m : [[double]]) -> double {
 }
 
 fun matmul(m1 : [[double]], m2 : [[double]]) -> [[double]] {
-    # m1 x m2
-    # m1: r x c
-    # m2: c x r2
+    //m1 x m2
+    //m1: r x c
+    //m2: c x r2
     let r = len(m1)
     let c = len(m1[0])
     let c2 = len(m2)
@@ -113,21 +113,21 @@ fun matmul(m1 : [[double]], m2 : [[double]]) -> [[double]] {
     if c != c2 {
         print("error: matmul \t size: ", r, " x ", c, " with ", c2, " x ", r2, "\n")
         exit(1)
-        return make([[double]]) # to make the semantic check pass
+        return make([[double]]) //to make the semantic check pass
     }
     let m = make([[double]])
     let i = 0
     while i < r {
         let j = 0
         let row = make([double])
-        # print("making row ", i, " of ", r, "\n")
+        //print("making row ", i, " of ", r, "\n")
         while j < r2 {
-            # print("j = ", j, " of ", r2, "\n")
+            //print("j = ", j, " of ", r2, "\n")
             let k = 0
             let s = 0.0
             while k < c2 {
-                # print("m1[", i, "][", k, "] = ", m1[i][k], "\n")
-                # print("m2[", k, "][", j, "] = ", m2[k][j], "\n")
+                //print("m1[", i, "][", k, "] = ", m1[i][k], "\n")
+                //print("m2[", k, "][", j, "] = ", m2[k][j], "\n")
                 s = s + m1[i][k] * m2[k][j]
                 k = k + 1
             }
@@ -190,7 +190,7 @@ fun main() {
     let hidden_size = 36
     let output_size = 1
 
-    # parameters
+    //parameters
     let w1 = randmat(hidden_size, input_size)
     let w2 = randmat(output_size, hidden_size)
 
@@ -199,7 +199,7 @@ fun main() {
     
     let lr = 0.05
 
-    # training xor
+    //training xor
     let _x = [[0., 0.,], [0., 1.,], [1., 0.,], [1., 1.,],]
     let x = transpose(_x)
     let y = [[0., 1., 1., 0.,], ]
@@ -208,11 +208,11 @@ fun main() {
 
     let i = 0
     while i < 10000 {
-        # forward
+        //forward
         let h = relu(matmul(w1, x))
         let h2 = sigmoid(matmul(w2, h))
 
-        # loss
+        //loss
         let loss = summat(powmat(submat(h2, y), 2.0))
         if i % 1000 == 0 {
             print("i: ", i, "\n")
@@ -220,16 +220,16 @@ fun main() {
             print("preds: ", h2, "\n")
         }
 
-        # backward
+        //backward
         let grad_h2 = submat(h2, y)
-        # print("grad_h2", grad_h2, "\n")
+        //print("grad_h2", grad_h2, "\n")
         let grad_w2 = matmul(grad_h2, transpose(h))
-        # print("grad_w2", grad_w2, "\n")
+        //print("grad_w2", grad_w2, "\n")
         let grad_h = matmul(transpose(w2), grad_h2)
-        # print("grad_h", grad_h, "\n")
+        //print("grad_h", grad_h, "\n")
         let grad_w1 = matmul(grad_h, transpose(x))
 
-        # update
+        //update
         w1 = submat(w1, matmulc(grad_w1, lr))
         w2 = submat(w2, matmulc(grad_w2, lr))
 

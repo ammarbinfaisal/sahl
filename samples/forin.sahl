@@ -29,9 +29,6 @@ fun brek() {
 }
 
 fun main() {
-    # contnue()
-    # brek()
     forin(1, 100000)
     forin(100000, 1)
-    # forininc(1, 1000)
 }
