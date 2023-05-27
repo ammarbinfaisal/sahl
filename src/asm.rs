@@ -5,7 +5,6 @@ use rand::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::process::exit;
 
 const DEBUG: bool = true;
 
@@ -630,9 +629,9 @@ impl Asm {
             println!("compile_expr: {:?}", expr);
         }
         match expr {
-            Expr::Literal(l) => {
+            Expr::Literal { lit, ty }=> {
                 let reg = self.unused_reg();
-                match l {
+                match lit {
                     Lit::Int(i) => {
                         self.append(&format!("mov {}, {}", reg, i), 1);
                         let v = Value {
@@ -677,13 +676,13 @@ impl Asm {
                     _ => unimplemented!("this literal is not implemented yet"),
                 }
             }
-            Expr::Variable(v) => {
-                let var = self.vars.get(v).unwrap();
+            Expr::Variable { name, ty }=> {
+                let var = self.vars.get(name).unwrap();
                 self.push(var.clone());
             }
-            Expr::Arith(op, e1, e2) => {
-                self.compile_expr(e1);
-                self.compile_expr(e2);
+            Expr::Arith { op, left, right, ty } => {
+                self.compile_expr(left);
+                self.compile_expr(right);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let func = match op.clone() {
                     ArithOp::Add => "add",
@@ -800,9 +799,9 @@ impl Asm {
                     }
                 }
             }
-            Expr::BoolOp(op, e1, e2) => {
-                self.compile_expr(e1);
-                self.compile_expr(e2);
+            Expr::BoolOp { op, left, right, ty }=> {
+                self.compile_expr(left);
+                self.compile_expr(right);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let func = match op.clone() {
                     BoolOp::And => "and",
@@ -841,9 +840,9 @@ impl Asm {
                     self.tyerr(a.ty, &[b.ty]);
                 }
             }
-            Expr::CmpOp(op, e1, e2) => {
-                self.compile_expr(e1);
-                self.compile_expr(e2);
+            Expr::CmpOp { op, left, right, ty } => {
+                self.compile_expr(left);
+                self.compile_expr(right);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let res = self.get_result_mem(Type::Bool);
                 if a.ty == Type::Int && b.ty == Type::Int {
@@ -920,7 +919,7 @@ impl Asm {
                     ty: Type::Bool,
                 });
             }
-            Expr::Call(name, args) => {
+            Expr::Call { name, args, ty } => {
                 if name == "print" {
                     // call respective print for each value
                     for arg in args {
@@ -1002,10 +1001,10 @@ impl Asm {
                     self.emit_call(name, &args, retty.clone(), argstys.as_slice());
                 }
             }
-            Expr::Assign(lhs, rhs) => {
-                match *lhs.clone() {
-                    Expr::Variable(name) => {
-                        self.compile_expr(rhs);
+            Expr::Assign { left, right } => {
+                match *left.clone() {
+                    Expr::Variable { name, ty } => {
+                        self.compile_expr(right);
                         let v = self.pop();
                         let var = self.vars.get(&name).unwrap().clone();
                         let mem = var.mem;
@@ -1020,12 +1019,12 @@ impl Asm {
                         }
                         self.push(Value::new(mem.clone(), v.ty));
                     }
-                    Expr::Subscr(name, idx) => {
-                        self.compile_expr(rhs);
+                    Expr::Subscr { expr, index, ty } => {
+                        self.compile_expr(&expr);
                         let v = self.peek(0);
-                        self.compile_expr(&idx);
+                        self.compile_expr(&index);
                         let idx = self.peek(0);
-                        let name_str = if let Expr::Variable(name) = *name.clone() {
+                        let name_str = if let Expr::Variable { name, ty } = *expr.clone() {
                             name
                         } else {
                             panic!("invalid lhs in assign")
@@ -1045,7 +1044,7 @@ impl Asm {
                     }
                 }
             }
-            Expr::Make(ty, lenex) => {
+            Expr::Make { ty, expr } => {
                 let elemsize = match ty.clone() {
                     Type::List(t) | Type::Chan(t) => match *t {
                         Type::Bool => 1,
@@ -1063,7 +1062,7 @@ impl Asm {
                     }
                 };
 
-                let lenreg = match lenex {
+                let lenreg = match expr {
                     Some(ex) => {
                         self.compile_expr(ex);
                         let v = self.peek(0);
@@ -1095,8 +1094,8 @@ impl Asm {
                     }
                 }
             }
-            Expr::Subscr(name, index) => {
-                self.compile_expr(name);
+            Expr::Subscr { expr, index, ty } => {
+                self.compile_expr(expr);
                 let v = self.pop();
                 self.compile_expr(index);
                 let idx = self.pop();

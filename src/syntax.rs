@@ -50,43 +50,98 @@ pub enum CmpOp {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Literal(Lit),
-    Variable(String),
-    Neg(Box<Expr>),
-    Not(Box<Expr>),
-    Range(Box<Expr>, Box<Expr>, bool),
-    Arith(ArithOp, Box<Expr>, Box<Expr>),
-    BoolOp(BoolOp, Box<Expr>, Box<Expr>),
-    CmpOp(CmpOp, Box<Expr>, Box<Expr>),
-    Call(String, Vec<Expr>),
-    Subscr(Box<Expr>, Box<Expr>),
-    Assign(Box<Expr>, Box<Expr>),
-    Make(Type, Option<Box<Expr>>),
-    Tuple(Vec<Expr>),
-    ChanRead(String),
-    List(Vec<Expr>),
+    Literal {
+        lit: Lit,
+        ty: Type,
+    },
+    Variable {
+        name: String,
+        ty: Option<Type>,
+    },
+    Neg {
+        expr: Box<Expr>,
+        ty: Option<Type>,
+    },
+    Not {
+        expr: Box<Expr>,
+        ty: Option<Type>,
+    },
+    Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+        inclusive: bool,
+    },
+    Arith {
+        op: ArithOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+        ty: Option<Type>,
+    },
+    BoolOp {
+        op: BoolOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+        ty: Option<Type>,
+    },
+    CmpOp {
+        op: CmpOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+        ty: Option<Type>,
+    },
+    Call {
+        name: String,
+        args: Vec<Expr>,
+        ty: Option<Type>,
+    },
+    Subscr {
+        expr: Box<Expr>,
+        index: Box<Expr>,
+        ty: Option<Type>,
+    },
+    Assign {
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Make {
+        ty: Type,
+        expr: Option<Box<Expr>>,
+    },
+    Tuple {
+        exprs: Vec<Expr>,
+        ty: Option<Type>,
+    },
+    ChanRead {
+        name: String,
+        ty: Option<Type>,
+    },
+    List {
+        exprs: Vec<Expr>,
+        ty: Option<Type>,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum TyExpr {
-    Literal(Lit),
-    Variable(String),
-    Neg(Box<TypedExpr>),
-    Not(Box<TypedExpr>),
-    Range(Box<TypedExpr>, Box<TypedExpr>, bool),
-    Arith(ArithOp, Box<TypedExpr>, Box<TypedExpr>),
-    BoolOp(BoolOp, Box<TypedExpr>, Box<TypedExpr>),
-    CmpOp(CmpOp, Box<TypedExpr>, Box<TypedExpr>),
-    Call(String, Vec<TypedExpr>),
-    Subscr(Box<TypedExpr>, Box<TypedExpr>),
-    Assign(Box<TypedExpr>, Box<TypedExpr>),
-    Make(Type, Option<Box<TypedExpr>>),
-    Tuple(Vec<TypedExpr>),
-    List(Vec<TypedExpr>),
-    ChanRead(String),
+impl Expr {
+    pub fn get_type(&self) -> Type {
+        match self {
+            Expr::Literal { ty, .. } => ty.clone(),
+            Expr::Variable { ty, .. } => ty.clone().unwrap(),
+            Expr::Neg { ty, .. } => ty.clone().unwrap(),
+            Expr::Not { ty, .. } => ty.clone().unwrap(),
+            Expr::Range { .. } => Type::Range,
+            Expr::Arith { ty, .. } => ty.clone().unwrap(),
+            Expr::BoolOp { ty, .. } => ty.clone().unwrap(),
+            Expr::CmpOp { ty, .. } => ty.clone().unwrap(),
+            Expr::Call { ty, .. } => ty.clone().unwrap(),
+            Expr::Subscr { ty, .. } => ty.clone().unwrap(),
+            Expr::Assign { .. } => Type::Void,
+            Expr::Make { ty, .. } => ty.clone(),
+            Expr::Tuple { ty, .. } => ty.clone().unwrap(),
+            Expr::ChanRead { ty, .. } => ty.clone().unwrap(),
+            Expr::List { ty, .. } => ty.clone().unwrap(),
+        }
+    }
 }
-
-pub type TypedExpr = (Type, TyExpr);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
@@ -98,21 +153,6 @@ pub enum Stmt {
     Return(Box<Expr>),
     Coroutine(Expr),
     ChanWrite(String, Box<Expr>),
-    Continue,
-    Comment,
-    Break,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TyStmt {
-    Expr(Box<TypedExpr>),
-    Decl(String, Box<TypedExpr>),
-    For(String, Box<TypedExpr>, Vec<TyStmt>),
-    While(Box<TypedExpr>, Vec<TyStmt>),
-    IfElse(Box<TypedExpr>, Vec<TyStmt>, Option<Vec<TyStmt>>),
-    Return(Box<TypedExpr>),
-    Coroutine(TypedExpr),
-    ChanWrite(String, Box<TypedExpr>),
     Continue,
     Comment,
     Break,
@@ -133,19 +173,6 @@ pub struct Func {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TyFunc {
-    pub name: String,
-    pub args: Vec<Param>,
-    pub body: Vec<TyStmt>,
-    pub retty: Type,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub funcs: Vec<Func>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TyProgram {
-    pub funcs: Vec<TyFunc>,
 }

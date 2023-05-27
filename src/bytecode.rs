@@ -221,29 +221,29 @@ impl Bytecode {
         }
     }
 
-    fn float_check(&mut self, ex1: &TypedExpr, ex2: &TypedExpr) -> bool {
+    fn float_check(&mut self, ex1: &Expr, ex2: &Expr) -> bool {
         let mut use_float = false;
-        match ex1.0 {
+        match ex1.get_type() {
             Type::Double => {
                 use_float = true;
-                self.add_u32(I2F, 0); // convert e1 to float
+                self.add_u32(I2F, 0); // convert ex1 to float
             }
             _ => {}
         }
-        match ex2.0 {
+        match ex2.get_type() {
             Type::Double => {
                 use_float = true;
-                self.add_u32(I2F, 1); // convert e2 to float
+                self.add_u32(I2F, 1); // convert ex2 to float
             }
             _ => {}
         }
         use_float
     }
 
-    fn compile_expr(&mut self, expr: &TypedExpr) {
-        let ty = &expr.0;
-        match expr.1.clone() {
-            TyExpr::Literal(lit) => match lit {
+    fn compile_expr(&mut self, expr: &Expr) {
+        let ty = &expr.get_type();
+        match expr.clone() {
+            Expr::Literal { lit, ty } => match lit {
                 Lit::Int(i) => {
                     self.add_u64(CONST_U64, i as u64);
                 }
@@ -267,7 +267,7 @@ impl Bytecode {
                     self.add_u32(STRING, idx as u32);
                 }
             },
-            TyExpr::Variable(name) => {
+            Expr::Variable { name, ty }=> {
                 let local = self.get_local(&name);
                 if local.is_some() {
                     let local = *local.unwrap();
@@ -276,30 +276,30 @@ impl Bytecode {
                     panic!("Unknown variable: {}", name);
                 }
             }
-            TyExpr::Neg(e) => {
-                self.compile_expr(&e);
-                if *ty == Type::Double {
+            Expr::Neg { expr, ty }=> {
+                self.compile_expr(&expr);
+                if ty.unwrap() == Type::Double {
                     self.add_u32(FNEG, 0);
                 } else {
                     self.add_u32(INEG, 0);
                 }
             }
-            TyExpr::Not(e) => {
-                self.compile_expr(&e);
+            Expr::Not { expr, ty } => {
+                self.compile_expr(&expr);
                 self.add(NOT);
             }
-            TyExpr::Arith(op, e1, e2) => {
-                self.compile_expr(&e1);
-                self.compile_expr(&e2);
+            Expr::Arith { op, left: ex1, right: ex2, ty }=> {
+                self.compile_expr(&ex1);
+                self.compile_expr(&ex2);
                 // if one of the operands is a double, use double arithmetic
                 // also use I2F <i> to convert the int to a double...
                 // ... this instruction would not pop the value from the stack but convert it in place
                 // <i> denotes the index of the value on the stack from the top
-                let use_float = self.float_check(&e1, &e2);
+                let use_float = self.float_check(&ex1, &ex2);
                 match op {
                     ArithOp::Add => {
                         let mut s_concat = false;
-                        match e1.0 {
+                        match ex1.get_type() {
                             Type::Str => {
                                 if use_float {
                                     self.add_u32(F2S, 0);
@@ -308,7 +308,7 @@ impl Bytecode {
                             }
                             _ => {}
                         }
-                        match e2.0 {
+                        match ex2.get_type() {
                             Type::Str => {
                                 if use_float {
                                     self.add_u32(F2S, 1);
@@ -359,9 +359,9 @@ impl Bytecode {
                     }
                 }
             }
-            TyExpr::BoolOp(op, e1, e2) => {
-                self.compile_expr(&e1);
-                self.compile_expr(&e2);
+            Expr::BoolOp { op, left: ex1, right: ex2, ty } => {
+                self.compile_expr(&ex1);
+                self.compile_expr(&ex2);
                 match op {
                     BoolOp::And => {
                         self.add(AND);
@@ -371,10 +371,10 @@ impl Bytecode {
                     }
                 }
             }
-            TyExpr::CmpOp(op, e1, e2) => {
-                self.compile_expr(&e1);
-                self.compile_expr(&e2);
-                let use_float = self.float_check(&e1, &e2);
+            Expr::CmpOp { op, left: ex1, right: ex2, ty }=> {
+                self.compile_expr(&ex1);
+                self.compile_expr(&ex2);
+                let use_float = self.float_check(&ex1, &ex2);
                 match op {
                     CmpOp::Eq => {
                         self.add(EQUAL);
@@ -412,7 +412,7 @@ impl Bytecode {
                     }
                 }
             }
-            TyExpr::Call(name, args) => {
+            Expr::Call { name, args, ty } => {
                 for arg in args.iter() {
                     self.compile_expr(&arg);
                 }
@@ -453,15 +453,15 @@ impl Bytecode {
                     self.calls[func_idx].push((call_offset, self.curr_func));
                 }
             }
-            TyExpr::Subscr(e1, e2) => {
-                self.compile_expr(&e1);
-                self.compile_expr(&e2);
+            Expr::Subscr { expr, index, ty } => {
+                self.compile_expr(&expr);
+                self.compile_expr(&index);
                 self.add(LIST_INDEX);
             }
-            TyExpr::Assign(lhs, rhs) => {
+            Expr::Assign { left: lhs, right: rhs } => {
                 self.compile_expr(&rhs);
-                match (*lhs).1 {
-                    TyExpr::Variable(name) => {
+                match *lhs {
+                    Expr::Variable { name, ty } => {
                         let local = self.get_local(&name);
                         if local.is_some() {
                             let local = *local.unwrap();
@@ -470,15 +470,15 @@ impl Bytecode {
                             panic!("Unknown variable: {}", name);
                         }
                     }
-                    TyExpr::Subscr(e1, e2) => {
-                        self.compile_expr(&e1);
-                        self.compile_expr(&e2);
+                    Expr::Subscr { expr, index, ty }=> {
+                        self.compile_expr(&expr);
+                        self.compile_expr(&index);
                         self.add(STORE)
                     }
                     _ => panic!("Invalid assignment"),
                 }
             }
-            TyExpr::Make(ty, size) => {
+            Expr::Make { ty, expr: size } => {
                 if size.is_some() {
                     self.compile_expr(size.as_ref().unwrap());
                 }
@@ -492,7 +492,7 @@ impl Bytecode {
                                     self.add_u64(CONST_U64, 0);
                                 }
                                 Type::Double => {
-                                    self.add_u64(CONST_DOUBLE, (0.0f64).to_bits());
+                                    self.add_u64(CONST_DOUBLE, 0f64.to_bits());
                                 }
                                 Type::Char => {
                                     self.add_u8(CONST_U8, 0);
@@ -522,22 +522,22 @@ impl Bytecode {
                     }
                 }
             }
-            TyExpr::Tuple(exprs) => {
+            Expr::Tuple { exprs, ty } => {
                 for expr in exprs.iter() {
                     self.compile_expr(&expr);
                 }
                 self.add_u32(MAKE_TUPLE, exprs.len() as u32);
             }
-            TyExpr::ChanRead(name) => {
+            Expr::ChanRead { name, ty } => {
                 let local = self.get_local(&name).unwrap();
                 self.add_u32(GET_LOCAL, *local as u32);
                 self.add(CHAN_READ);
             }
-            TyExpr::List(exs) => {
-                for ex in exs.iter() {
+            Expr::List { exprs, ty } => {
+                for ex in exprs.iter() {
                     self.compile_expr(&ex);
                 }
-                self.add_u32(LIST, exs.len() as u32);
+                self.add_u32(LIST, exprs.len() as u32);
             }
             _ => {
                 unimplemented!()
@@ -569,17 +569,17 @@ impl Bytecode {
         self.add_u32(JUMP, start as u32);
     }
 
-    fn compile_stmt(&mut self, stmt: &TyStmt) {
+    fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            TyStmt::Expr(expr) => {
+            Stmt::Expr(expr) => {
                 self.compile_expr(expr);
                 // self.add(POP);
             }
-            TyStmt::Return(expr) => {
+            Stmt::Return(expr) => {
                 self.compile_expr(expr);
                 self.add(RETURN);
             }
-            TyStmt::IfElse(cond, then, otherwise) => {
+            Stmt::IfElse(cond, then, otherwise) => {
                 self.compile_expr(cond);
                 let jump = self.add_u32(JUMP_IF_FALSE, 0);
                 for stmt in then {
@@ -597,7 +597,7 @@ impl Bytecode {
                 // println!("patching jump at {} to {}", jump2, self.code.len());
                 self.patch_u32(jump2, self.code.len() as u32);
             }
-            TyStmt::While(cond, body) => {
+            Stmt::While(cond, body) => {
                 let start = self.code.len();
                 self.compile_expr(cond);
                 let parent = self.loop_state.clone();
@@ -620,13 +620,13 @@ impl Bytecode {
                 }
                 self.loop_state = parent;
             }
-            TyStmt::For(var, expr, body) => {
-                if let TyExpr::Range(start, end, equal) = expr.1.clone() {
+            Stmt::For(var, expr, body) => {
+                if let Expr::Range { start, end, inclusive } = *expr.clone() {
                     self.compile_expr(&start);
                     let start_var = self.add_local("<start>");
                     self.add_u32(DEF_LOCAL, start_var as u32);
                     self.compile_expr(&end);
-                    if equal {
+                    if inclusive {
                         self.add_u64(CONST_U64, 1);
                         self.add(IADD);
                     }
@@ -638,7 +638,7 @@ impl Bytecode {
                     let forw_var = self.add_local("<forw>");
                     self.add_u32(GET_LOCAL, start_var as u32);
                     self.add_u32(GET_LOCAL, end_var as u32);
-                    if equal {
+                    if inclusive {
                         self.add(ILESS);
                     } else {
                         self.add(ILESS_EQUAL);
@@ -670,8 +670,8 @@ impl Bytecode {
                     }
                     self.loop_state = parent;
                 } else {
-                    let arr_var = if let TyExpr::Variable(var) = expr.1.clone() {
-                        *self.get_local(var.as_str()).unwrap()
+                    let arr_var = if let Expr::Variable { name, ty } = *expr.clone() {
+                        *self.get_local(name.as_str()).unwrap()
                     } else {
                         self.compile_expr(expr);
                         let arr = self.add_local("<arr>");
@@ -716,19 +716,19 @@ impl Bytecode {
                     self.loop_state = parent;
                 }
             }
-            TyStmt::Decl(name, expr) => {
+            Stmt::Decl(name, expr) => {
                 let n = self.add_local(name);
                 self.compile_expr(expr);
                 self.add_u32(DEF_LOCAL, n as u32);
             }
-            TyStmt::Break => {
+            Stmt::Break => {
                 if self.loop_state.loop_type == LoopType::None {
                     panic!("Break outside of loop");
                 }
                 let jump = self.add_u32(JUMP, 0);
                 self.loop_state.breaks.push(jump);
             }
-            TyStmt::Continue => {
+            Stmt::Continue => {
                 if self.loop_state.loop_type == LoopType::None {
                     panic!("Continue outside of loop");
                 } else {
@@ -745,14 +745,14 @@ impl Bytecode {
                     }
                 }
             }
-            TyStmt::Comment => {
+            Stmt::Comment => {
                 // do nothing
             }
-            TyStmt::Coroutine(call) => {
+            Stmt::Coroutine(call) => {
                 self.add(SPAWN);
                 self.compile_expr(call);
             }
-            TyStmt::ChanWrite(name, expr) => {
+            Stmt::ChanWrite(name, expr) => {
                 self.compile_expr(expr);
                 let local = *self.get_local(name).unwrap();
                 self.add_u32(GET_LOCAL, local as u32);
@@ -761,7 +761,7 @@ impl Bytecode {
         }
     }
 
-    fn compile_fn(&mut self, args: &[String], body: &[TyStmt]) {
+    fn compile_fn(&mut self, args: &[String], body: &[Stmt]) {
         for arg in args {
             self.add_local(arg);
         }
@@ -770,7 +770,7 @@ impl Bytecode {
         }
     }
 
-    pub fn compile_program(&mut self, program: &TyProgram) {
+    pub fn compile_program(&mut self, program: &Program) {
         let fns = &program.funcs;
         self.calls = (0..fns.len() + 1).map(|_| Vec::new()).collect();
         let mut idx = 0;

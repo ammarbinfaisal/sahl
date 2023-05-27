@@ -47,20 +47,20 @@ fn main() {
 
         let res = program(&source);
         match res {
-            Ok((_, p)) => {
+            Ok((_, mut p)) => {
                 if verbose {
                     println!("{:#?}", p);
                 }
-                let res = check_program(&p);
+                let res = check_program(&mut p);
 
                 match res {
-                    Ok((env, typrog)) => {
+                    Ok(env) => {
                         if verbose {
                             println!("Program is well-typed");
                         }
                         if to_compile {
                             let mut codebyte = bytecode::Bytecode::new();
-                            codebyte.compile_program(&typrog);
+                            codebyte.compile_program(&p);
                             codebyte.write("exe.bin");
                         } else {
                             let mut asm = Asm::new(env);

@@ -172,7 +172,7 @@ fn tuplee(source: &str) -> IResult<&str, Expr> {
         }
         None => {}
     };
-    Ok((source, Expr::Tuple(exprs)))
+    Ok((source, Expr::Tuple { exprs, ty: None }))
 }
 
 fn subscript(source: &str) -> IResult<&str, Expr> {
@@ -181,9 +181,13 @@ fn subscript(source: &str) -> IResult<&str, Expr> {
         tuple((tag("["), expression, tag("]"))),
         |(_, expr, _)| expr,
     ))(source)?;
-    let mut res = Expr::Variable(name);
+    let mut res = Expr::Variable { name, ty: None };
     for subscr in subscrs {
-        res = Expr::Subscr(Box::new(res), Box::new(subscr));
+        res = Expr::Subscr {
+            expr: Box::new(res),
+            index: Box::new(subscr),
+            ty: None,
+        };
     }
     Ok((source, res))
 }
@@ -200,15 +204,29 @@ fn call(source: &str) -> IResult<&str, Expr> {
     if let Some(arg) = arg {
         let mut args = vec![arg];
         args.extend(args2);
-        Ok((source, Expr::Call(name, args)))
+        Ok((
+            source,
+            Expr::Call {
+                name,
+                args,
+                ty: None,
+            },
+        ))
     } else {
-        Ok((source, Expr::Call(name, args2)))
+        Ok((
+            source,
+            Expr::Call {
+                name,
+                args: vec![],
+                ty: None,
+            },
+        ))
     }
 }
 
 fn variable(source: &str) -> IResult<&str, Expr> {
     let (source, name) = identifier(source)?;
-    Ok((source, Expr::Variable(name)))
+    Ok((source, Expr::Variable { name, ty: None }))
 }
 
 fn barcexpr(source: &str) -> IResult<&str, Expr> {
@@ -223,7 +241,28 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     let (source, t1) = alt((
         map(
             alt((string, charr, natural, floatt, boolean)),
-            Expr::Literal,
+            |lit| match lit {
+                Lit::Str(s) => Expr::Literal {
+                    lit: Lit::Str(s),
+                    ty: Type::Str,
+                },
+                Lit::Char(c) => Expr::Literal {
+                    lit: Lit::Char(c),
+                    ty: Type::Char,
+                },
+                Lit::Int(i) => Expr::Literal {
+                    lit: Lit::Int(i),
+                    ty: Type::Int,
+                },
+                Lit::Double(f) => Expr::Literal {
+                    lit: Lit::Double(f),
+                    ty: Type::Double,
+                },
+                Lit::Bool(b) => Expr::Literal {
+                    lit: Lit::Bool(b),
+                    ty: Type::Bool,
+                },
+            },
         ),
         call,
         subscript,
@@ -236,17 +275,23 @@ fn factor(source: &str) -> IResult<&str, Expr> {
             call,
             subscript,
             variable,
-            map(natural, Expr::Literal),
-            map(floatt, Expr::Literal),
+            map(natural, |n| Expr::Literal { lit: n, ty: Type::Int }),
+            map(floatt, |n| Expr::Literal { lit: n, ty: Type::Double }),
             barcexpr,
         )),
     )))(source)?;
     let mut res = match unop {
         Some(u) => {
             let res = match u {
-                "-" => Expr::Neg(Box::new(t1)),
-                "!" => Expr::Not(Box::new(t1)),
-                _ => panic!("unexpected unop"),
+                "-" => Expr::Neg {
+                    expr: Box::new(t1),
+                    ty: None,
+                },
+                "!" => Expr::Not {
+                    expr: Box::new(t1),
+                    ty: None,
+                },
+                _ => unreachable!("unexpected unop"),
             };
             res
         }
@@ -254,10 +299,25 @@ fn factor(source: &str) -> IResult<&str, Expr> {
     };
     for (op, lit) in exs {
         res = match op {
-            "*" => Expr::Arith(ArithOp::Mul, Box::new(res), Box::new(lit)),
-            "/" => Expr::Arith(ArithOp::Div, Box::new(res), Box::new(lit)),
-            "%" => Expr::Arith(ArithOp::Mod, Box::new(res), Box::new(lit)),
-            _ => panic!("unexpected operator"),
+            "*" => Expr::Arith {
+                op: ArithOp::Mul,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "/" => Expr::Arith {
+                op: ArithOp::Div,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "%" => Expr::Arith {
+                op: ArithOp::Mod,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            _ => unreachable!("unexpected operator"),
         };
     }
     Ok((source, res))
@@ -272,9 +332,19 @@ fn term(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "+" => Expr::Arith(ArithOp::Add, Box::new(res), Box::new(lit)),
-            "-" => Expr::Arith(ArithOp::Sub, Box::new(res), Box::new(lit)),
-            _ => panic!("unexpected operator"),
+            "+" => Expr::Arith {
+                op: ArithOp::Add,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "-" => Expr::Arith {
+                op: ArithOp::Sub,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            _ => unreachable!("unexpected operator"),
         };
     }
     Ok((source, res))
@@ -300,13 +370,43 @@ fn comparision(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "<" => Expr::CmpOp(CmpOp::Lt, Box::new(res), Box::new(lit)),
-            ">" => Expr::CmpOp(CmpOp::Gt, Box::new(res), Box::new(lit)),
-            "<=" => Expr::CmpOp(CmpOp::Le, Box::new(res), Box::new(lit)),
-            ">=" => Expr::CmpOp(CmpOp::Ge, Box::new(res), Box::new(lit)),
-            "==" => Expr::CmpOp(CmpOp::Eq, Box::new(res), Box::new(lit)),
-            "!=" => Expr::CmpOp(CmpOp::Ne, Box::new(res), Box::new(lit)),
-            _ => panic!("unexpected operator"),
+            "<" => Expr::CmpOp {
+                op: CmpOp::Lt,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            ">" => Expr::CmpOp {
+                op: CmpOp::Gt,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "<=" => Expr::CmpOp {
+                op: CmpOp::Le,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            ">=" => Expr::CmpOp {
+                op: CmpOp::Ge,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "==" => Expr::CmpOp {
+                op: CmpOp::Eq,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "!=" => Expr::CmpOp {
+                op: CmpOp::Ne,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            _ => unreachable!("unexpected operator"),
         };
     }
     Ok((source, res))
@@ -321,9 +421,19 @@ pub fn aexp(source: &str) -> IResult<&str, Expr> {
     let mut res = t1;
     for (op, lit) in exs {
         res = match op {
-            "&&" => Expr::BoolOp(BoolOp::And, Box::new(res), Box::new(lit)),
-            "||" => Expr::BoolOp(BoolOp::Or, Box::new(res), Box::new(lit)),
-            _ => panic!("unexpected operator"),
+            "&&" => Expr::BoolOp {
+                op: BoolOp::And,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            "||" => Expr::BoolOp {
+                op: BoolOp::Or,
+                left: Box::new(res),
+                right: Box::new(lit),
+                ty: None,
+            },
+            _ => unreachable!("unexpected operator"),
         };
     }
     Ok((source, res))
@@ -332,14 +442,20 @@ pub fn aexp(source: &str) -> IResult<&str, Expr> {
 fn chanread(source: &str) -> IResult<&str, Expr> {
     let (source, _) = tag("<-")(source)?;
     let (source, id) = identifier(source)?;
-    Ok((source, Expr::ChanRead(id)))
+    Ok((source, Expr::ChanRead { name: id, ty: None }))
 }
 
 fn assignment(source: &str) -> IResult<&str, Expr> {
     let (source, lhs) = alt((subscript, variable))(source)?;
     let (source, _) = delimited(space0, tag("="), space0)(source)?;
     let (source, expr) = alt((chanread, aexp, make))(source)?;
-    Ok((source, Expr::Assign(Box::new(lhs), Box::new(expr))))
+    Ok((
+        source,
+        Expr::Assign {
+            left: Box::new(lhs),
+            right: Box::new(expr),
+        },
+    ))
 }
 
 fn make(source: &str) -> IResult<&str, Expr> {
@@ -354,7 +470,13 @@ fn make(source: &str) -> IResult<&str, Expr> {
         |(_, l)| Box::new(l),
     ))(source)?;
     let (source, _) = tag(")")(source)?;
-    Ok((source, Expr::Make(ty, len)))
+    Ok((
+        source,
+        Expr::Make {
+            ty,
+            expr: len,
+        },
+    ))
 }
 
 pub fn expression(source: &str) -> IResult<&str, Expr> {
@@ -363,12 +485,12 @@ pub fn expression(source: &str) -> IResult<&str, Expr> {
 
 fn list(source: &str) -> IResult<&str, Expr> {
     let (source, _) = tag("[")(source)?;
-    let (source, args) = many1(map(
+    let (source, exprs) = many1(map(
         tuple((expression, delimited(space0, tag(","), space0))),
         |(e, _)| e,
     ))(source)?;
     let (source, _) = tag("]")(source)?;
-    Ok((source, Expr::List(args)))
+    Ok((source, Expr::List { exprs, ty: None }))
 }
 
 fn range(source: &str) -> IResult<&str, Expr> {
@@ -381,7 +503,11 @@ fn range(source: &str) -> IResult<&str, Expr> {
     if let Some((_, equal, end)) = rest {
         Ok((
             source,
-            Expr::Range(Box::new(start), Box::new(end), equal.is_some()),
+            Expr::Range {
+                start: Box::new(start),
+                end: Box::new(end),
+                inclusive: equal.is_some(),
+            },
         ))
     } else {
         Ok((source, start))

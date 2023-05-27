@@ -235,163 +235,166 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn find_var(&self, name: &str) -> Result<TypedExpr, Error> {
+    fn find_var(&self, name: &str) -> Result<Type, Error> {
         for i in (0..self.scope).rev() {
             if let Some(ty) = self.type_env[i].get(name) {
-                return Ok(((ty).clone(), TyExpr::Variable(name.to_string())));
+                return Ok(ty.clone());
             }
         }
         Err(Error::UndefinedVariable(name.to_string()))
     }
 
-    fn check_expr(&self, expr: &Expr) -> Result<TypedExpr, Error> {
+    fn check_expr(&self, expr: &mut Expr) -> Result<Type, Error> {
         // println!("Checking expr: {:?}", expr);
         match expr {
-            Expr::Literal(lit) => match lit {
-                Lit::Int(_) => Ok((Type::Int, TyExpr::Literal(lit.clone()))),
-                Lit::Bool(_) => Ok((Type::Bool, TyExpr::Literal(lit.clone()))),
-                Lit::Char(_) => Ok((Type::Char, TyExpr::Literal(lit.clone()))),
-                Lit::Str(_) => Ok((Type::Str, TyExpr::Literal(lit.clone()))),
-                Lit::Double(_) => Ok((Type::Double, TyExpr::Literal(lit.clone()))),
+            Expr::Literal { lit: _, ty } => Ok(ty.clone()),
+            Expr::Variable { name, ty } => {
+                if let Some(t) = ty {
+                    Ok(t.clone())
+                } else {
+                    let t = self.find_var(name)?;
+                    *ty = Some(t.clone());
+                    Ok(t)
+                }
             },
-            Expr::Variable(name) => self.find_var(name),
-            Expr::Assign(lhs, expr) => {
-                let ty = self.check_expr(expr)?;
-                let lhs = &**lhs;
-                let correct_lhs = match lhs {
-                    Expr::Variable(_) => true,
-                    Expr::Subscr(_, _) => true,
+            Expr::Assign { left, right } => {
+                let ty = self.check_expr(right)?;
+                let correct_lhs = match *left.clone() {
+                    Expr::Variable { .. } => true,
+                    Expr::Subscr { .. } => true,
                     _ => false,
                 };
                 if correct_lhs {
-                    let lhs_ty = self.check_expr(lhs)?;
-                    if ty.0 == lhs_ty.0 {
-                        Ok((Type::Void, TyExpr::Assign(Box::new(lhs_ty), Box::new(ty))))
+                    let lhs_ty = self.check_expr(left)?;
+                    if ty == lhs_ty {
+                        Ok(Type::Void)
                     } else {
-                        Err(Error::TypeMismatch(vec![lhs_ty.0], vec![ty.0]))
+                        Err(Error::TypeMismatch(vec![lhs_ty], vec![ty]))
                     }
                 } else {
-                    Err(Error::IncorrectLHS(lhs.clone()))
+                    Err(Error::IncorrectLHS(*left.clone()))
                 }
             }
-            Expr::Neg(e) => {
-                let ty = self.check_expr(e)?;
-                if ty.0 == Type::Int || ty.0 == Type::Double {
-                    Ok((ty.0.clone(), TyExpr::Neg(Box::new(ty))))
+            Expr::Neg { expr, ty: t } => {
+                let ty = self.check_expr(expr)?;
+                if ty == Type::Int || ty == Type::Double {
+                    *t = Some(ty.clone());
+                    Ok(ty)
                 } else {
-                    Err(Error::TypeMismatch(
-                        vec![Type::Int, Type::Double],
-                        vec![ty.0],
-                    ))
+                    Err(Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty]))
                 }
             }
-            Expr::Not(e) => {
-                let ty = self.check_expr(e)?;
-                if ty.0 == Type::Bool {
-                    Ok((Type::Bool, TyExpr::Not(Box::new(ty))))
+            Expr::Not { expr, ty: t } => {
+                let ty = self.check_expr(expr)?;
+                if ty == Type::Bool {
+                    *t = Some(ty.clone());
+                    Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty.0]))
+                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty]))
                 }
             }
-            Expr::List(list) => {
-                let tyex = self.check_expr(&list.iter().next().unwrap())?;
-                let mut ls = vec![tyex.clone()];
-                for elem in list.iter().skip(1) {
+            Expr::List { exprs, ty: t } => {
+                let tyex = self.check_expr(exprs.iter_mut().next().unwrap())?;
+                for elem in exprs.iter_mut().skip(1) {
                     let tyex2 = self.check_expr(elem)?;
-                    if tyex2.0.clone() != tyex.0.clone() {
-                        return Err(Error::TypeMismatch(vec![tyex.0], vec![tyex2.0]));
+                    if tyex2.clone() != tyex.clone() {
+                        return Err(Error::TypeMismatch(vec![tyex], vec![tyex2]));
                     }
-                    ls.push(tyex2);
                 }
-                Ok((Type::List(Box::new(tyex.0)), TyExpr::List(ls)))
+                *t = Some(Type::List(Box::new(tyex.clone())));
+                Ok(Type::List(Box::new(tyex)))
             }
-            Expr::Arith(op, ex1, ex2) => {
+            Expr::Arith {
+                op,
+                left: ex1,
+                right: ex2,
+                ty: t,
+            } => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
                 if *op == ArithOp::Add {
-                    if (ty1.0 == Type::Str && ty2.0 == Type::Str)
-                        || (ty1.0 == Type::Str && ty2.0 == Type::Char)
-                        || (ty1.0 == Type::Char && ty2.0 == Type::Str)
+                    if (ty1 == Type::Str && ty2 == Type::Str)
+                        || (ty1 == Type::Str && ty2 == Type::Char)
+                        || (ty1 == Type::Char && ty2 == Type::Str)
                     {
-                        Ok((
-                            Type::Str,
-                            TyExpr::Arith(op.clone(), Box::new(ty1), Box::new(ty2)),
-                        ))
-                    } else if ty1.0 == Type::Int && ty2.0 == Type::Int {
-                        Ok((
-                            Type::Int,
-                            TyExpr::Arith(op.clone(), Box::new(ty1), Box::new(ty2)),
-                        ))
-                    } else if ty1.0 == Type::Double || ty2.0 == Type::Double {
-                        Ok((
-                            Type::Double,
-                            TyExpr::Arith(op.clone(), Box::new(ty1), Box::new(ty2)),
-                        ))
+                        *t = Some(Type::Str);
+                        Ok(Type::Str)
+                    } else if ty1 == Type::Int && ty2 == Type::Int {
+                        *t = Some(Type::Int);
+                        Ok(Type::Int)
+                    } else if ty1 == Type::Double || ty2 == Type::Double {
+                        *t = Some(Type::Double);
+                        Ok(Type::Double)
                     } else {
                         Err(Error::TypeMismatch(
                             vec![Type::Str, Type::Char],
-                            vec![ty1.0, ty2.0],
+                            vec![ty1, ty2],
                         ))
                     }
-                } else if ty1.0 == Type::Int && ty2.0 == Type::Int {
-                    Ok((
-                        Type::Int,
-                        TyExpr::Arith(op.clone(), Box::new(ty1), Box::new(ty2)),
-                    ))
-                } else if ty1.0 == Type::Double || ty2.0 == Type::Double {
-                    Ok((
-                        Type::Double,
-                        TyExpr::Arith(op.clone(), Box::new(ty1), Box::new(ty2)),
-                    ))
+                } else if ty1 == Type::Int && ty2 == Type::Int {
+                    *t = Some(Type::Int);
+                    Ok(Type::Int)
+                } else if ty1 == Type::Double || ty2 == Type::Double {
+                    *t = Some(Type::Double);
+                    Ok(Type::Double)
                 } else {
                     Err(Error::TypeMismatch(
                         vec![Type::Int, Type::Double],
-                        vec![ty1.0, ty2.0],
+                        vec![ty1, ty2],
                     ))
                 }
             }
-            Expr::BoolOp(op, ex1, ex2) => {
+            Expr::BoolOp {
+                op: _,
+                left: ex1,
+                right: ex2,
+                ty: t,
+            } => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if ty1.0 == Type::Bool && ty2.0 == Type::Bool {
-                    Ok((
-                        Type::Bool,
-                        TyExpr::BoolOp(op.clone(), Box::new(ty1), Box::new(ty2)),
-                    ))
+                if ty1 == Type::Bool && ty2 == Type::Bool {
+                    *t = Some(Type::Bool);
+                    Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty1.0, ty2.0]))
+                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty1, ty2]))
                 }
             }
-            Expr::CmpOp(op, ex1, ex2) => {
+            Expr::CmpOp {
+                op: _,
+                left: ex1,
+                right: ex2,
+                ty: t,
+            } => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                if ty1.0 == ty2.0 {
-                    Ok((
-                        Type::Bool,
-                        TyExpr::CmpOp(op.clone(), Box::new(ty1), Box::new(ty2)),
-                    ))
+                if ty1 == ty2 {
+                    *t = Some(Type::Bool);
+                    Ok(Type::Bool)
                 } else {
-                    Err(Error::TypeMismatch(vec![ty1.0.clone()], vec![ty1.0, ty2.0]))
+                    Err(Error::TypeMismatch(vec![ty1.clone()], vec![ty1, ty2]))
                 }
             }
-            Expr::Call(name, args) => {
+            Expr::Call { name, args, ty : t} => {
                 let argsty = args
-                    .iter()
+                    .iter_mut()
                     .map(|e| self.check_expr(e))
                     .collect::<Result<Vec<_>, _>>()?;
                 let res = builtin_fn(
                     name,
                     argsty
                         .iter()
-                        .map(|(ty, _)| (ty).clone())
+                        .map(|ty| ty.clone())
                         .collect::<Vec<_>>()
                         .as_slice(),
                 );
 
                 match res {
-                    Ok(ty) => return Ok((ty, TyExpr::Call(name.clone(), argsty))),
                     Err(Error::UndefinedVariable(_)) => {} // if builtin function not found, continue
                     Err(e) => return Err(e),
+                    Ok(ty) => {
+                        *t = Some(ty.clone());
+                        return Ok(ty);
+                    }
                 }
 
                 let (formal_types, ret_type) = self
@@ -404,49 +407,50 @@ impl<'a> Checker<'a> {
                 }
 
                 for (argty, formal_type) in argsty.iter().zip(formal_types) {
-                    if argty.0 != *formal_type {
+                    if argty != formal_type {
                         return Err(Error::TypeMismatch(
-                            vec![argty.0.clone()],
+                            vec![argty.clone()],
                             vec![formal_type.clone()],
                         ));
                     }
                 }
-                Ok((ret_type.clone(), TyExpr::Call(name.clone(), argsty)))
+                *t = Some(ret_type.clone());
+                Ok(ret_type.clone())
             }
-            Expr::Subscr(expr, index) => {
+            Expr::Subscr { expr, index, ty: t } => {
                 let ty = self.check_expr(expr)?;
                 let index_ty = self.check_expr(index)?;
-                match ty.0.clone() {
-                    Type::List(t) => {
-                        if index_ty.0 == Type::Int {
-                            Ok((*t, TyExpr::Subscr(Box::new(ty.clone()), Box::new(index_ty))))
+                match ty.clone() {
+                    Type::List(tyy) => {
+                        if index_ty == Type::Int {
+                            *t = Some(*tyy.clone());
+                            Ok(*tyy)
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty.0]))
+                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
                     Type::Map(key, val) => {
-                        if *key.clone() == index_ty.0 {
-                            Ok((*val, TyExpr::Subscr(Box::new(ty), Box::new(index_ty))))
+                        if *key.clone() == index_ty {
+                            *t = Some(*val.clone());
+                            Ok(*val)
                         } else {
-                            Err(Error::TypeMismatch(vec![*key], vec![index_ty.0]))
+                            Err(Error::TypeMismatch(vec![*key], vec![index_ty]))
                         }
                     }
                     Type::Str => {
-                        if index_ty.0 == Type::Int {
-                            Ok((Type::Char, TyExpr::Subscr(Box::new(ty), Box::new(index_ty))))
+                        if index_ty == Type::Int {
+                            *t = Some(Type::Char);
+                            Ok(Type::Char)
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty.0]))
+                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
                     Type::Tuple(tys) => {
                         // can only have integer literals as index
-                        if let Expr::Literal(i) = *index.clone() {
-                            if let Lit::Int(i) = i {
+                        if let Expr::Literal { lit, ty: _ } = *index.clone() {
+                            if let Lit::Int(i) = lit {
                                 if i < tys.len() as i64 {
-                                    Ok((
-                                        tys[i as usize].clone(),
-                                        TyExpr::Subscr(Box::new(ty), Box::new(index_ty)),
-                                    ))
+                                    Ok(tys[i as usize].clone())
                                 } else {
                                     Err(Error::TupleIndexOutOfBounds)
                                 }
@@ -454,75 +458,77 @@ impl<'a> Checker<'a> {
                                 Err(Error::TupleIndexNotInt)
                             }
                         } else {
-                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty.0]))
+                            Err(Error::TypeMismatch(vec![Type::Int], vec![index_ty]))
                         }
                     }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
-                        vec![ty.0],
+                        vec![ty],
                     )),
                 }
             }
-            Expr::ChanRead(chan_name) => {
-                let ty = self.find_var(chan_name)?;
-                match ty.0 {
-                    Type::Chan(ty) => Ok((*ty.clone(), TyExpr::ChanRead(chan_name.clone()))),
+            Expr::ChanRead { name, ty: t } => {
+                let ty = self.find_var(&name)?;
+                match ty {
+                    Type::Chan(ty) => {
+                        *t = Some(*ty.clone());
+                        Ok(*ty)
+                    }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::Chan(Box::new(Type::Void))],
-                        vec![ty.0],
+                        vec![ty],
                     )),
                 }
             }
-            Expr::Make(ty, ex) => {
-                let exty = if let Some(ex) = ex {
+            Expr::Make { ty, expr } => {
+                if let Some(ex) = expr {
                     let exty = self.check_expr(ex)?;
-                    if exty.0 == Type::Int {
-                        Some(Box::new(exty))
+                    if exty == Type::Int {
+                        Ok(ty.clone())
                     } else {
-                        return Err(Error::TypeMismatch(vec![(ty).clone()], vec![exty.0]));
+                        Err(Error::TypeMismatch(vec![(ty).clone()], vec![exty]))
                     }
                 } else {
-                    None
-                };
-                Ok(((ty).clone(), TyExpr::Make((ty).clone(), exty)))
+                    Ok(ty.clone())
+                }
             }
-            Expr::Tuple(exprs) => {
+            Expr::Tuple { exprs, ty: t } => {
                 let tys = exprs
-                    .iter()
+                    .iter_mut()
                     .map(|e| self.check_expr(e))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok((
-                    Type::Tuple(tys.iter().map(|(ty, _)| ty.clone()).collect()),
-                    TyExpr::Tuple(tys),
-                ))
+                let tyy = Type::Tuple(
+                    tys.iter().map(|ty| ty.clone()).collect::<Vec<_>>(),
+                );
+                *t = Some(tyy.clone());
+                Ok(tyy)
             }
-            Expr::Range(ex1, ex2, cond) => {
+            Expr::Range {
+                start: ex1,
+                end: ex2,
+                inclusive: _,
+            } => {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
-                match (&ty1, &ty2) {
-                    (ty1, ty2) if ty1.0 == Type::Int && ty2.0 == Type::Int => Ok((
-                        Type::Range,
-                        TyExpr::Range(Box::new((ty1).clone()), Box::new((ty2).clone()), *cond),
-                    )),
-                    _ => Err(Error::TypeMismatch(
-                        vec![Type::Int, Type::Int],
-                        vec![ty1.0, ty2.0],
-                    )),
+                if ty1 == Type::Int && ty2 == Type::Int {
+                    Ok(Type::List(Box::new(Type::Int)))
+                } else {
+                    Err(Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]))
                 }
             }
         }
     }
 
-    fn check_stmt(&mut self, stmt: &Stmt) -> Result<TyStmt, Error> {
+    fn check_stmt(&mut self, stmt: &mut Stmt) -> Result<(), Error> {
         // println!("check_stmt: {:?}", stmt);
         match stmt {
             Stmt::Expr(expr) => {
-                let ex = self.check_expr(expr)?;
-                Ok(TyStmt::Expr(Box::new(ex)))
+                self.check_expr(expr)?;
+                Ok(())
             }
             Stmt::IfElse(expr, then_block, else_block) => {
                 let cond = self.check_expr(expr)?;
-                if cond.0.clone() == Type::Bool {
+                if cond.clone() == Type::Bool {
                     self.type_env.push(HashMap::new());
                     self.scope += 1;
                     let mut then = Vec::new();
@@ -532,7 +538,7 @@ impl<'a> Checker<'a> {
                     }
                     self.scope -= 1;
                     self.type_env.pop();
-                    let else_ = if let Some(stmts) = else_block {
+                    if let Some(stmts) = else_block {
                         self.scope += 1;
                         self.type_env.push(HashMap::new());
                         let mut else_ = Vec::new();
@@ -546,14 +552,14 @@ impl<'a> Checker<'a> {
                     } else {
                         None
                     };
-                    Ok(TyStmt::IfElse(Box::new(cond), then, else_))
+                    Ok(())
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![cond.0]))
+                    Err(Error::TypeMismatch(vec![Type::Bool], vec![cond]))
                 }
             }
             Stmt::While(expr, stmts) => {
                 let ty = self.check_expr(expr)?;
-                if ty.0 == Type::Bool {
+                if ty == Type::Bool {
                     self.scope += 1;
                     self.type_env.push(HashMap::new());
                     self.loop_depth += 1;
@@ -564,15 +570,15 @@ impl<'a> Checker<'a> {
                     self.loop_depth -= 1;
                     self.type_env.pop();
                     self.scope -= 1;
-                    Ok(TyStmt::While(Box::new(ty), checked_stmts))
+                    Ok(())
                 } else {
-                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty.0]))
+                    Err(Error::TypeMismatch(vec![Type::Bool], vec![ty]))
                 }
             }
             Stmt::For(var, in_ex, block) => {
                 // in_ex should be a list
                 let in_ex_ty = self.check_expr(in_ex)?;
-                match in_ex_ty.0.clone() {
+                match in_ex_ty.clone() {
                     Type::List(ty) => {
                         let mut scope_env = HashMap::new();
                         scope_env.insert(var.clone(), *ty.clone());
@@ -586,7 +592,7 @@ impl<'a> Checker<'a> {
                         self.loop_depth -= 1;
                         self.type_env.pop();
                         self.scope -= 1;
-                        Ok(TyStmt::For(var.clone(), Box::new(in_ex_ty), checked_stmts))
+                        Ok(())
                     }
                     Type::Range => {
                         let mut scope_env = HashMap::new();
@@ -601,34 +607,34 @@ impl<'a> Checker<'a> {
                         self.loop_depth -= 1;
                         self.type_env.pop();
                         self.scope -= 1;
-                        Ok(TyStmt::For(var.clone(), Box::new(in_ex_ty), checked_stmts))
+                        Ok(())
                     }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::List(Box::new(Type::Void))],
-                        vec![in_ex_ty.0],
+                        vec![in_ex_ty],
                     )),
                 }
             }
             Stmt::Decl(var, ex) => {
                 let ty = self.check_expr(ex)?;
-                match ty.0 {
-                    Type::Void => return Err(Error::TypeMismatch(vec![Type::Any], vec![ty.0])),
+                match ty {
+                    Type::Void => return Err(Error::TypeMismatch(vec![Type::Any], vec![ty])),
                     _ => {
                         if let Some(scope_env) = self.type_env.last_mut() {
-                            scope_env.insert(var.clone(), ty.0.clone());
+                            scope_env.insert(var.clone(), ty.clone());
                         }
                     }
                 }
-                Ok(TyStmt::Decl(var.clone(), Box::new(ty.clone())))
+                Ok(())
             }
             Stmt::Return(expr) => {
                 let ty = self.check_expr(expr)?;
-                if ty.0 == self.func_ret_type {
-                    Ok(TyStmt::Return(Box::new(ty)))
+                if ty == self.func_ret_type {
+                    Ok(())
                 } else {
                     Err(Error::TypeMismatch(
                         vec![self.func_ret_type.clone()],
-                        vec![ty.0],
+                        vec![ty],
                     ))
                 }
             }
@@ -636,21 +642,21 @@ impl<'a> Checker<'a> {
                 if self.loop_depth == 0 {
                     Err(Error::BreakOutsideLoop)
                 } else {
-                    Ok(TyStmt::Break)
+                    Ok(())
                 }
             }
             Stmt::Continue => {
                 if self.loop_depth == 0 {
                     Err(Error::ContinueOutsideLoop)
                 } else {
-                    Ok(TyStmt::Continue)
+                    Ok(())
                 }
             }
-            Stmt::Comment => Ok(TyStmt::Comment),
+            Stmt::Comment => Ok(()),
             Stmt::Coroutine(expr) => {
-                let checked = self.check_expr(expr)?;
-                if let Expr::Call(_, _) = expr {
-                    Ok(TyStmt::Coroutine(checked))
+                self.check_expr(expr)?;
+                if let Expr::Call { .. } = expr {
+                    Ok(())
                 } else {
                     Err(Error::CoroutineNotFunction)
                 }
@@ -658,17 +664,17 @@ impl<'a> Checker<'a> {
             Stmt::ChanWrite(chan_name, expr) => {
                 let chan_ty = self.find_var(chan_name)?;
                 let expr_ty = self.check_expr(expr)?;
-                match chan_ty.0 {
+                match chan_ty {
                     Type::Chan(ty) => {
-                        if *ty.clone() == expr_ty.0 {
-                            Ok(TyStmt::ChanWrite(chan_name.clone(), Box::new(expr_ty)))
+                        if *ty.clone() == expr_ty {
+                            Ok(())
                         } else {
-                            Err(Error::TypeMismatch(vec![*ty.clone()], vec![expr_ty.0]))
+                            Err(Error::TypeMismatch(vec![*ty.clone()], vec![expr_ty]))
                         }
                     }
                     _ => Err(Error::TypeMismatch(
                         vec![Type::Chan(Box::new(Type::Void))],
-                        vec![chan_ty.0],
+                        vec![chan_ty],
                     )),
                 }
             }
@@ -727,7 +733,7 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
-pub fn check_program(program: &Program) -> Result<(FuncEnv, TyProgram), Error> {
+pub fn check_program(program: &mut Program) -> Result<FuncEnv, Error> {
     let mut func_env: FuncEnv = HashMap::new();
     for func in &program.funcs {
         let args_ty = func
@@ -739,9 +745,7 @@ pub fn check_program(program: &Program) -> Result<(FuncEnv, TyProgram), Error> {
         func_env.insert(func.name.clone(), (args_ty, ret_ty));
     }
 
-    let mut typed_funcs = Vec::new();
-
-    for func in &program.funcs {
+    for func in program.funcs.iter_mut() {
         let mut checker = Checker::new(&func_env, func_env.get(&func.name).unwrap().1.clone());
         // add args to type env
         for arg in &func.args {
@@ -751,16 +755,9 @@ pub fn check_program(program: &Program) -> Result<(FuncEnv, TyProgram), Error> {
                 .unwrap()
                 .insert(arg.name.clone(), arg.ty.clone());
         }
-        let mut checked_stmts = Vec::new();
-        for stmt in &func.body {
-            checked_stmts.push(checker.check_stmt(stmt)?);
+        for stmt in func.body.iter_mut() {
+            checker.check_stmt(stmt)?
         }
-        typed_funcs.push(TyFunc {
-            name: func.name.clone(),
-            args: func.args.clone(),
-            retty: func.retty.clone(),
-            body: checked_stmts,
-        });
         if func.retty != Type::Void {
             let cfg = gen_cfg(func.body.as_slice());
             // println!("{:?}", func.name);
@@ -782,7 +779,5 @@ pub fn check_program(program: &Program) -> Result<(FuncEnv, TyProgram), Error> {
     if mainfn.1 != Type::Void {
         return Err(Error::MainNotVoid);
     }
-
-    let typed_program = TyProgram { funcs: typed_funcs };
-    Ok((func_env, typed_program))
+    Ok(func_env)
 }
