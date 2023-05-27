@@ -245,22 +245,12 @@ impl Bytecode {
     }
 
     fn float_check(&mut self, ex1: &Expr, ex2: &Expr) -> bool {
-        let mut use_float = false;
-        match ex1.get_type() {
-            Type::Double => {
-                use_float = true;
-                self.add_u32(I2F, 0); // convert ex1 to float
-            }
-            _ => {}
+        if ex1.get_type() == Type::Double && ex2.get_type() == Type::Double {
+            return false; // both are doubles so no need to convert
+        } else if ex1.get_type() == Type::Double || ex2.get_type() == Type::Double {
+            return true;
         }
-        match ex2.get_type() {
-            Type::Double => {
-                use_float = true;
-                self.add_u32(I2F, 1); // convert ex2 to float
-            }
-            _ => {}
-        }
-        use_float
+        false
     }
 
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
