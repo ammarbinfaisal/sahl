@@ -9,6 +9,7 @@ use parser::*;
 use semant::*;
 use std::fs::*;
 use std::io::Read;
+use std::process::exit;
 
 fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
@@ -68,11 +69,13 @@ fn main() {
                     }
                     Err(e) => {
                         println!("Program is not well-typed: {}", e);
+                        exit(1)
                     }
                 }
             }
             Err(e) => {
                 println!("{}", e);
+                exit(1)
             }
         }
     } else {
