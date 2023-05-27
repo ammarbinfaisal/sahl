@@ -28,5 +28,6 @@ jobs:
         filename: tests.json
         label: Passing
         message: ${{ env.TEST_RESULT }}
+        valColorRange: ${{ env.COLOR }}
         maxColorRange: 100
         minColorRange: 0
