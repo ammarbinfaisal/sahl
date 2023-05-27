@@ -142,6 +142,8 @@ struct VM {
     int coro_id;
     pthread_t *threads;
     bool *coro_done;
+
+    char *filename;
 };
 
 typedef struct VM VM;
