@@ -20,8 +20,11 @@ VM *new_vm(uint8_t *code, int code_length) {
     for (int i = 0; i < func_count; ++i) {
         uint32_t func_length = read_u32(code, offset);
         offset += 4;
+        int argc = read_u32(code, offset);
+        offset += 4;
         vm->funcs[i].code = code + offset;
         vm->funcs[i].code_length = func_length;
+        vm->funcs[i].args_count = argc;
         offset += func_length;
     }
     vm->stack_size = 0;

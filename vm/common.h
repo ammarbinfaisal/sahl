@@ -52,6 +52,7 @@ typedef struct Chan Chan;
 struct Func {
     uint8_t *code;
     int code_length;
+    int args_count;
 };
 
 typedef struct Func Func;

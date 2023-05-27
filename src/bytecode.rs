@@ -61,6 +61,7 @@ const I2F: u8 = 54;
 const I2S: u8 = 55;
 const F2S: u8 = 56;
 const FMOD: u8 = 57;
+const ARG_LEN: u8 = 58;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -102,6 +103,7 @@ pub struct Bytecode {
     calls: Vec<Vec<(usize, usize)>>, // to be patched after codegen - offset, func_idx of call site
     strings: Vec<Vec<u8>>,
     func_code: Vec<Vec<u8>>,
+    func_args_len: Vec<u32>,
     loop_state: LoopState,
     start_func_idx: usize,
     curr_func: usize,
@@ -121,6 +123,7 @@ impl Bytecode {
             strings: Vec::new(),
             loop_state: LoopState::new(),
             func_code: Vec::new(),
+            func_args_len: Vec::new(),
             start_func_idx: 0,
             curr_func: 0,
         }
@@ -208,9 +211,13 @@ impl Bytecode {
         }
         file.write_all(&u32_to_bytes(self.func_code.len() as u32))
             .unwrap();
+        let mut i = 0;
         for f in &self.func_code {
             file.write_all(&u32_to_bytes(f.len() as u32)).unwrap();
+            file.write_all(&u32_to_bytes(self.func_args_len[i] as u32))
+                .unwrap();
             file.write_all(&f).unwrap();
+            i += 1;
         }
     }
 
@@ -781,6 +788,7 @@ impl Bytecode {
                 .iter()
                 .map(|arg| arg.name.clone())
                 .collect::<Vec<_>>();
+            self.func_args_len.push(args.len() as u32);
             let body = &func.body;
             if func.name == "main" {
                 self.start_func_idx = idx;

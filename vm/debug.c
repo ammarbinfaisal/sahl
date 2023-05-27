@@ -1,4 +1,5 @@
 #include "debug.h"
+#include "opcodes.h"
 #include "read.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -237,7 +238,9 @@ void dissassemble(uint8_t *code, int length) {
     for (int j = 0; j < func_count; j++) {
         int func_length = read_u32(code, i);
         i += 4;
-        printf("func %d - length %d\n", j, func_length);
+        int argc = read_u32(code, i);
+        i += 4;
+        printf("func %d - length %d - argc %d\n", j, func_length, argc);
         int start_ = i;
         int end = i + func_length;
         while (i < end) {
