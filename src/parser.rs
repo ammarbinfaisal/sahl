@@ -420,7 +420,7 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
                     n.0,
                     Expr::Literal {
                         lit: n.1,
-                        ty: Type::Int,
+                        ty: Type::Double,
                     },
                     n.2,
                 )
