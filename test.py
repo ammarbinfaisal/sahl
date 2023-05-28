@@ -21,6 +21,7 @@ files_all_checks = [
     "tuple",
     "while",
     "rule110",
+    "bitwise",
 ]
 files_retcode_check = [
     "chan",
