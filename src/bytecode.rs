@@ -292,9 +292,9 @@ impl Bytecode {
             Expr::Neg { expr, ty } => {
                 self.compile_expr(&expr);
                 if ty.unwrap() == Type::Double {
-                    self.add_u32(FNEG, 0);
+                    self.add(FNEG);
                 } else {
-                    self.add_u32(INEG, 0);
+                    self.add(INEG);
                 }
             }
             Expr::Not { expr, ty: _ } => {
