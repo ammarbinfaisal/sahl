@@ -387,6 +387,7 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
             };
             (lit.0, l, lit.2)
         }),
+        cast,
         call,
         subscript,
         variable,
@@ -400,6 +401,7 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
             span_space0,
         ),
         alt((
+            cast,
             call,
             subscript,
             variable,
@@ -732,7 +734,7 @@ fn cast<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     let start_idx = IDX.load(Ordering::Relaxed);
     let (source, _) = spantag("cast")(source)?;
     let (source, _) = spantag("(")(source)?;
-    let (source, expr) = delimited(span_space0, aexp, span_space0)(source)?;
+    let (source, expr) = delimited(span_space0, expression, span_space0)(source)?;
     let (source, _) = spantag(",")(source)?;
     let (source, ty) = delimited(span_space0, typee, span_space0)(source)?;
     let (source, _) = spantag(")")(source)?;
