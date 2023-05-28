@@ -163,7 +163,7 @@ fn tuplety<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
 
 fn isreserved<'a>(s: &'a str) -> bool {
     match s {
-        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make" => {
+        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make" | "cast" => {
             true
         }
         _ => false,
@@ -728,8 +728,20 @@ fn make<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     Ok((source, (start_idx, Expr::Make { ty, expr: len }, end_idx)))
 }
 
+fn cast<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+    let start_idx = IDX.load(Ordering::Relaxed);
+    let (source, _) = spantag("cast")(source)?;
+    let (source, _) = spantag("(")(source)?;
+    let (source, expr) = delimited(span_space0, aexp, span_space0)(source)?;
+    let (source, _) = spantag(",")(source)?;
+    let (source, ty) = delimited(span_space0, typee, span_space0)(source)?;
+    let (source, _) = spantag(")")(source)?;
+    let end_idx = IDX.load(Ordering::Relaxed);
+    Ok((source, (start_idx, Expr::Cast { expr: Box::new(expr), ty }, end_idx)))
+}
+
 pub fn expression<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    alt((chanread, assignment, range, make, list, tuplee))(source)
+    alt((chanread, assignment, range, make, cast, list, tuplee))(source)
 }
 
 fn list<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {

@@ -15,6 +15,7 @@ pub enum Error {
     MainArgs,
     MainNotVoid,
     TupleIndexOutOfBounds(usize, usize),
+    CastError(Type, Type),
 }
 
 impl std::fmt::Display for Error {
@@ -60,6 +61,9 @@ impl std::fmt::Display for Error {
             }
             Error::TupleIndexOutOfBounds(index, len) => {
                 write!(f, "Tuple index {} out of bounds for tuple of length {}", index, len)
+            }
+            Error::CastError(from, to) => {
+                write!(f, "Cannot cast from {:?} to {:?}", from, to)
             }
         }
     }
@@ -476,6 +480,22 @@ impl<'a> Checker<'a> {
                 }
                 *t = Some(ret_type.clone());
                 Ok(ret_type.clone())
+            }
+            Expr::Cast { expr, ty } => {
+                let tyex = self.check_expr(expr)?;
+                if tyex == Type::Int && *ty == Type::Double {
+                    Ok(Type::Double)
+                } else if tyex == Type::Char && *ty == Type::Int {
+                    Ok(Type::Int)
+                } else if tyex == Type::Int && *ty == Type::Char {
+                    Ok(Type::Char)
+                } else {
+                    Err((
+                        expr.0,
+                        Error::CastError(tyex.clone(), ty.clone()),
+                        expr.2,
+                    ))
+                }
             }
             Expr::Subscr { expr, index, ty: t } => {
                 let ty = self.check_expr(expr)?;

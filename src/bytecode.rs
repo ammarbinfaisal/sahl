@@ -66,6 +66,7 @@ const BIT_OR: u8 = 59;
 const BIT_XOR: u8 = 60;
 const BIT_SHL: u8 = 61;
 const BIT_SHR: u8 = 62;
+const CAST: u8 = 63; // <from> <to>
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -118,6 +119,21 @@ pub struct Bytecode {
 
 fn u32_to_bytes(n: u32) -> [u8; 4] {
     [n as u8, (n >> 8) as u8, (n >> 16) as u8, (n >> 24) as u8]
+}
+
+fn ty_to_int(ty: Type) -> u32 {
+    // type
+    // INT - 1
+    // FLOAT - 2
+    // BOOL - 3
+    // Char - 4
+    match ty {
+        Type::Int => 1,
+        Type::Double => 2,
+        Type::Bool => 3,
+        Type::Char => 4,
+        _ => 0,
+    }
 }
 
 impl Bytecode {
@@ -470,6 +486,11 @@ impl Bytecode {
                         self.add(BIT_SHR);
                     }
                 }
+            }
+            Expr::Cast { expr, ty } => {
+                let exty = expr.1.get_type();
+                self.compile_expr(&expr);
+                self.add_2_u32(CAST, ty_to_int(exty), ty_to_int(ty));
             }
             Expr::Call { name, args, ty: _ } => {
                 for arg in args.iter() {

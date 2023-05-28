@@ -134,6 +134,10 @@ pub enum Expr {
         exprs: Vec<Spanned<Expr>>,
         ty: Option<Type>,
     },
+    Cast {
+        expr: Box<Spanned<Expr>>,
+        ty: Type,
+    },
 }
 
 impl Expr {
@@ -155,6 +159,7 @@ impl Expr {
             Expr::Tuple { ty, .. } => ty.clone().unwrap(),
             Expr::ChanRead { ty, .. } => ty.clone().unwrap(),
             Expr::List { ty, .. } => ty.clone().unwrap(),
+            Expr::Cast { ty, .. } => ty.clone(),
         }
     }
 }

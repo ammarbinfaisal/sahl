@@ -876,6 +876,26 @@ void handle_make_map(VM *vm) {
     push(vm, OBJ_VAL(obj));
 }
 
+void handle_cast(VM *vm) {
+    Value val = pop(vm);
+    // INT - 1
+    // FLOAT - 2
+    // BOOL - 3
+    // Char - 4
+    uint32_t from = read_u32(vm->call_frame->func->code,
+                             vm->call_frame->ip + 1);
+    uint32_t to = read_u32(vm->call_frame->func->code,
+                           vm->call_frame->ip + 5);
+    if (from == 4 && to == 1 ) {
+        push(vm, INT_VAL((int64_t)AS_CHAR(val)));
+    } else if (from == 1 && to == 4 ) {
+        push(vm, CHAR_VAL((char)AS_INT(val)));
+    } else {
+        error(vm, "Invalid cast");
+    }
+    vm->call_frame->ip += 8;
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_add,
@@ -941,6 +961,7 @@ static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
     handle_bitxor,
     handle_bitshift_left,
     handle_bitshift_right,
+    handle_cast,
 };
 
 void run(VM *vm) {

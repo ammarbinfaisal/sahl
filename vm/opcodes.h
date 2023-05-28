@@ -65,7 +65,8 @@
 #define BIT_XOR 60
 #define BIT_SHL 61
 #define BIT_SHR 62
+#define CAST 63
 
-#define NUM_OPCODES 63
+#define NUM_OPCODES 64
 
 #endif
