@@ -500,8 +500,40 @@ fn term<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     Ok((source, res))
 }
 
-fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+pub fn shift<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     let (source, t1) = term(source)?;
+    let (source, exs) = many0(tuple((
+        delimited(
+            span_space0,
+            alt((spantag("<<"), spantag(">>"))),
+            span_space0,
+        ),
+        term,
+    )))(source)?;
+    let mut res = t1;
+    for (op, lit) in exs {
+        let r = match op {
+            "<<" => Expr::BitOp {
+                op: BitOp::Shl,
+                left: Box::new(res.clone()),
+                right: Box::new(lit.clone()),
+                ty: None,
+            },
+            ">>" => Expr::BitOp {
+                op: BitOp::Shr,
+                left: Box::new(res.clone()),
+                right: Box::new(lit.clone()),
+                ty: None,
+            },
+            _ => unreachable!("unexpected operator"),
+        };
+        res = (res.0, r, lit.2);
+    }
+    Ok((source, res))
+}
+
+fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+    let (source, t1) = shift(source)?;
     let (source, exs) = many0(tuple((
         delimited(
             span_space0,
@@ -515,7 +547,7 @@ fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<
             )),
             span_space0,
         ),
-        term,
+        shift,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
@@ -563,15 +595,72 @@ fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<
     Ok((source, res))
 }
 
-pub fn aexp<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn bitand<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     let (source, t1) = comparision(source)?;
+    let (source, exs) = many0(tuple((
+        delimited(span_space0, spantag("&"), span_space0),
+        comparision,
+    )))(source)?;
+    let mut res = t1;
+    for (op, lit) in exs {
+        let r = Expr::BitOp {
+            op: BitOp::And,
+            left: Box::new(res.clone()),
+            right: Box::new(lit.clone()),
+            ty: None,
+        };
+        res = (res.0, r, lit.2);
+    }
+    Ok((source, res))
+}
+
+fn bitxor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+    let (source, t1) = bitand(source)?;
+    let (source, exs) = many0(tuple((
+        delimited(span_space0, spantag("^"), span_space0),
+        bitand,
+    )))(source)?;
+    let mut res = t1;
+    for (op, lit) in exs {
+        let r = Expr::BitOp {
+            op: BitOp::Xor,
+            left: Box::new(res.clone()),
+            right: Box::new(lit.clone()),
+            ty: None,
+        };
+        res = (res.0, r, lit.2);
+    }
+    Ok((source, res))
+}
+
+fn bitor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+    let (source, t1) = bitxor(source)?;
+    let (source, exs) = many0(tuple((
+        delimited(span_space0, spantag("|"), span_space0),
+        bitxor,
+    )))(source)?;
+    let mut res = t1;
+    for (op, lit) in exs {
+        let r = Expr::BitOp {
+            op: BitOp::Or,
+            left: Box::new(res.clone()),
+            right: Box::new(lit.clone()),
+            ty: None,
+        };
+        res = (res.0, r, lit.2);
+    }
+    Ok((source, res))
+}
+
+pub fn aexp<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+    let (source, t1) = bitor(source)?;
     let (source, exs) = many0(tuple((
         delimited(
             span_space0,
             alt((spantag("&&"), spantag("||"))),
             span_space0,
         ),
-        comparision,
+        bitor,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {

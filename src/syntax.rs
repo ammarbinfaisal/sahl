@@ -49,6 +49,15 @@ pub enum CmpOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum BitOp {
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal {
         lit: Lit,
@@ -85,6 +94,12 @@ pub enum Expr {
     },
     CmpOp {
         op: CmpOp,
+        left: Box<Spanned<Expr>>,
+        right: Box<Spanned<Expr>>,
+        ty: Option<Type>,
+    },
+    BitOp {
+        op: BitOp,
         left: Box<Spanned<Expr>>,
         right: Box<Spanned<Expr>>,
         ty: Option<Type>,
@@ -132,6 +147,7 @@ impl Expr {
             Expr::Arith { ty, .. } => ty.clone().unwrap(),
             Expr::BoolOp { ty, .. } => ty.clone().unwrap(),
             Expr::CmpOp { ty, .. } => ty.clone().unwrap(),
+            Expr::BitOp { ty, .. } => ty.clone().unwrap(),
             Expr::Call { ty, .. } => ty.clone().unwrap(),
             Expr::Subscr { ty, .. } => ty.clone().unwrap(),
             Expr::Assign { .. } => Type::Void,

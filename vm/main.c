@@ -432,7 +432,7 @@ void handle_make_list(VM *vm) {
     Value def = pop(vm);
     uint64_t len = AS_INT(pop(vm));
     Obj *obj = new_obj(vm, OBJ_LIST);
-    obj->list.length = 0; // premptive GC prevention
+    obj->list.length = 0;   // premptive GC prevention
     push(vm, OBJ_VAL(obj)); // premptive GC prevention
     size_t cap = GROW_CAPACITY(len);
     obj->list.items = allocate(vm, sizeof(Value) * cap);
@@ -675,6 +675,41 @@ void handle_f2s(VM *vm) {
     vm->stack[vm->stack_size - index] = OBJ_VAL(str);
 }
 
+void handle_bitand(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, INT_VAL(AS_INT(a) & AS_INT(b)));
+}
+
+void handle_bitor(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, INT_VAL(AS_INT(a) | AS_INT(b)));
+}
+
+void handle_bitxor(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, INT_VAL(AS_INT(a) ^ AS_INT(b)));
+}
+
+void handle_bitnot(VM *vm) {
+    Value a = pop(vm);
+    push(vm, INT_VAL(~AS_INT(a)));
+}
+
+void handle_bitshift_left(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, INT_VAL(AS_INT(a) << AS_INT(b)));
+}
+
+void handle_bitshift_right(VM *vm) {
+    Value b = pop(vm);
+    Value a = pop(vm);
+    push(vm, INT_VAL(AS_INT(a) >> AS_INT(b)));
+}
+
 // ------------------ NATIVE FUNCTIONS ------------------
 
 #define PRE_NATIVE                                                             \
@@ -842,64 +877,71 @@ void handle_make_map(VM *vm) {
 }
 
 // Create function pointer table for opcodes
-static OpcodeHandler opcode_handlers[NUM_OPCODES] = {handle_add,
-                                                     handle_sub,
-                                                     handle_mul,
-                                                     handle_div,
-                                                     handle_mod,
-                                                     handle_neg,
-                                                     handle_not,
-                                                     handle_and,
-                                                     handle_or,
-                                                     handle_equal,
-                                                     handle_not_equal,
-                                                     handle_less,
-                                                     handle_less_equal,
-                                                     handle_greater,
-                                                     handle_greater_equal,
-                                                     handle_true,
-                                                     handle_false,
-                                                     handle_jump,
-                                                     handle_jump_if_false,
-                                                     handle_store,
-                                                     handle_index,
-                                                     handle_append,
-                                                     handle_length,
-                                                     handle_list,
-                                                     handle_const_64,
-                                                     handle_const_32,
-                                                     handle_const_8,
-                                                     handle_string,
-                                                     handle_def_local,
-                                                     handle_get_local,
-                                                     handle_assign,
-                                                     handle_call,
-                                                     handle_return,
-                                                     handle_print,
-                                                     handle_pop,
-                                                     handle_make_list,
-                                                     handle_make_tuple,
-                                                     handle_native_call,
-                                                     handle_const_double,
-                                                     handle_make_chan,
-                                                     handle_chan_read,
-                                                     handle_chan_write,
-                                                     handle_spawn,
-                                                     handle_make_map,
-                                                     handle_fadd,
-                                                     handle_fsub,
-                                                     handle_fmul,
-                                                     handle_fdiv,
-                                                     handle_fnegate,
-                                                     handle_fless,
-                                                     handle_fless_equal,
-                                                     handle_fgreater,
-                                                     handle_fgreater_equal,
-                                                     handle_sconcat,
-                                                     handle_i2f,
-                                                     handle_i2s,
-                                                     handle_f2s,
-                                                     handle_fmod};
+static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
+    handle_add,
+    handle_sub,
+    handle_mul,
+    handle_div,
+    handle_mod,
+    handle_neg,
+    handle_not,
+    handle_and,
+    handle_or,
+    handle_equal,
+    handle_not_equal,
+    handle_less,
+    handle_less_equal,
+    handle_greater,
+    handle_greater_equal,
+    handle_true,
+    handle_false,
+    handle_jump,
+    handle_jump_if_false,
+    handle_store,
+    handle_index,
+    handle_append,
+    handle_length,
+    handle_list,
+    handle_const_64,
+    handle_const_32,
+    handle_const_8,
+    handle_string,
+    handle_def_local,
+    handle_get_local,
+    handle_assign,
+    handle_call,
+    handle_return,
+    handle_print,
+    handle_pop,
+    handle_make_list,
+    handle_make_tuple,
+    handle_native_call,
+    handle_const_double,
+    handle_make_chan,
+    handle_chan_read,
+    handle_chan_write,
+    handle_spawn,
+    handle_make_map,
+    handle_fadd,
+    handle_fsub,
+    handle_fmul,
+    handle_fdiv,
+    handle_fnegate,
+    handle_fless,
+    handle_fless_equal,
+    handle_fgreater,
+    handle_fgreater_equal,
+    handle_sconcat,
+    handle_i2f,
+    handle_i2s,
+    handle_f2s,
+    handle_fmod,
+    handle_bitand,
+    handle_bitor,
+    handle_bitxor,
+    handle_bitshift_left,
+    handle_bitshift_right,
+};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {

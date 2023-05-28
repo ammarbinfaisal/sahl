@@ -60,7 +60,12 @@
 #define I2S 55
 #define F2S 56
 #define FMOD 57
+#define BIT_AND 58
+#define BIT_OR 59
+#define BIT_XOR 60
+#define BIT_SHL 61
+#define BIT_SHR 62
 
-#define NUM_OPCODES 58
+#define NUM_OPCODES 63
 
 #endif

@@ -61,6 +61,11 @@ const I2F: u8 = 54;
 const I2S: u8 = 55;
 const F2S: u8 = 56;
 const FMOD: u8 = 57;
+const BIT_AND: u8 = 58;
+const BIT_OR: u8 = 59;
+const BIT_XOR: u8 = 60;
+const BIT_SHL: u8 = 61;
+const BIT_SHR: u8 = 62;
 
 const MAX_LOCALS: usize = (i64::pow(2, 32) - 1) as usize;
 
@@ -437,6 +442,32 @@ impl Bytecode {
                         } else {
                             self.add(IGREATER_EQUAL);
                         }
+                    }
+                }
+            }
+            Expr::BitOp {
+                op,
+                left,
+                right,
+                ty: _,
+            } => {
+                self.compile_expr(&left);
+                self.compile_expr(&right);
+                match op {
+                    BitOp::And => {
+                        self.add(BIT_AND);
+                    }
+                    BitOp::Or => {
+                        self.add(BIT_OR);
+                    }
+                    BitOp::Xor => {
+                        self.add(BIT_XOR);
+                    }
+                    BitOp::Shl => {
+                        self.add(BIT_SHL);
+                    }
+                    BitOp::Shr => {
+                        self.add(BIT_SHR);
                     }
                 }
             }

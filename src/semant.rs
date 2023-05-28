@@ -397,6 +397,20 @@ impl<'a> Checker<'a> {
                     ))
                 }
             }
+            Expr::BitOp { op: _, left, right, ty } => {
+                let ty1 = self.check_expr(left)?;
+                let ty2 = self.check_expr(right)?;
+                if ty1 == Type::Int && ty2 == Type::Int {
+                    *ty = Some(Type::Int);
+                    Ok(Type::Int)
+                } else {
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Int], vec![ty1, ty2]),
+                        expr.2,
+                    ))
+                }
+            }
             Expr::CmpOp {
                 op: _,
                 left: ex1,
