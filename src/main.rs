@@ -3,6 +3,7 @@ mod bytecode;
 mod parser;
 mod semant;
 mod syntax;
+mod go;
 
 use asm::*;
 use parser::*;
@@ -25,11 +26,11 @@ fn main() {
     let opt = std::env::args().nth(2);
     let opt2 = std::env::args().nth(3);
     if filename.is_some() && opt.is_some() {
-        let to_exec = opt.clone().unwrap() == "-e";
+        let to_go = opt.clone().unwrap() == "-g";
         let to_compile = opt.clone().unwrap() == "-c";
         let native = opt.unwrap() == "-n";
         let verbose = opt2.clone().is_some() && opt2.clone().unwrap() == "-v";
-        if !to_exec && !to_compile && !native {
+        if !to_go && !to_compile && !native {
             usage();
             return;
         }
@@ -91,7 +92,10 @@ fn main() {
                         if verbose {
                             println!("Program is well-typed");
                         }
-                        if to_compile {
+                        if to_go {
+                            let res = go::compile_program(&p);
+                            println!("{}", res)
+                        } else  if to_compile {
                             let mut codebyte =
                                 bytecode::Bytecode::new(filename.unwrap().to_string());
                             codebyte.compile_program(&p);
