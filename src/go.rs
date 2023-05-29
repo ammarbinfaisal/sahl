@@ -230,7 +230,7 @@ fn compile_expr(expr: &Expr) -> String {
                         _ => "%v",
                     }
                 }));
-                let arg_format = arg_format.join(", ");
+                let arg_format = arg_format.join("");
                 code.push_str(&format!("\"{}\", ", arg_format));
                 for (i, arg) in args.iter().enumerate() {
                     code.push_str(&compile_expr(&arg.1));
@@ -343,7 +343,7 @@ fn compile_stmt(stmt: &Stmt) -> String {
             let mut code = String::new();
             code.push_str("return ");
             code.push_str(&compile_expr(&expr.1));
-            code.push_str(";\n");
+            code.push_str("\n");
             code
         }
         Stmt::Break => "break\n".to_string(),
