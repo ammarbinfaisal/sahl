@@ -52,6 +52,30 @@ impl std::fmt::Display for Reg64 {
     }
 }
 
+impl From<u8> for Reg64 {
+    fn from(n: u8) -> Self {
+        match n {
+            0 => Reg64::Rax,
+            1 => Reg64::Rcx,
+            2 => Reg64::Rdx,
+            3 => Reg64::Rbx,
+            4 => Reg64::Rsp,
+            5 => Reg64::Rbp,
+            6 => Reg64::Rsi,
+            7 => Reg64::Rdi,
+            8 => Reg64::R8,
+            9 => Reg64::R9,
+            10 => Reg64::R10,
+            11 => Reg64::R11,
+            12 => Reg64::R12,
+            13 => Reg64::R13,
+            14 => Reg64::R14,
+            15 => Reg64::R15,
+            _ => panic!("Invalid register number"),
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Reg32 {
@@ -209,18 +233,6 @@ enum Mem {
     Imm(u64),
 }
 
-#[derive(Clone)]
-struct Value {
-    mem: Mem,
-    ty: Type,
-}
-
-impl Value {
-    fn new(mem: Mem, ty: Type) -> Self {
-        Self { mem, ty }
-    }
-}
-
 fn is_reg_mem(mem: &Mem) -> bool {
     match mem {
         Mem::R64(_) => true,
@@ -293,11 +305,11 @@ impl std::fmt::Display for Mem {
 
 pub struct Asm {
     code: Vec<String>,
-    stack: Vec<Value>,
+    stack: Vec<Mem>,
     loops: Vec<(String, String)>,
     loop_count: usize,
     used_regs: [bool; 23], // first 16 are rxx, next 7 are xmmx
-    vars: HashMap<String, Value>,
+    vars: HashMap<String, Mem>,
     varty: HashMap<String, Type>,
     strings: Vec<Vec<u8>>,
     curr_fn_name: String,
@@ -309,8 +321,8 @@ pub struct Asm {
     functy: FuncEnv,
 }
 
-//  rax, rdx, rcx, r8, r9, r10, r11
-const SCRATCH_REGS: [u8; 6] = [0, 2, 1, 8, 9, 10];
+//  rdx, rcx, r8, r9, r10, r11
+const SCRATCH_REGS: [u8; 5] = [2, 1, 8, 9, 10];
 
 // arg regs - rdi, rsi, rdx, rcx, r8, r9
 const ARG_REGS: [u8; 6] = [7, 6, 2, 1, 8, 9];
@@ -336,9 +348,9 @@ impl Asm {
         }
     }
 
-    fn push(&mut self, v: Value) {
-        if is_reg_mem(&v.mem) {
-            let r = match v.mem {
+    fn push(&mut self, v: Mem) {
+        if is_reg_mem(&v) {
+            let r = match v {
                 Mem::R64(r) => r as u8,
                 Mem::R32(r) => r as u8,
                 Mem::R16(r) => r as u8,
@@ -367,28 +379,23 @@ impl Asm {
         format!(".{}_{}", self.curr_fn_name, s)
     }
 
-    fn pop(&mut self) -> Value {
+    fn pop(&mut self) -> Mem {
         let m = self.stack.pop().unwrap();
-        let v = m.mem;
-        match v {
+        println!("pop {}", m);
+        match m {
             Mem::R64(r) => {
-                let r = r as u8;
                 self.used_regs[r as usize] = false;
             }
             Mem::R32(r) => {
-                let r = r as u8;
                 self.used_regs[r as usize] = false;
             }
             Mem::R16(r) => {
-                let r = r as u8;
                 self.used_regs[r as usize] = false;
             }
             Mem::R8(r) => {
-                let r = r as u8;
                 self.used_regs[r as usize] = false;
             }
             Mem::Xmm(r) => {
-                let r = r as u8;
                 self.used_regs[r as usize + 16] = false;
             }
             Mem::Stack(_) => {}
@@ -398,13 +405,13 @@ impl Asm {
         m
     }
 
-    fn pop2(&mut self) -> (Value, Value) {
+    fn pop2(&mut self) -> (Mem, Mem) {
         let a = self.pop();
         let b = self.pop();
         (a, b)
     }
 
-    fn peek(&self, i: usize) -> Value {
+    fn peek(&self, i: usize) -> Mem {
         self.stack[self.stack.len() - 1 - i].clone()
     }
 
@@ -414,11 +421,16 @@ impl Asm {
             let r = SCRATCH_REGS[i];
             if !self.used_regs[r as usize] {
                 self.used_regs[r as usize] = true;
+                let reg : Reg64 = (r as u8).into();
+                println!("using reg {}", reg);
                 return unsafe {
                     // safe because we only use the first 16
                     std::mem::transmute(r)
                 };
             }
+        }
+        for v in self.stack.iter() {
+            println!("{:?}", v);
         }
         panic!("no unused registers");
     }
@@ -484,6 +496,12 @@ impl Asm {
         header.push("extern list_set_all".to_string());
         header.push("extern list_len".to_string());
 
+        // cast
+        header.push("extern cast_int_to_char".to_string());
+        header.push("extern cast_int_to_double".to_string());
+        header.push("extern cast_double_to_int".to_string());
+        header.push("extern cast_char_to_int".to_string());
+
         return header;
     }
 
@@ -541,8 +559,8 @@ impl Asm {
     }
 
     // choose the appropriate instruction
-    fn write_mem(&mut self, m: &Mem, v: &Value) {
-        self.emit_mov(m, &v.mem);
+    fn write_mem(&mut self, m: &Mem, v: &Mem) {
+        self.emit_mov(m, &v);
     }
 
     fn free_reg(&mut self, r: u8) {
@@ -557,7 +575,7 @@ impl Asm {
         }
     }
 
-    fn emit_call(&mut self, name: &str, args: &[Value], ret_ty: Type, argtypes: &[Type]) {
+    fn emit_call(&mut self, name: &str, args: &[Mem], ret_ty: Type, argtypes: &[Type]) {
         let mut i = 0;
         for a in args {
             let m = if argtypes[i] == Type::Double {
@@ -566,13 +584,12 @@ impl Asm {
                 self.get_arg_mem(i)
             };
             self.write_mem(&m, &a.clone());
-            self.free_mem(&a.mem);
+            self.free_mem(&a);
             i += 1;
         }
         self.append(&format!("call {}", name), 1);
         let m = self.get_result_mem(ret_ty.clone());
-        let v = Value::new(m, ret_ty.clone());
-        self.push(v);
+        self.push(m);
         if ret_ty == Type::Double {
             self.used_regs[16] = true;
         } else {
@@ -617,6 +634,7 @@ impl Asm {
         } else {
             panic!("unhandled mov: {:?} {:?}", dest, src);
         }
+        self.free_mem(src);
     }
 
     // compile expr to x86_64 intel syntax assembly
@@ -625,58 +643,48 @@ impl Asm {
             println!("compile_expr: {:?}", expr);
         }
         match expr {
-            Expr::Literal { lit, ty }=> {
+            Expr::Literal { lit, ty } => {
                 let reg = self.unused_reg();
                 match lit {
                     Lit::Int(i) => {
                         self.append(&format!("mov {}, {}", reg, i), 1);
-                        let v = Value {
-                            mem: Mem::R64(reg),
-                            ty: Type::Int,
-                        };
+                        let v = Mem::R64(reg);
                         self.push(v);
                     }
                     Lit::Double(f) => {
                         let f = f.to_bits();
                         self.append(&format!("mov {}, {}", reg, f), 1);
-                        let v = Value {
-                            mem: Mem::R64(reg),
-                            ty: Type::Double,
-                        };
+                        let v = Mem::R64(reg);
                         self.push(v);
                     }
                     Lit::Bool(b) => {
                         self.append(&format!("mov {}, {}", reg, b), 1);
-                        let v = Value {
-                            mem: Mem::R64(reg),
-                            ty: Type::Bool,
-                        };
+                        let v = Mem::R64(reg);
                         self.push(v);
                     }
                     Lit::Char(c) => {
                         self.append(&format!("mov {}, {}", reg, c), 1);
-                        let v = Value {
-                            mem: Mem::R64(reg),
-                            ty: Type::Char,
-                        };
+                        let v = Mem::R64(reg);
                         self.push(v);
                     }
                     Lit::Str(s) => {
                         self.strings.push(s.clone());
-                        let v = Value {
-                            mem: Mem::Data((self.strings.len() - 1) as u64),
-                            ty: Type::Str,
-                        };
+                        let v = Mem::Data((self.strings.len() - 1) as u64);
                         self.emit_call("newstr", &[v], Type::Str, &[Type::Str]);
                     }
                     _ => unimplemented!("this literal is not implemented yet"),
                 }
             }
-            Expr::Variable { name, ty }=> {
+            Expr::Variable { name, ty } => {
                 let var = self.vars.get(name).unwrap();
                 self.push(var.clone());
             }
-            Expr::Arith { op, left, right, ty } => {
+            Expr::Arith {
+                op,
+                left,
+                right,
+                ty,
+            } => {
                 self.compile_expr(&(*left).1);
                 self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
@@ -687,44 +695,37 @@ impl Asm {
                     ArithOp::Div => "idiv",
                     ArithOp::Mod => "mod",
                 };
-                if a.ty == Type::Str && b.ty == Type::Str {
+                let leftty = left.1.get_type();
+                let rightty = right.1.get_type();
+                if leftty == Type::Str && rightty == Type::Str {
                     // string concat
                     self.emit_call("strcatt", &[a, b], Type::Str, &[Type::Str, Type::Str]);
                 } else {
                     match op.clone() {
                         ArithOp::Add | ArithOp::Sub | ArithOp::Mul => {
-                            if a.ty == Type::Int && b.ty == Type::Int {
+                            if leftty == Type::Int && rightty == Type::Int {
                                 // both are regs
-                                if is_reg_mem(&a.mem) && is_reg_mem(&b.mem) {
-                                    self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
+                                if is_reg_mem(&a) && is_reg_mem(&b) {
+                                    self.append(&format!("{} {}, {}", func, a, b), 1);
                                     self.pop2();
-                                    self.push(Value {
-                                        mem: a.mem,
-                                        ty: Type::Int,
-                                    });
-                                } else if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
+                                    self.push(a);
+                                } else if is_stack_mem(&a) && is_stack_mem(&b) {
                                     // both are stack
                                     let reg = self.unused_reg();
-                                    self.append(&format!("mov {}, {}", reg, a.mem), 1);
-                                    self.append(&format!("{} {}, {}", func, reg, b.mem), 1);
+                                    self.append(&format!("mov {}, {}", reg, a), 1);
+                                    self.append(&format!("{} {}, {}", func, reg, b), 1);
                                     self.pop2();
-                                    self.push(Value {
-                                        mem: Mem::R64(reg),
-                                        ty: Type::Int,
-                                    });
+                                    self.push(Mem::R64(reg));
                                 } else {
                                     // one is reg, one is stack
-                                    let (a, b) = if is_reg_mem(&a.mem) { (a, b) } else { (b, a) };
-                                    self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
+                                    let (a, b) = if is_reg_mem(&a) { (a, b) } else { (b, a) };
+                                    self.append(&format!("{} {}, {}", func, a, b), 1);
                                     self.pop2();
-                                    self.push(Value {
-                                        mem: a.mem,
-                                        ty: Type::Int,
-                                    });
+                                    self.push(a);
                                 }
                             } else {
                                 // call the appropriate function
-                                if a.ty == Type::Double && b.ty == Type::Double {
+                                if leftty == Type::Double && rightty == Type::Double {
                                     // call ffadd
                                     self.pop2();
                                     self.emit_call(
@@ -734,7 +735,11 @@ impl Asm {
                                         &[Type::Double, Type::Double],
                                     );
                                 } else {
-                                    let (a, b) = if a.ty == Type::Double { (a, b) } else { (b, a) };
+                                    let (a, b) = if leftty == Type::Double {
+                                        (a, b)
+                                    } else {
+                                        (b, a)
+                                    };
                                     self.pop2();
                                     self.emit_call(
                                         format!("if{}", func).as_str(),
@@ -746,12 +751,12 @@ impl Asm {
                             }
                         }
                         ArithOp::Div => {
-                            if a.ty == Type::Int && b.ty == Type::Int {
+                            if leftty == Type::Int && rightty == Type::Int {
                                 // call idiv
                                 self.pop2();
                                 self.emit_call("idiv", &[a, b], Type::Int, &[Type::Int, Type::Int]);
                             } else {
-                                if a.ty == Type::Double && b.ty == Type::Double {
+                                if leftty == Type::Double && rightty == Type::Double {
                                     // call ffdiv
                                     self.pop2();
                                     self.emit_call(
@@ -760,7 +765,7 @@ impl Asm {
                                         Type::Double,
                                         &[Type::Double, Type::Double],
                                     );
-                                } else if a.ty == Type::Double {
+                                } else if leftty == Type::Double {
                                     self.pop2();
                                     self.emit_call(
                                         "fidiv",
@@ -780,14 +785,11 @@ impl Asm {
                             }
                         }
                         ArithOp::Mod => {
-                            if a.ty == Type::Int && b.ty == Type::Int {
-                                self.append(&format!("mov {}, {}", Reg64::Rax, a.mem), 1);
+                            if leftty == Type::Int && rightty == Type::Int {
+                                self.append(&format!("mov {}, {}", Reg64::Rax, a), 1);
                                 self.append(&format!("xor {}, {}", Reg64::Rdx, Reg64::Rdx), 1);
-                                self.append(&format!("idiv {}", b.mem), 1);
-                                let v = Value {
-                                    mem: Mem::R64(Reg64::Rdx),
-                                    ty: Type::Int,
-                                };
+                                self.append(&format!("idiv {}", b), 1);
+                                let v = Mem::R64(Reg64::Rdx);
                                 self.pop2();
                                 self.push(v);
                             }
@@ -795,7 +797,12 @@ impl Asm {
                     }
                 }
             }
-            Expr::BoolOp { op, left, right, ty }=> {
+            Expr::BoolOp {
+                op,
+                left,
+                right,
+                ty,
+            } => {
                 self.compile_expr(&(*left).1);
                 self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
@@ -803,61 +810,61 @@ impl Asm {
                     BoolOp::And => "and",
                     BoolOp::Or => "or",
                 };
-                if a.ty == Type::Bool && b.ty == Type::Bool {
-                    if is_reg_mem(&a.mem) && is_reg_mem(&b.mem) {
+                let leftty = left.1.get_type();
+                let rightty = right.1.get_type();
+                if leftty == Type::Bool && rightty == Type::Bool {
+                    if is_reg_mem(&a) && is_reg_mem(&b) {
                         // both are regs
-                        self.append(&format!("{} {}, {}", func, a.mem, b.mem), 1);
+                        self.append(&format!("{} {}, {}", func, a, b), 1);
                         self.pop2();
-                        self.push(Value {
-                            mem: a.mem,
-                            ty: Type::Bool,
-                        });
-                    } else if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
+                        self.push(a);
+                    } else if is_stack_mem(&a) && is_stack_mem(&b) {
                         // both are stack
                         let reg = self.unused_reg();
-                        self.append(&format!("mov {}, {}", reg, a.mem), 1);
-                        self.append(&format!("{} {}, {}", func, reg, b.mem), 1);
+                        self.append(&format!("mov {}, {}", reg, a), 1);
+                        self.append(&format!("{} {}, {}", func, reg, b), 1);
                         self.pop2();
-                        self.push(Value {
-                            mem: Mem::R64(reg),
-                            ty: Type::Bool,
-                        });
+                        self.push(Mem::R64(reg));
                     } else {
                         // one is reg, one is mem
-                        let (stv, regv) = if is_reg_mem(&a.mem) { (b, a) } else { (a, b) };
-                        self.append(&format!("{} {}, {}", func, regv.mem, stv.mem), 1);
+                        let (stv, regv) = if is_reg_mem(&a) { (b, a) } else { (a, b) };
+                        self.append(&format!("{} {}, {}", func, regv, stv), 1);
                         self.pop2();
-                        self.push(Value {
-                            mem: regv.mem,
-                            ty: Type::Bool,
-                        });
+                        self.push(regv);
                     }
                 } else {
-                    self.tyerr(a.ty, &[b.ty]);
+                    self.tyerr(leftty, &[rightty]);
                 }
             }
-            Expr::CmpOp { op, left, right, ty } => {
+            Expr::CmpOp {
+                op,
+                left,
+                right,
+                ty,
+            } => {
                 self.compile_expr(&(*left).1);
                 self.compile_expr(&(*right).1);
                 let (a, b) = (self.peek(0), self.peek(1));
                 let res = self.get_result_mem(Type::Bool);
-                if a.ty == Type::Int && b.ty == Type::Int {
-                    let (b, a) = if is_stack_mem(&a.mem) && is_stack_mem(&b.mem) {
+                let leftty = left.1.get_type();
+                let rightty = right.1.get_type();
+                if (leftty == Type::Int && rightty == Type::Int)
+                    || (leftty == Type::Char && rightty == Type::Char)
+                {
+                    let (b, a) = if is_stack_mem(&a) && is_stack_mem(&b) {
                         let reg = self.unused_reg();
                         let v = Mem::R64(reg);
-                        let val = Value::new(v, Type::Int);
-                        self.emit_mov(&v, &b.mem);
-                        (val, a)
-                    } else if is_stack_mem(&b.mem) {
+                        self.emit_mov(&v, &b);
+                        (v, a)
+                    } else if is_stack_mem(&b) {
                         let reg = self.unused_reg();
                         let v = Mem::R64(reg);
-                        let val = Value::new(v, Type::Int);
-                        self.emit_mov(&v, &a.mem);
-                        (b, val)
+                        self.emit_mov(&v, &a);
+                        (b, v)
                     } else {
                         (b, a)
                     };
-                    self.append(&format!("cmp {}, {}", b.mem, a.mem), 1);
+                    self.append(&format!("cmp {}, {}", b, a), 1);
                     let j1 = match op.clone() {
                         CmpOp::Eq => "je",
                         CmpOp::Ne => "jne",
@@ -874,13 +881,17 @@ impl Asm {
                     self.append(&format!("{}:", label), 1);
                     self.append(&format!("mov {}, 1", res), 1);
                     self.append(&format!("{}:", label2), 1);
-                } else if a.ty == Type::Double || b.ty == Type::Double {
-                    let (a, b) = if a.ty == Type::Double { (b, a) } else { (a, b) };
+                } else if leftty == Type::Double || rightty == Type::Double {
+                    let (a, b) = if leftty == Type::Double {
+                        (b, a)
+                    } else {
+                        (a, b)
+                    };
                     // 1: a > b
                     // 0: a == b
                     // -1: a < b
                     self.pop2();
-                    if a.ty == Type::Double && b.ty == Type::Double {
+                    if leftty == Type::Double && rightty == Type::Double {
                         self.emit_call("ffcmp", &[a, b], Type::Int, &[Type::Double, Type::Double]);
                     } else {
                         self.emit_call("ifcmp", &[a, b], Type::Int, &[Type::Int, Type::Double]);
@@ -908,32 +919,30 @@ impl Asm {
                         }
                     }
                 } else {
-                    self.tyerr(a.ty, &[b.ty]);
+                    self.tyerr(leftty, &[rightty]);
                 }
-                self.push(Value {
-                    mem: res,
-                    ty: Type::Bool,
-                });
+                self.push(res);
             }
             Expr::Call { name, args, ty } => {
                 if name == "print" {
-                    // call respective print for each value
+                    // call respective print for each Mem
                     for arg in args {
                         self.compile_expr(&(*arg).1);
                         let v = self.pop();
-                        if v.ty == Type::Int {
+                        let argty  = arg.1.get_type();
+                        if argty == Type::Int {
                             self.emit_call("iprint", &[v], Type::Void, &[Type::Int]);
-                        } else if v.ty == Type::Double {
+                        } else if argty == Type::Double {
                             self.emit_call("fprint", &[v], Type::Void, &[Type::Double]);
-                        } else if v.ty == Type::Bool {
+                        } else if argty == Type::Bool {
                             self.emit_call("bprint", &[v], Type::Void, &[Type::Int]);
-                        } else if v.ty == Type::Char {
+                        } else if argty == Type::Char {
                             self.emit_call("cprint", &[v], Type::Void, &[Type::Int]);
-                        } else if v.ty == Type::Str {
+                        } else if argty == Type::Str {
                             self.emit_call("sprint", &[v], Type::Void, &[Type::Int]);
                         } else {
                             self.tyerr(
-                                v.ty,
+                                argty,
                                 &[Type::Int, Type::Double, Type::Bool, Type::Char, Type::Str],
                             );
                         }
@@ -946,9 +955,10 @@ impl Asm {
                     }
                     self.compile_expr(&args[0].1);
                     let v = self.pop();
-                    if let Type::List(_) = v.ty {
+                    let argty = args[0].1.get_type();
+                    if let Type::List(_) = argty {
                     } else {
-                        self.tyerr(v.ty, &[Type::List(Box::new(Type::Int))]);
+                        self.tyerr(argty, &[Type::List(Box::new(Type::Int))]);
                     }
                     self.emit_call(
                         "list_len",
@@ -964,21 +974,22 @@ impl Asm {
                     self.compile_expr(&args[0].1);
                     let list = self.peek(0);
                     // void list_append(uint64_t list, void *val)
-                    if let Type::List(_) = list.ty {
+                    let argty = args[0].1.get_type();
+                    if let Type::List(_) = argty {
                     } else {
-                        self.tyerr(list.ty, &[Type::List(Box::new(Type::Int))]);
+                        self.tyerr(argty, &[Type::List(Box::new(Type::Int))]);
                     }
                     self.compile_expr(&args[1].1);
                     let val = self.peek(0);
-                    let valty = val.ty.clone();
+                    let valty = argty.clone();
                     let arg1_reg = self.get_arg_mem(0);
                     let arg2_reg = if valty == Type::Double {
                         self.get_f_arg_mem(0)
                     } else {
                         self.get_arg_mem(1)
                     };
-                    self.emit_mov(&arg1_reg, &list.mem);
-                    self.append(&format!("lea {}, {}", arg2_reg, val.mem), 1);
+                    self.emit_mov(&arg1_reg, &list);
+                    self.append(&format!("lea {}, {}", arg2_reg, val), 1);
                     self.append("call list_append", 1);
                 } else {
                     let args = args
@@ -1003,17 +1014,17 @@ impl Asm {
                         self.compile_expr(&(*right).1);
                         let v = self.pop();
                         let var = self.vars.get(&name).unwrap().clone();
-                        let mem = var.mem;
+                        let mem = var;
                         // both stack
-                        if is_stack_mem(&mem) && is_stack_mem(&v.mem) {
+                        if is_stack_mem(&mem) && is_stack_mem(&v) {
                             let reg = self.unused_reg();
                             let temp = Mem::R64(reg);
-                            self.emit_mov(&temp, &v.mem);
+                            self.emit_mov(&temp, &v);
                             self.emit_mov(&mem, &mem);
                         } else {
-                            self.emit_mov(&mem, &v.mem);
+                            self.emit_mov(&mem, &v);
                         }
-                        self.push(Value::new(mem.clone(), v.ty));
+                        self.push(mem);
                     }
                     Expr::Subscr { expr, index, ty } => {
                         self.compile_expr(&(*expr).1);
@@ -1030,9 +1041,9 @@ impl Asm {
                         let arg2_reg = self.get_arg_mem(1);
                         let arg3_reg = self.get_arg_mem(2);
                         // void list_set(uint64_t list, uint64_t index, void *val)
-                        self.emit_mov(&arg1_reg, &ls.mem);
-                        self.emit_mov(&arg2_reg, &idx.mem);
-                        self.append(&format!("lea {}, {}", arg3_reg, v.mem), 1);
+                        self.emit_mov(&arg1_reg, &ls);
+                        self.emit_mov(&arg2_reg, &idx);
+                        self.append(&format!("lea {}, {}", arg3_reg, v), 1);
                         self.append(&format!("call list_set"), 1);
                     }
                     _ => {
@@ -1064,11 +1075,11 @@ impl Asm {
                         let v = self.peek(0);
                         let reg = self.unused_reg();
                         let temp = Mem::R64(reg);
-                        self.emit_mov(&temp, &v.mem);
-                        let v = Value::new(temp.clone(), Type::Int);
+                        self.emit_mov(&temp, &v);
+                        let v = temp.clone();
                         v
                     }
-                    None => Value::new(Mem::Imm(0), Type::Int),
+                    None => Mem::Imm(0),
                 };
 
                 match *ty {
@@ -1076,7 +1087,7 @@ impl Asm {
                         let reg = self.unused_reg();
                         let temp = Mem::R64(reg);
                         self.append(&format!("mov {}, {}", temp, elemsize), 1);
-                        let elemsize = Value::new(temp.clone(), Type::Int);
+                        let elemsize = temp;
 
                         self.emit_call(
                             "new_list",
@@ -1095,10 +1106,15 @@ impl Asm {
                 let v = self.pop();
                 self.compile_expr(&(*index).1);
                 let idx = self.pop();
-                let vty = v.clone().ty;
-                let idxty = idx.clone().ty;
+                let vty = expr.1.get_type();
+                let idxty = index.1.get_type();
+                let mut is_string = false;
                 let valty = match vty.clone() {
                     Type::List(ty) => ty,
+                    Type::Str => {
+                        is_string = true;
+                        Box::new(Type::Char)
+                    }
                     _ => {
                         self.tyerr(vty, &[Type::List(Box::new(Type::Any))]);
                     }
@@ -1107,16 +1123,41 @@ impl Asm {
                 let arg2_reg = self.get_arg_mem(1);
                 let arg3_reg = self.get_arg_mem(2);
                 // void list_get(uint64_t list, uint64_t index, void *val)
-                self.emit_mov(&arg1_reg, &v.mem);
-                self.emit_mov(&arg2_reg, &idx.mem);
-                self.append(&format!("lea {}, {}", arg3_reg, idx.mem), 1);
-                self.append(&format!("call list_get"), 1);
-                // extract value from arg3_reg
+                self.emit_mov(&arg1_reg, &v);
+                self.emit_mov(&arg2_reg, &idx);
+                self.append(&format!("lea {}, {}", arg3_reg, idx), 1);
+                if is_string {
+                    self.append(&format!("call str_get"), 1);
+                } else {
+                    self.append(&format!("call list_get"), 1);
+                }
+                // extract Mem from arg3_reg
                 let reg = self.unused_reg();
-                let temp = Mem::R64(reg);
-                self.append(&format!("mov {}, {}", temp, arg3_reg), 1);
-                let val = Value::new(temp.clone(), *valty.clone());
+                let val = Mem::R64(reg);
+                self.append(&format!("mov {}, {}", val, arg3_reg), 1);
                 self.push(val);
+            }
+            Expr::Cast { expr, ty } => {
+                //
+                self.compile_expr(&(*expr).1);
+                let v = self.pop();
+                let vty = expr.1.get_type();
+                let ty = ty.clone();
+                match (vty.clone(), ty.clone()) {
+                    (Type::Int, Type::Char) => {
+                        // call cast_int_to_char
+                        self.emit_call("cast_int_to_char", &[v], Type::Char, &[Type::Int]);
+                    }
+                    (Type::Char, Type::Int) => {
+                        // call cast_char_to_int
+                        self.emit_call("cast_char_to_int", &[v], Type::Int, &[Type::Char]);
+                    }
+                    (Type::Int, Type::Double) => {
+                        // call cast_int_to_double
+                        self.emit_call("cast_int_to_double", &[v], Type::Double, &[Type::Int]);
+                    }
+                    _ => unimplemented!("cast {:?} to {:?}", vty, ty),
+                }
             }
             _ => {
                 unimplemented!("{:?}", expr)
@@ -1135,7 +1176,7 @@ impl Asm {
                 let v = self.pop();
                 let m = Mem::Stack(self.var_offset);
                 self.write_mem(&m, &v.clone());
-                let val = Value::new(Mem::Stack(self.var_offset), v.ty);
+                let val = Mem::Stack(self.var_offset);
                 self.vars.insert(name.clone(), val);
                 self.var_offset += 8;
             }
@@ -1144,7 +1185,7 @@ impl Asm {
                 let label_end = self.rand_label();
                 self.compile_expr(&(*expr).1);
                 let v = self.pop();
-                self.append(&format!("cmp {}, 0", v.mem), 1);
+                self.append(&format!("cmp {}, 0", v), 1);
                 if !else_stmts.is_none() {
                     self.append(&format!("je {}", label_else), 1);
                 }
@@ -1168,7 +1209,7 @@ impl Asm {
                 self.append(&format!("{}:", label_start.clone()), 0);
                 self.compile_expr(&(*expr).1);
                 let v = self.pop();
-                self.append(&format!("cmp {}, 0", v.mem), 1);
+                self.append(&format!("cmp {}, 0", v), 1);
                 self.append(&format!("je {}", label_end.clone()), 1);
                 self.loops.push((label_start.clone(), label_end.clone()));
                 for stmt in stmts {
@@ -1180,7 +1221,7 @@ impl Asm {
             Stmt::Return(expr) => {
                 self.compile_expr(&(*expr).1);
                 let v = self.pop();
-                self.emit_mov(&Mem::Stack(self.return_stack_space), &v.mem);
+                self.emit_mov(&Mem::Stack(self.return_stack_space), &v);
                 self.append(&format!("jmp {}", self.return_label), 1);
             }
             Stmt::Comment => {}
@@ -1221,7 +1262,7 @@ impl Asm {
             self.emit_mov(&mem, &arg);
             self.vars.insert(
                 func.args[i].name.clone(),
-                Value::new(mem.clone(), func.args[i].ty.clone()),
+                mem.clone(),
             );
             self.var_offset += 8;
         }
