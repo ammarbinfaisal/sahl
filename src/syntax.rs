@@ -179,7 +179,6 @@ pub enum Stmt {
     Coroutine(Spanned<Expr>),
     ChanWrite(String, Box<Spanned<Expr>>),
     Continue,
-    Comment,
     Break,
 }
 
