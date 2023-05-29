@@ -99,31 +99,31 @@ impl GOCodegen {
                         "func _print_{}(v []{}) {{\n",
                         self.print_count, goty
                     ));
-                    print_code.push_str("    fmt.Print(\"[\")\n");
+                    print_code.push_str("fmt.Print(\"[\")\n");
                     // should print like this [FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, ]
-                    print_code.push_str("    for i, vv := range v {\n");
+                    print_code.push_str("for i, vv := range v {\n");
                     match *ty.clone() {
                         Type::Int => {
-                            print_code.push_str("        fmt.Printf(\"%d\", vv)\n");
+                            print_code.push_str("fmt.Printf(\"%d\", vv)\n");
                         }
                         Type::Double => {
-                            print_code.push_str("        fmt.Printf(\"%f\", vv)\n");
+                            print_code.push_str("fmt.Printf(\"%f\", vv)\n");
                         }
                         Type::Char => {
-                            print_code.push_str("        fmt.Printf(\"%c\", vv)\n");
+                            print_code.push_str("fmt.Printf(\"%c\", vv)\n");
                         }
                         Type::Str => {
-                            print_code.push_str("        fmt.Printf(\"%s\", vv)\n");
+                            print_code.push_str("fmt.Printf(\"%s\", vv)\n");
                         }
                         _ => {
-                            print_code.push_str("        fmt.Printf(%v, vv)\n");
+                            print_code.push_str("fmt.Printf(%v, vv)\n");
                         }
                     }
-                    print_code.push_str("        if i != len(v)-1 {\n");
-                    print_code.push_str("            fmt.Print(\", \")\n");
-                    print_code.push_str("        }\n");
-                    print_code.push_str("    }\n");
-                    print_code.push_str("    fmt.Print(\"]\")\n");
+                    print_code.push_str("if i != len(v)-1 {\n");
+                    print_code.push_str("fmt.Print(\", \")\n");
+                    print_code.push_str("}\n");
+                    print_code.push_str("}\n");
+                    print_code.push_str("fmt.Print(\"]\")\n");
                     print_code.push_str("}\n");
                     self.prints.push(format!("_print_{}", self.print_count));
                     self.header.push_str(&print_code);
@@ -140,7 +140,7 @@ impl GOCodegen {
                     code.push_str("struct {\n");
                     for (i, ty) in tys.iter().enumerate() {
                         let ty = self.ty_to_go(ty);
-                        code.push_str(&format!("    f{} {}\n", i, ty));
+                        code.push_str(&format!("f{} {}\n", i, ty));
                     }
                     code.push_str("}");
                     self.header
@@ -151,45 +151,45 @@ impl GOCodegen {
                         "func _print_{}(v t{}) {{\n",
                         self.print_count, self.type_count
                     ));
-                    print_code.push_str("    fmt.Print(\"(\")\n");
+                    print_code.push_str("fmt.Print(\"(\")\n");
                     for (i, ty) in tys.iter().enumerate() {
                         match ty {
                             Type::Int => {
                                 print_code.push_str(&format!(
-                                    "    fmt.Printf(\"%d\", v.f{})\n",
+                                    "fmt.Printf(\"%d\", v.f{})\n",
                                     i
                                 ));
                             }
                             Type::Double => {
                                 print_code.push_str(&format!(
-                                    "    fmt.Printf(\"%f\", v.f{})\n",
+                                    "fmt.Printf(\"%f\", v.f{})\n",
                                     i
                                 ));
                             }
                             Type::Char => {
                                 print_code.push_str(&format!(
-                                    "    fmt.Printf(\"%c\", v.f{})\n",
+                                    "fmt.Printf(\"%c\", v.f{})\n",
                                     i
                                 ));
                             }
                             Type::Str => {
                                 print_code.push_str(&format!(
-                                    "    fmt.Printf(\"%s\", v.f{})\n",
+                                    "fmt.Printf(\"%s\", v.f{})\n",
                                     i
                                 ));
                             }
                             _ => {
                                 print_code.push_str(&format!(
-                                    "    fmt.Printf(%v, v.f{})\n",
+                                    "fmt.Printf(%v, v.f{})\n",
                                     i
                                 ));
                             }
                         }
                         if i != tys.len() - 1 {
-                            print_code.push_str("    fmt.Print(\", \")\n");
+                            print_code.push_str("fmt.Print(\", \")\n");
                         }
                     }
-                    print_code.push_str("    fmt.Print(\")\")\n");
+                    print_code.push_str("fmt.Print(\")\")\n");
                     print_code.push_str("}\n");
                     self.header.push_str(&print_code);
                     self.types.push((ty.clone(), self.print_count));
