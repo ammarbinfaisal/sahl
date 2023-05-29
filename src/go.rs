@@ -314,6 +314,8 @@ fn compile_stmt(stmt: &Stmt) -> String {
                     code.push_str(&compile_stmt(&stmt.1));
                 }
                 code.push_str("}\n");
+            } else {
+                code.push_str("\n");
             }
             code
         }
