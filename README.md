@@ -27,6 +27,25 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I started writing `sahl_aot.go` to convert the bytecode to assembly but stopped. Right now there is a virtual machine, x86_64 native code generation and transpilation to go.
 
 
+### future plans
+
+- convert to ssa ir and then optimize
+- implement a generational garbage collector for vm as well as native code (llvm/x86_64)
+- sahl vm
+  - change bytecode and vm to reg based
+  - add a jit to vm
+  - how to do ffi?
+- for jvm backend
+  - figure out how to do ffi
+  - figure out how to do coroutines
+  - use kotlin to convert the bytecode to jvm bytecode
+- for js(typescript) backend
+  - figure out how to do ffi
+  - figure out how to do coroutines
+- llvm / x86_64
+  - generational GC
+  - coroutines
+
 ## `exe.bin` format
 
 - 4 bytes: filename length
@@ -49,7 +68,3 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
 - add a module system
 - make it self hosted :)
 - make it atleast as fast as python
-
-## undecided
-
-- closures
