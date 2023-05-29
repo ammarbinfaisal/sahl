@@ -890,6 +890,8 @@ void handle_cast(VM *vm) {
         push(vm, INT_VAL((int64_t)AS_CHAR(val)));
     } else if (from == 1 && to == 4 ) {
         push(vm, CHAR_VAL((char)AS_INT(val)));
+    } else if (from == 1 && to == 2) {
+        push(vm, FLOAT_VAL((double)AS_INT(val)));
     } else {
         error(vm, "Invalid cast");
     }
