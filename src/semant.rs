@@ -371,13 +371,13 @@ impl<'a> Checker<'a> {
                 } else if ty1 == Type::Int && ty2 == Type::Int {
                     *t = Some(Type::Int);
                     Ok(Type::Int)
-                } else if ty1 == Type::Double || ty2 == Type::Double {
+                } else if ty1 == Type::Double && ty2 == Type::Double {
                     *t = Some(Type::Double);
                     Ok(Type::Double)
                 } else {
                     Err((
                         expr.0,
-                        Error::TypeMismatch(vec![Type::Int, Type::Double], vec![ty1, ty2]),
+                        Error::TypeMismatch(vec![ty1], vec![ty2]),
                         expr.2,
                     ))
                 }
