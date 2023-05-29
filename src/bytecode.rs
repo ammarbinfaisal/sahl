@@ -57,7 +57,7 @@ const FLESS_EQUAL: u8 = 50;
 const FGREATER: u8 = 51;
 const FGREATER_EQUAL: u8 = 52;
 const SCONCAT: u8 = 53;
-const I2F: u8 = 54;
+// const I2F: u8 = 54; use CAST instead
 const I2S: u8 = 55;
 const F2S: u8 = 56;
 const FMOD: u8 = 57;
@@ -265,15 +265,6 @@ impl Bytecode {
         }
     }
 
-    fn float_check(&mut self, ex1: &Expr, ex2: &Expr) -> bool {
-        if ex1.get_type() == Type::Double && ex2.get_type() == Type::Double {
-            return false; // both are doubles so no need to convert
-        } else if ex1.get_type() == Type::Double || ex2.get_type() == Type::Double {
-            return true;
-        }
-        false
-    }
-
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
         self.span = (expr.0, expr.2);
         match expr.1.clone() {
@@ -312,7 +303,7 @@ impl Bytecode {
             }
             Expr::Neg { expr, ty } => {
                 self.compile_expr(&expr);
-                if ty.unwrap() == Type::Double {
+                if ty.clone().unwrap() == Type::Double {
                     self.add(FNEG);
                 } else {
                     self.add(INEG);
@@ -326,7 +317,7 @@ impl Bytecode {
                 op,
                 left: ex1,
                 right: ex2,
-                ty: _,
+                ty,
             } => {
                 self.compile_expr(&ex1);
                 self.compile_expr(&ex2);
@@ -334,13 +325,12 @@ impl Bytecode {
                 // also use I2F <i> to convert the int to a double...
                 // ... this instruction would not pop the value from the stack but convert it in place
                 // <i> denotes the index of the value on the stack from the top
-                let use_float = self.float_check(&ex1.1, &ex2.1);
                 match op {
                     ArithOp::Add => {
                         let mut s_concat = false;
                         match ex1.1.get_type() {
                             Type::Str => {
-                                if use_float {
+                                if ty.clone().unwrap() == Type::Double {
                                     self.add_u32(F2S, 0);
                                 }
                                 s_concat = true;
@@ -349,7 +339,7 @@ impl Bytecode {
                         }
                         match ex2.1.get_type() {
                             Type::Str => {
-                                if use_float {
+                                if ty.clone().unwrap() == Type::Double {
                                     self.add_u32(F2S, 1);
                                 } else {
                                     self.add_u32(I2S, 0);
@@ -361,7 +351,7 @@ impl Bytecode {
                         if s_concat {
                             self.add_u32(SCONCAT, 0);
                         } else {
-                            if use_float {
+                            if ty.clone().unwrap() == Type::Double {
                                 self.add(FADD);
                             } else {
                                 self.add(IADD);
@@ -369,28 +359,28 @@ impl Bytecode {
                         }
                     }
                     ArithOp::Sub => {
-                        if use_float {
+                        if ty.clone().unwrap() == Type::Double {
                             self.add(FSUB);
                         } else {
                             self.add(ISUB);
                         }
                     }
                     ArithOp::Mul => {
-                        if use_float {
+                        if ty.clone().unwrap() == Type::Double {
                             self.add(FMUL);
                         } else {
                             self.add(IMUL);
                         }
                     }
                     ArithOp::Div => {
-                        if use_float {
+                        if ty.clone().unwrap() == Type::Double {
                             self.add(FDIV);
                         } else {
                             self.add(IDIV);
                         }
                     }
                     ArithOp::Mod => {
-                        if use_float {
+                        if ty.clone().unwrap() == Type::Double {
                             self.add(FMOD);
                         } else {
                             self.add(IMOD);
@@ -419,11 +409,10 @@ impl Bytecode {
                 op,
                 left: ex1,
                 right: ex2,
-                ty: _,
+                ty,
             } => {
                 self.compile_expr(&ex1);
                 self.compile_expr(&ex2);
-                let use_float = self.float_check(&ex1.1, &ex2.1);
                 match op {
                     CmpOp::Eq => {
                         self.add(EQUAL);
@@ -432,28 +421,28 @@ impl Bytecode {
                         self.add(NOT_EQUAL);
                     }
                     CmpOp::Lt => {
-                        if use_float {
+                        if ex1.1.get_type()  == Type::Double {
                             self.add(FLESS);
                         } else {
                             self.add(ILESS);
                         }
                     }
                     CmpOp::Le => {
-                        if use_float {
+                        if ex1.1.get_type()  == Type::Double {
                             self.add(FLESS_EQUAL);
                         } else {
                             self.add(ILESS_EQUAL);
                         }
                     }
                     CmpOp::Gt => {
-                        if use_float {
+                        if ex1.1.get_type()  == Type::Double {
                             self.add(FGREATER);
                         } else {
                             self.add(IGREATER);
                         }
                     }
                     CmpOp::Ge => {
-                        if use_float {
+                        if ex1.1.get_type()  == Type::Double {
                             self.add(FGREATER_EQUAL);
                         } else {
                             self.add(IGREATER_EQUAL);
