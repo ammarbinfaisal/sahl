@@ -5,5 +5,5 @@ fun factorial(n: int) -> int {
 }
 
 fun main() {
-    print(factorial(20), "\n")
+    print(factorial(12), "\n")
 }
