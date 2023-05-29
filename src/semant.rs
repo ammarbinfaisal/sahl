@@ -783,7 +783,6 @@ impl<'a> Checker<'a> {
                     Ok(())
                 }
             }
-            Stmt::Comment => Ok(()),
             Stmt::Coroutine(expr) => {
                 self.check_expr(expr)?;
                 if let Expr::Call { .. } = expr.1 {

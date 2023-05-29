@@ -822,9 +822,6 @@ impl Bytecode {
                     }
                 }
             }
-            Stmt::Comment => {
-                // do nothing
-            }
             Stmt::Coroutine(call) => {
                 self.add(SPAWN);
                 self.compile_expr(call);

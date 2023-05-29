@@ -1224,7 +1224,6 @@ impl Asm {
                 self.emit_mov(&Mem::Stack(self.return_stack_space), &v);
                 self.append(&format!("jmp {}", self.return_label), 1);
             }
-            Stmt::Comment => {}
             _ => {
                 unimplemented!();
             }
