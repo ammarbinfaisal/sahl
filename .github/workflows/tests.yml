@@ -35,12 +35,12 @@ jobs:
         valColorRange: ${{ env.COLOR }}
         maxColorRange: 100
         minColorRange: 0
-    - name: AOT Badge
+    - name: GO Badge
       uses: schneegans/dynamic-badges-action@v1.6.0
       with:
         gistID: 2bc57fe31c6d742b25defe3549e78433
         auth: ${{ secrets.GHSECRET }}
-        filename: aot.json
+        filename: go.json
         label: executable
         message: ${{ env.GO_TEST_RESULT }}
         valColorRange: ${{ env.GO_COLOR }}
