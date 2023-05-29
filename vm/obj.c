@@ -116,7 +116,7 @@ void print_value(Value value) {
 #ifndef MINARR
             for (int i = 0; i < obj->list.length; i++) {
                 print_value(obj->list.items[i]);
-                printf(", ");
+                if (i != obj->list.length - 1) printf(", ");
             }
 #else
             printf(" %ld items ", obj->list.length);
