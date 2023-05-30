@@ -1,7 +1,3 @@
-// emit go code from ast
-
-use std::collections::HashMap;
-
 use crate::syntax::*;
 
 // just recursively emit go code from ast
@@ -54,10 +50,10 @@ fn unescape(s: &str) -> String {
 }
 
 struct GOCodegen {
-    header: String,    // struct, import, etc
-    type_count: usize, // t<type_count>
-    types: Vec<(Type, usize)>, // (type, printfn) 
-    print_count: usize, // _print_<print_count>
+    header: String,            // struct, import, etc
+    type_count: usize,         // t<type_count>
+    types: Vec<(Type, usize)>, // (type, printfn)
+    print_count: usize,        // _print_<print_count>
     prints: Vec<String>,
 }
 
@@ -90,7 +86,7 @@ impl GOCodegen {
             Type::Char => "byte".to_string(),
             Type::List(ty) => {
                 let goty = self.ty_to_go(ty);
-                if let Some(i) = self.find_type(ty) {
+                if let Some(_) = self.find_type(ty) {
                     // cool
                 } else {
                     // add a print function for this type
@@ -100,7 +96,6 @@ impl GOCodegen {
                         self.print_count, goty
                     ));
                     print_code.push_str("fmt.Print(\"[\")\n");
-                    // should print like this [FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, Buzz, Fizz, FizzBuzz, Fizz, Buzz, Fizz, Fizz, ]
                     print_code.push_str("for i, vv := range v {\n");
                     match *ty.clone() {
                         Type::Int => {
@@ -155,34 +150,19 @@ impl GOCodegen {
                     for (i, ty) in tys.iter().enumerate() {
                         match ty {
                             Type::Int => {
-                                print_code.push_str(&format!(
-                                    "fmt.Printf(\"%d\", v.f{})\n",
-                                    i
-                                ));
+                                print_code.push_str(&format!("fmt.Printf(\"%d\", v.f{})\n", i));
                             }
                             Type::Double => {
-                                print_code.push_str(&format!(
-                                    "fmt.Printf(\"%f\", v.f{})\n",
-                                    i
-                                ));
+                                print_code.push_str(&format!("fmt.Printf(\"%f\", v.f{})\n", i));
                             }
                             Type::Char => {
-                                print_code.push_str(&format!(
-                                    "fmt.Printf(\"%c\", v.f{})\n",
-                                    i
-                                ));
+                                print_code.push_str(&format!("fmt.Printf(\"%c\", v.f{})\n", i));
                             }
                             Type::Str => {
-                                print_code.push_str(&format!(
-                                    "fmt.Printf(\"%s\", v.f{})\n",
-                                    i
-                                ));
+                                print_code.push_str(&format!("fmt.Printf(\"%s\", v.f{})\n", i));
                             }
                             _ => {
-                                print_code.push_str(&format!(
-                                    "fmt.Printf(%v, v.f{})\n",
-                                    i
-                                ));
+                                print_code.push_str(&format!("fmt.Printf(%v, v.f{})\n", i));
                             }
                         }
                         if i != tys.len() - 1 {
@@ -363,7 +343,7 @@ impl GOCodegen {
                                 let mut printfn = self.find_print(&ty);
                                 if printfn.is_none() {
                                     self.ty_to_go(&ty);
-                                    printfn = Some(self.prints[self.print_count-1].clone())
+                                    printfn = Some(self.prints[self.print_count - 1].clone())
                                 }
                                 let printfn = printfn.unwrap();
                                 code.push_str(&format!(
