@@ -76,8 +76,8 @@ impl GOCodegen {
         None
     }
 
-    fn ty_to_go(&mut self, ty: &Type) -> String {
-        match ty {
+    fn ty_to_go(&mut self, tyy: &Type) -> String {
+        match tyy {
             Type::Int => "int64".to_string(),
             Type::Double => "float64".to_string(),
             Type::Bool => "bool".to_string(),
@@ -95,6 +95,8 @@ impl GOCodegen {
                         "func _print_{}(v []{}) {{\n",
                         self.print_count, goty
                     ));
+                    self.prints.push(format!("_print_{}", self.print_count));
+                    self.types.push((tyy.clone(), self.print_count));
                     print_code.push_str("fmt.Print(\"[\")\n");
                     print_code.push_str("for i, vv := range v {\n");
                     match *ty.clone() {
@@ -110,8 +112,21 @@ impl GOCodegen {
                         Type::Str => {
                             print_code.push_str("fmt.Printf(\"%s\", vv)\n");
                         }
-                        _ => {
-                            print_code.push_str("fmt.Printf(%v, vv)\n");
+                        Type::Bool => {
+                            print_code.push_str("fmt.Printf(\"%t\", vv)\n");
+                        }
+                        tyy => {
+                            let print_fn = self.find_print(&tyy);
+                            if let Some(print_fn) = print_fn {
+                                print_code.push_str(&format!("{}(vv)\n", print_fn));
+                            } else {
+                                let _ = self.ty_to_go(&tyy);
+                                let printfn = self.find_print(&tyy).unwrap();
+                                print_code.push_str(&format!(
+                                    "{}(vv)\n",
+                                    printfn
+                                ));
+                            }
                         }
                     }
                     print_code.push_str("if i != len(v)-1 {\n");
@@ -120,14 +135,13 @@ impl GOCodegen {
                     print_code.push_str("}\n");
                     print_code.push_str("fmt.Print(\"]\")\n");
                     print_code.push_str("}\n");
-                    self.prints.push(format!("_print_{}", self.print_count));
                     self.header.push_str(&print_code);
                     self.print_count += 1;
                 }
                 format!("[]{}", goty)
             }
             Type::Tuple(tys) => {
-                let exists = self.find_type(ty);
+                let exists = self.find_type(tyy);
                 if let Some(i) = exists {
                     format!("t{}", i)
                 } else {
@@ -172,7 +186,7 @@ impl GOCodegen {
                     print_code.push_str("fmt.Print(\")\")\n");
                     print_code.push_str("}\n");
                     self.header.push_str(&print_code);
-                    self.types.push((ty.clone(), self.print_count));
+                    self.types.push((tyy.clone(), self.print_count));
                     self.prints.push(format!("_print_{}", self.print_count));
                     self.print_count += 1;
                     self.type_count += 1;
@@ -184,7 +198,7 @@ impl GOCodegen {
                 let ty2 = self.ty_to_go(ty2);
                 format!("map[{}]{}", ty1, ty2)
             }
-            _ => unreachable!("ty_to_go: {:?}", ty),
+            _ => unreachable!("ty_to_go: {:?}", tyy),
         }
     }
 
