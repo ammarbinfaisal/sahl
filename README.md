@@ -39,9 +39,10 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
   - figure out how to do ffi
   - figure out how to do coroutines
   - use kotlin to convert the bytecode to jvm bytecode
-- for js(typescript) backend
-  - figure out how to do ffi
+- for wasm backend
   - figure out how to do coroutines
+- beam backend
+  - this would be the easiest to implement
 - llvm / x86_64
   - generational GC
   - coroutines
