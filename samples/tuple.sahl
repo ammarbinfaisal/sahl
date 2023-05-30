@@ -5,7 +5,10 @@ fun fn(i: int) -> (int, int) {
 fun main() {
     let i = 0
     while i < 10000 {
-        print(fn(i), "\n")
+        let res = fn(i)
+        print("fn(i) = ", res, "\n")
+        print("fn(i)[0] = ", res[0], "\n")
+        print("fn(i)[1] = ", res[1], "\n")
         i = i + 1
     }
 }
