@@ -542,6 +542,7 @@ impl<'a> Checker<'a> {
                         if let Expr::Literal { lit, ty: _ } = index.1.clone() {
                             if let Lit::Int(i) = lit {
                                 if i < tys.len() as i64 {
+                                    *t = Some(tys[i as usize].clone());
                                     Ok(tys[i as usize].clone())
                                 } else {
                                     Err((
