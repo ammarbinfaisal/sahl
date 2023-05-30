@@ -305,10 +305,22 @@ impl GOCodegen {
             }
             Expr::Subscr { expr, index, ty: _ } => {
                 let mut code = String::new();
-                code.push_str(&self.compile_expr(&expr.1));
-                code.push_str("[");
-                code.push_str(&self.compile_expr(&index.1));
-                code.push_str("]");
+                if let Type::Tuple(_) = expr.1.get_type().clone() {
+                    code.push_str(&self.compile_expr(&expr.1));
+                    code.push_str(".");
+                    if let Expr::Literal { lit, ty: _ } = &index.1 {
+                        if let Lit::Int(i) = lit {
+                            code.push_str(&format!("f{}", i));
+                        }
+                    } else {
+                        unreachable!("tuple index must be a literal");
+                    }
+                } else {
+                    code.push_str(&self.compile_expr(&expr.1));
+                    code.push_str("[");
+                    code.push_str(&self.compile_expr(&index.1));
+                    code.push_str("]");
+                }
                 code
             }
             Expr::Call { name, args, ty: _ } => {
