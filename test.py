@@ -49,6 +49,12 @@ mode_to_str = {
     go_mode: "go",
 }
 
+str_to_mode = {
+    "byte": byte_mode,
+    "aot": aot_mode,
+    "go": go_mode,
+}
+
 def passed(file, mode):
     global passing
     passing[mode] += 1
@@ -88,15 +94,16 @@ def run_all(mode):
 
 
 def result(mode):
-    print(f"{passing[mode]}/{total} {mode} tests passed")
+    print(f"{passing[mode]}/{total} {mode_to_str[mode]} tests passed")
 
 modes = [byte_mode, aot_mode, go_mode]
 
 if __name__ == "__main__":
     if len(argv) > 1:
-        if argv[1] in modes:
-            run_all(argv[1])
-            result(argv[1])
+        if argv[1] in str_to_mode:
+            m = str_to_mode[argv[1]]
+            run_all(m)
+            result(m)
         elif argv[1] in files_all_checks:
             run_file(byte_mode, argv[1])
             run_file(aot_mode, argv[1])
