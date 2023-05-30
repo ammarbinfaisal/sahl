@@ -337,7 +337,7 @@ impl GOCodegen {
                 }
                 code
             }
-            Expr::Call { name, args, ty: _ } => {
+            Expr::Call { name, args, ty } => {
                 let mut code = String::new();
                 if name == "append" {
                     let arg = self.compile_expr(&args[0].1);
@@ -387,6 +387,9 @@ impl GOCodegen {
                         ));
                     }
                 } else {
+                    // wrap in return type
+                    let goty = self.ty_to_go(&ty.clone().unwrap());
+                    code.push_str(&format!("{}(", goty));
                     code.push_str(&name);
                     code.push_str("(");
                     for (i, arg) in args.iter().enumerate() {
@@ -395,7 +398,7 @@ impl GOCodegen {
                             code.push_str(", ");
                         }
                     }
-                    code.push_str(")");
+                    code.push_str("))");
                 };
                 code
             }
