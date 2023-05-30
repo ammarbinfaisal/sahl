@@ -410,10 +410,18 @@ impl GOCodegen {
                 code.push_str(&self.compile_expr(&right.1));
                 code
             }
-            Expr::Make { ty, expr: _ } => {
+            Expr::Make { ty, expr } => {
                 let mut code = String::new();
-                code.push_str(&self.ty_to_go(ty));
-                code.push_str("{}");
+                if let Some(ex) = expr {
+                    code.push_str("make(");
+                    code.push_str(&self.ty_to_go(ty));
+                    code.push_str(", ");
+                    code.push_str(&self.compile_expr(&ex.1));
+                    code.push_str(")");
+                } else {
+                    code.push_str(&self.ty_to_go(ty));
+                    code.push_str("{}");
+                }
                 code
             }
             Expr::ChanRead { name, ty: _ } => {
