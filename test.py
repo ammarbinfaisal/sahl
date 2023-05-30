@@ -24,6 +24,7 @@ files_all_checks = [
     "rule110",
     "bitwise",
     "cast",
+    "graph"
 ]
 files_retcode_check = [
     "chan",
