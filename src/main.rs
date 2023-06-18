@@ -1,9 +1,11 @@
 mod asm;
 mod bytecode;
+mod go;
 mod parser;
+mod regcode;
 mod semant;
 mod syntax;
-mod go;
+mod utils;
 
 use asm::*;
 use parser::*;
@@ -82,20 +84,20 @@ fn main() {
         let res = program(&source);
         match res {
             Ok((_, mut p)) => {
-                if verbose {
-                    println!("{:#?}", p);
-                }
                 let res = check_program(&mut p);
 
                 match res {
                     Ok(env) => {
                         if verbose {
+                            let mut regcodegen = regcode::RegCodeGen::new(source.clone());
+                            regcodegen.compile_program(&p);
+                            println!("{:?}", regcodegen.func_code);
                             println!("Program is well-typed");
                         }
                         if to_go {
                             let res = go::compile_program(&p);
                             println!("{}", res)
-                        } else  if to_compile {
+                        } else if to_compile {
                             let mut codebyte =
                                 bytecode::Bytecode::new(filename.unwrap().to_string());
                             codebyte.compile_program(&p);
