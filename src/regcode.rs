@@ -70,6 +70,7 @@ pub enum RegCode {
     Push(u8),
     Spawn,
     Nop,
+    Phi(usize, Vec<(usize, u8)>), // local, (block_idx, local)
 }
 
 pub struct RegCodeGen<'a> {
@@ -474,7 +475,7 @@ impl<'a> RegCodeGen<'a> {
                 }
                 let jmp_ix2 = self.code.len();
                 self.code.push(RegCode::Nop);
-                self.code[jmp_ix] = RegCode::JmpIfNot(arg, jmp_ix2);
+                self.code[jmp_ix] = RegCode::JmpIfNot(arg, jmp_ix2 + 1);
                 if let Some(else_body) = els {
                     for stmt in else_body {
                         self.compile_stmt(&stmt);
