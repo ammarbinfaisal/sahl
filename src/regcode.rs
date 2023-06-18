@@ -70,7 +70,7 @@ pub enum RegCode {
     Push(u8),
     Spawn,
     Nop,
-    Phi(usize, Vec<(usize, u8)>), // local, (block_idx, local)
+    Phi(usize),
 }
 
 pub struct RegCodeGen<'a> {
@@ -89,6 +89,7 @@ pub struct RegCodeGen<'a> {
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
     loop_starts: Vec<usize>, // stack of (start, end) of loops
+    pub local_counts: Vec<usize>,
 }
 
 impl<'a> RegCodeGen<'a> {
@@ -109,6 +110,7 @@ impl<'a> RegCodeGen<'a> {
             stack: Vec::new(),
             free_regs: [true; 256],
             breaks: Vec::new(),
+            local_counts: Vec::new(),
         }
     }
 
@@ -668,6 +670,7 @@ impl<'a> RegCodeGen<'a> {
             self.compile_func(func);
             func_code.push(self.code.clone());
             self.code.clear();
+            self.local_counts.push(self.locals.len());
             idx += 1;
         }
         self.func_code = func_code;
