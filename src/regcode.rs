@@ -79,7 +79,6 @@ pub struct RegCodeGen<'a> {
     func_args_len: Vec<u32>,
     pub func_code: Vec<Vec<RegCode>>,
     pub start_func_idx: usize,
-    loop_state: Vec<(usize, usize)>, // stack of (start, end) of loops
     curr_func: usize,
     opcode_span: HashMap<usize, (usize, usize)>,
     span: (usize, usize),
@@ -87,6 +86,8 @@ pub struct RegCodeGen<'a> {
     pub consts: Vec<(Type, Vec<u8>)>,
     stack: Vec<u8>,
     free_regs: [bool; 256],
+    breaks: Vec<Vec<usize>>,
+    loop_starts: Vec<usize>, // stack of (start, end) of loops
 }
 
 impl<'a> RegCodeGen<'a> {
@@ -97,7 +98,7 @@ impl<'a> RegCodeGen<'a> {
             func_idx: HashMap::new(),
             func_code: Vec::new(),
             func_args_len: Vec::new(),
-            loop_state: Vec::new(),
+            loop_starts: Vec::new(),
             start_func_idx: 0,
             curr_func: 0,
             opcode_span: HashMap::new(),
@@ -106,6 +107,7 @@ impl<'a> RegCodeGen<'a> {
             source_name,
             stack: Vec::new(),
             free_regs: [true; 256],
+            breaks: Vec::new(),
         }
     }
 
@@ -418,7 +420,8 @@ impl<'a> RegCodeGen<'a> {
                 self.compile_expr(&expr);
                 let arg = self.stack_pop();
                 let reg = self.get_reg();
-                self.code.push(RegCode::Cast(arg, expr.1.get_type(), ty.clone(), reg));
+                self.code
+                    .push(RegCode::Cast(arg, expr.1.get_type(), ty.clone(), reg));
                 self.stack_push(reg);
             }
             Expr::Tuple { exprs, .. } => {
@@ -492,6 +495,7 @@ impl<'a> RegCodeGen<'a> {
                 // if expr is Range then set var to range.start and loop until range.end
                 // ele introduce new variable and loop until expr.len
                 let var_ix = self.locals.len();
+                self.breaks.push(vec![]);
                 self.locals.insert(var.as_str(), var_ix);
                 if let Expr::Range {
                     start,
@@ -518,7 +522,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::JmpIfNot(cond_reg, jmp_ix2 + 1));
                     let jmp_ix3 = self.code.len();
                     self.code.push(RegCode::Nop);
-                    self.loop_state.push((start_ix, jmp_ix3));
+                    self.loop_starts.push(start_ix);
                     for stmt in body {
                         self.compile_stmt(&stmt);
                     }
@@ -527,6 +531,12 @@ impl<'a> RegCodeGen<'a> {
                     let jmp_ix4 = self.code.len();
                     self.code[jmp_ix3] = RegCode::JmpIfNot(cond_reg, jmp_ix4);
                     self.free_reg(iter);
+                    self.free_reg(cond_reg);
+                    let loop_ix: usize = self.breaks.len() - 1;
+                    for ix in self.breaks[loop_ix].iter() {
+                        self.code[*ix] = RegCode::Jmp(jmp_ix4);
+                    }
+                    self.loop_starts.pop();
                 } else {
                     self.compile_expr(&expr);
                     let arg = self.stack_unfree_pop();
@@ -558,23 +568,34 @@ impl<'a> RegCodeGen<'a> {
                     let jmp_ix3 = self.code.len();
                     self.code[jmp_ix2] = RegCode::JmpIfNot(cond_reg, jmp_ix3);
                     self.free_reg(iter);
+                    let loop_ix: usize = self.breaks.len() - 1;
+                    for ix in self.breaks[loop_ix].iter() {
+                        self.code[*ix] = RegCode::Jmp(jmp_ix3);
+                    }
+                    self.loop_starts.pop();
                 }
+                self.breaks.pop();
+                self.locals.remove(var.as_str());
             }
             Stmt::While(cond, body) => {
                 let jmp_ix = self.code.len();
                 self.compile_expr(&cond);
+                self.breaks.push(vec![]);
                 let arg = self.stack_unfree_pop();
                 let jmp_ix2 = self.code.len();
-                self.code.push(RegCode::JmpIfNot(arg, jmp_ix2 + 1));
-                let jmp_ix3 = self.code.len();
-                self.code.push(RegCode::Nop);
-                self.loop_state.push((jmp_ix, jmp_ix3));
+                self.loop_starts.push(jmp_ix);
                 for stmt in body {
                     self.compile_stmt(&stmt);
                 }
                 self.code.push(RegCode::Jmp(jmp_ix));
                 let jmp_ix4 = self.code.len();
-                self.code[jmp_ix3] = RegCode::JmpIfNot(arg, jmp_ix4);
+                self.code[jmp_ix2] = RegCode::JmpIfNot(arg, jmp_ix4);
+                self.loop_starts.pop();
+                let loop_ix: usize = self.breaks.len() - 1;
+                for ix in self.breaks[loop_ix].iter() {
+                    self.code[*ix] = RegCode::Jmp(jmp_ix4);
+                }
+                self.breaks.pop();
             }
             Stmt::Return(expr) => {
                 self.compile_expr(&expr);
@@ -582,11 +603,13 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Return(arg));
             }
             Stmt::Break => {
-                let (_, end_ix) = self.loop_state.last().unwrap();
-                self.code.push(RegCode::Jmp(*end_ix));
+                let jmp_ix = self.code.len();
+                self.code.push(RegCode::Nop);
+                let loop_ix: usize = self.breaks.len() - 1;
+                self.breaks[loop_ix].push(jmp_ix);
             }
             Stmt::Continue => {
-                let (start_ix, _) = self.loop_state.last().unwrap();
+                let start_ix = self.loop_starts.last().unwrap();
                 self.code.push(RegCode::Jmp(*start_ix));
             }
             Stmt::ChanWrite(var, expr) => {
