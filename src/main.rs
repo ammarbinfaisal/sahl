@@ -1,5 +1,6 @@
 mod asm;
 mod bytecode;
+mod cfg;
 mod go;
 mod parser;
 mod regcode;
@@ -13,6 +14,8 @@ use semant::*;
 use std::fs::*;
 use std::io::Read;
 use std::process::exit;
+
+use crate::cfg::construct_cfg;
 
 fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
@@ -91,7 +94,17 @@ fn main() {
                         if verbose {
                             let mut regcodegen = regcode::RegCodeGen::new(source.clone());
                             regcodegen.compile_program(&p);
-                            println!("{:?}", regcodegen.func_code);
+                            for funcs in regcodegen.func_code.iter() {
+                                for instr in funcs.iter().enumerate() {
+                                    println!("\t{}: {:?}", instr.0, instr.1);
+                                }
+                            }
+                            println!("CFG:");
+                            for funcs in regcodegen.func_code.iter() {
+                                for (idx, cfg) in construct_cfg(funcs).iter().enumerate() {
+                                    println!("\t{}: {:?}", idx, cfg);
+                                }
+                            }
                             println!("Program is well-typed");
                         }
                         if to_go {
