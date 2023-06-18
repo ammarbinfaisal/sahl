@@ -6,7 +6,6 @@ mod parser;
 mod regcode;
 mod semant;
 mod syntax;
-mod utils;
 
 use asm::*;
 use parser::*;
@@ -15,7 +14,7 @@ use std::fs::*;
 use std::io::Read;
 use std::process::exit;
 
-use crate::cfg::construct_cfg;
+use crate::cfg::*;
 
 fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
@@ -100,9 +99,19 @@ fn main() {
                                 }
                             }
                             println!("CFG:");
-                            for funcs in regcodegen.func_code.iter() {
-                                for (idx, cfg) in construct_cfg(funcs).iter().enumerate() {
-                                    println!("\t{}: {:?}", idx, cfg);
+                            for (funcs, local_count) in regcodegen.func_code.iter().zip(regcodegen.local_counts.iter()) {
+                                let mut cfg = construct_cfg(funcs);
+                                let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
+                                for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
+                                    println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
+                                }
+                                let dom = construct_dominators(&cfg, &cfg_nodes);
+                                let domf = construct_dominance_frontiers(&cfg, &cfg_nodes, &dom);
+                                for (idx, dom) in dom.iter().enumerate() {
+                                    println!("\t{}: {:?}", idx, dom);
+                                }
+                                for (idx, dom) in domf.iter().enumerate() {
+                                    println!("\t{}: {:?}", idx, dom);
                                 }
                             }
                             println!("Program is well-typed");
