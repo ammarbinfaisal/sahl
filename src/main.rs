@@ -1,9 +1,11 @@
 mod asm;
 mod bytecode;
+mod cfg;
+mod go;
 mod parser;
+mod regcode;
 mod semant;
 mod syntax;
-mod go;
 
 use asm::*;
 use parser::*;
@@ -11,6 +13,8 @@ use semant::*;
 use std::fs::*;
 use std::io::Read;
 use std::process::exit;
+
+use crate::cfg::*;
 
 fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
@@ -82,20 +86,40 @@ fn main() {
         let res = program(&source);
         match res {
             Ok((_, mut p)) => {
-                if verbose {
-                    println!("{:#?}", p);
-                }
                 let res = check_program(&mut p);
 
                 match res {
                     Ok(env) => {
                         if verbose {
+                            let mut regcodegen = regcode::RegCodeGen::new(source.clone());
+                            regcodegen.compile_program(&p);
+                            for funcs in regcodegen.func_code.iter() {
+                                for instr in funcs.iter().enumerate() {
+                                    println!("\t{}: {:?}", instr.0, instr.1);
+                                }
+                            }
+                            println!("CFG:");
+                            for (funcs, local_count) in regcodegen.func_code.iter().zip(regcodegen.local_counts.iter()) {
+                                let mut cfg = construct_cfg(funcs);
+                                let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
+                                for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
+                                    println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
+                                }
+                                let dom = construct_dominators(&cfg, &cfg_nodes);
+                                let domf = construct_dominance_frontiers(&cfg, &cfg_nodes, &dom);
+                                for (idx, dom) in dom.iter().enumerate() {
+                                    println!("\t{}: {:?}", idx, dom);
+                                }
+                                for (idx, dom) in domf.iter().enumerate() {
+                                    println!("\t{}: {:?}", idx, dom);
+                                }
+                            }
                             println!("Program is well-typed");
                         }
                         if to_go {
                             let res = go::compile_program(&p);
                             println!("{}", res)
-                        } else  if to_compile {
+                        } else if to_compile {
                             let mut codebyte =
                                 bytecode::Bytecode::new(filename.unwrap().to_string());
                             codebyte.compile_program(&p);
