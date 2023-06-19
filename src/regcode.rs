@@ -71,6 +71,7 @@ pub enum RegCode {
     Spawn,
     Nop,
     Phi(usize),
+    FreeRegs,
 }
 
 pub struct RegCodeGen<'a> {
@@ -465,6 +466,7 @@ impl<'a> RegCodeGen<'a> {
             Stmt::Expr(expr) => {
                 self.compile_expr(&expr);
                 self.stack.clear();
+                self.code.push(RegCode::FreeRegs);
             }
             Stmt::IfElse(cond, then, els) => {
                 self.compile_expr(&cond);
