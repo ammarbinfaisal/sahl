@@ -189,6 +189,8 @@ impl<'a> RegCodeGen<'a> {
                         }
                     }
                     Lit::Str(s) => {
+                        let mut s = s.clone();
+                        s.push(0);
                         self.consts.push((Type::Str, s.clone()));
                     }
                 }
