@@ -113,865 +113,717 @@ char *stringify(Value value) {
 // Define function pointer type for opcodes
 typedef void (*OpcodeHandler)(VM *);
 
-Obj *new_string(VM *vm, char *chars, int length) {
-    Obj *obj = new_obj(vm, OBJ_STRING);
-    obj->string.data = chars;
-    obj->string.constant = false;
-    return obj;
+void handle_iadd(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int64_t result = vm->regs[r1].i + vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-Obj *concat_strings(VM *vm, Obj *a, Obj *b) {
-    int len1 = strlen(a->string.data);
-    int len2 = strlen(b->string.data);
-    int length = len1 + len2 + 1;
-    char *chars = allocate(vm, length);
-    memcpy(chars, a->string.data, len1);
-    memcpy(chars + len1, b->string.data, len2);
-    chars[length] = '\0';
-
-    return new_string(vm, chars, length);
+void handle_isub(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i - vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void run(VM *vm); // to be used in handle_call;
-
-// Define opcode handler functions
-void handle_add(VM *vm) {
-    Value a = pop(vm);
-    Value b = pop(vm);
-    push(vm, INT_VAL(AS_INT(b) + AS_INT(a)));
+void handle_imul(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i * vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_sub(VM *vm) {
-    Value a = pop(vm);
-    Value b = pop(vm);
-    push(vm, INT_VAL(AS_INT(b) - AS_INT(a)));
+void handle_idiv(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i / vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_mul(VM *vm) {
-    Value a = pop(vm);
-    Value b = pop(vm);
-    push(vm, INT_VAL(AS_INT(b) * AS_INT(a)));
+void handle_irem(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i % vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_div(VM *vm) {
-    Value a = pop(vm);
-    Value b = pop(vm);
-    push(vm, INT_VAL(AS_INT(b) / AS_INT(a)));
+void handle_ine(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i != vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_mod(VM *vm) {
-    Value a = pop(vm);
-    Value b = pop(vm);
-    push(vm, INT_VAL(AS_INT(b) % AS_INT(a)));
+void handle_ieq(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i == vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_neg(VM *vm) {
-    Value a = pop(vm);
-    push(vm, INT_VAL(-AS_INT(a)));
+void handle_ilt(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i < vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_const_u8(VM *vm) {
-    uint64_t value = vm->call_frame->func->code[vm->call_frame->ip + 1];
-    push(vm, value);
-    vm->call_frame->ip += 1;
+void handle_ile(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i <= vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_const_u32(VM *vm) {
-    uint64_t value =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, value);
-    vm->call_frame->ip += 4;
+void handle_igt(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i > vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_const_u64(VM *vm) {
-    uint64_t value =
-        read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, INT_VAL((double)value));
-    vm->call_frame->ip += 8;
-}
-
-void handle_true(VM *vm) { push(vm, TRUE_VAL); }
-
-void handle_false(VM *vm) { push(vm, FALSE_VAL); }
-
-void handle_not(VM *vm) {
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(!AS_BOOL(a)));
-}
-
-void handle_and(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_BOOL(a) && AS_BOOL(b)));
-}
-
-void handle_or(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_BOOL(a) || AS_BOOL(b)));
-}
-
-void handle_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(a == b));
-}
-
-void handle_not_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(a != b));
-}
-
-void handle_less(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_INT(a) < AS_INT(b)));
-}
-
-void handle_less_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_INT(a) <= AS_INT(b)));
-}
-
-void handle_greater(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_INT(a) > AS_INT(b)));
-}
-
-void handle_greater_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_INT(a) >= AS_INT(b)));
-}
-
-void handle_jump(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint64_t ip = read_u32(frame->func->code, frame->ip + 1);
-    frame->ip = ip - 1;
-}
-
-void handle_jump_if_false(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t ip = read_u32(frame->func->code, frame->ip + 1);
-    Value value = pop(vm);
-    if (!AS_BOOL(value)) {
-        frame->ip = ip - 1;
-    } else {
-        frame->ip += 4;
-    }
-}
-
-void handle_pop(VM *vm) { pop(vm); }
-
-void handle_get_local(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
-    push(vm, frame->locals[index]);
-    frame->ip += 4;
-}
-
-void handle_def_local(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
-    if (index >= frame->locals_capacity) {
-        uint32_t new_capacity = (index + 1) * 2; // Exponential growth
-        if (new_capacity <= 16) {
-            frame->locals = realloc(frame->locals, sizeof(Value) * 16);
-            frame->locals_capacity = 16;
-        } else {
-            frame->locals =
-                realloc(frame->locals, sizeof(Value) * new_capacity);
-            frame->locals_capacity = new_capacity;
-        }
-    }
-    frame->locals[index] = pop(vm);
-    frame->locals_count = index + 1;
-    frame->ip += 4;
-}
-
-void handle_list(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t length = read_u32(frame->func->code, frame->ip + 1);
-    Obj *obj = new_obj(vm, OBJ_LIST);
-    obj->list.length = 0;
-    push(vm, OBJ_VAL(obj)); // Prevent GC
-    int cap = GROW_CAPACITY(length);
-    obj->list.items = allocate(vm, sizeof(Value) * cap);
-    obj->list.length = length;
-    obj->list.capacity = cap;
-    pop(vm); // Remove GC protection
-    for (int i = length - 1; i >= 0; --i) {
-        obj->list.items[i] = pop(vm);
-    }
-    obj->list.capacity = cap;
-    push(vm, OBJ_VAL(obj));
-    frame->ip += 4;
-}
-
-void handle_store(VM *vm) {
-    Value idx = pop(vm);
-    Value arr = pop(vm);
-    Value value = pop(vm);
-    Obj *obj = AS_OBJ(arr);
-    if (obj->type == OBJ_LIST) {
-        uint64_t index = AS_INT(idx);
-        if (obj->list.length <= index) {
-            char msg[100];
-            memset(msg, 0, 100);
-            sprintf(msg, "Index out of bounds %ld", index);
-            error(vm, msg);
-        }
-        obj->list.items[index] = value;
-    } else {
-        RBNode *new = new_rb_node(idx);
-        new->value = value;
-        RBNode *node = rb_insert(obj->map.map, new);
-    }
-}
-
-void handle_append(VM *vm) {
-    Value value = pop(vm);
-    Value list = pop(vm);
-    Obj *obj = AS_OBJ(list);
-    if (obj->list.length >= obj->list.capacity) {
-        size_t old_capacity = obj->list.capacity;
-        obj->list.capacity = GROW_CAPACITY(old_capacity);
-        obj->list.items =
-            reallocate(vm, obj->list.items, sizeof(Value) * old_capacity,
-                       sizeof(Value) * obj->list.capacity);
-    }
-    obj->list.items[obj->list.length++] = value;
-}
-
-void handle_length(VM *vm) {
-    Value value = pop(vm);
-    Obj *obj = AS_OBJ(value);
-    push(vm, INT_VAL(obj->list.length));
-}
-
-void handle_index(VM *vm) {
-    Value idx = pop(vm);
-    Value value = pop(vm);
-    Obj *obj = AS_OBJ(value);
-    if (obj->type == OBJ_LIST) {
-        uint64_t index = AS_INT(idx);
-        if (obj->list.length <= index) {
-            char msg[100];
-            memset(msg, 0, 100);
-            sprintf(msg, "Index out of bounds %ld", index);
-            error(vm, msg);
-        }
-        push(vm, obj->list.items[index]);
-    } else if (obj->type == OBJ_STRING) {
-        uint64_t index = AS_INT(idx);
-        if (strlen(obj->string.data) <= index) {
-            char msg[100];
-            memset(msg, 0, 100);
-            sprintf(msg, "Index out of bounds %ld", index);
-            error(vm, msg);
-        }
-        char c = obj->string.data[index];
-        push(vm, CHAR_VAL(c));
-    } else if (obj->type == OBJ_TUPLE) {
-        uint64_t index = AS_INT(idx);
-        if (obj->tuple.length <= index) {
-            char msg[100];
-            memset(msg, 0, 100);
-            sprintf(msg, "Index out of bounds %ld", index);
-            error(vm, msg);
-        }
-        push(vm, obj->tuple.items[index]);
-    } else {
-        RBNode *node = rb_search(obj->map.map, idx);
-        if (node == NULL) {
-            char msg[100];
-            memset(msg, 0, 100);
-            sprintf(msg, "Key <%s> not found", stringify(idx));
-            error(vm, msg);
-        }
-        push(vm, node->value);
-    }
-}
-
-void handle_print(VM *vm) {
-    Value value = pop(vm);
-    print_value(value);
-    // putchar('\n');
-}
-
-void handle_string(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t stridx = read_u32(frame->func->code, frame->ip + 1);
-    char *string = vm->strings[stridx];
-    Obj *obj = new_obj(vm, OBJ_STRING);
-    obj->string.data = string;
-    obj->string.constant = true;
-    push(vm, OBJ_VAL(obj));
-    frame->ip += 4;
-}
-
-void handle_make_tuple(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t len = read_u32(frame->func->code, frame->ip + 1);
-    Obj *obj = new_obj(vm, OBJ_TUPLE);
-    push(vm, OBJ_VAL(obj)); // Prevent GC
-    obj->tuple.items = allocate(vm, sizeof(Value) * len);
-    obj->tuple.length = len;
-    pop(vm);
-    for (int i = len - 1; i >= 0; --i) {
-        obj->tuple.items[i] = pop(vm);
-    }
-    push(vm, OBJ_VAL(obj));
-    frame->ip += 4;
-}
-
-void handle_make_list(VM *vm) {
-    Value def = pop(vm);
-    uint64_t len = AS_INT(pop(vm));
-    Obj *obj = new_obj(vm, OBJ_LIST);
-    obj->list.length = 0;   // premptive GC prevention
-    push(vm, OBJ_VAL(obj)); // premptive GC prevention
-    size_t cap = GROW_CAPACITY(len);
-    obj->list.items = allocate(vm, sizeof(Value) * cap);
-    obj->list.length = len;
-    obj->list.capacity = cap;
-    for (int i = 0; i < len; ++i) {
-        obj->list.items[i] = def;
-    }
-}
-
-void handle_local(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
-    push(vm, frame->locals[index]);
-    frame->ip += 4;
-}
-
-void handle_assign(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t index = read_u32(frame->func->code, frame->ip + 1);
-    Value val = pop(vm);
-    frame->locals[index] = val;
-    frame->ip += 4;
-}
-
-void handle_return(VM *vm) {
-    if (vm->is_coro) {
-        pthread_exit(NULL);
-#ifdef DEBUG
-        printf("exiting a thread\n");
-#endif
-        return;
-    }
-
-    if (vm->call_frame->depth == 0) {
-        return;
-    }
-
-    vm->call_frame = vm->call_frame->prev;
-}
-
-void *spawn(void *vm) {
-    VM *nvm = (VM *)vm;
-    run(nvm);
-    return NULL;
-}
-
-void handle_call(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t depth = frame->depth + 1;
-    if (depth == MAX_CALL_DEPTH) {
-        error(vm, "Maximum call depth exceeded");
-    }
-
-    uint8_t *code = frame->func->code;
-    uint32_t ip = frame->ip;
-    uint32_t funcidx = read_u32(code, ip + 1);
-    uint32_t argc = read_u32(code, ip + 5);
-
-    VM *nvm;
-    CallFrame *newframe;
-    if (vm->coro_to_be_spawned) {
-        nvm = coro_vm(vm, funcidx);
-        newframe = nvm->call_frame;
-    } else {
-        nvm = vm;
-        newframe = new_call_frame(vm->funcs + funcidx, frame);
-    }
-
-    if (argc > frame->locals_capacity) {
-        newframe->locals = realloc(newframe->locals, sizeof(Value) * argc);
-        newframe->locals_capacity = argc;
-    }
-
-    for (int i = argc - 1; i >= 0; --i) {
-        Value val = pop(vm);
-        newframe->locals[i] = val;
-    }
-
-    newframe->locals_count = argc;
-    newframe->depth = depth + 1;
-    newframe->ip = -1;
-    nvm->call_frame = newframe;
-    frame->ip += 8;
-
-    if (vm->coro_to_be_spawned) {
-        vm->coro_to_be_spawned = false;
-        vm->thread_count++;
-        newframe->ip++; // should be 0
-        nvm->coro_id = coro_count++;
-        if (vm->thread_count == MAX_COROS) {
-            int i = 0;
-            while (i < vm->thread_count && vm->coro_done[i]) {
-                i++;
-            }
-            pthread_join(vm->threads[i], NULL);
-            vm->coro_done[i] = true;
-            vm->thread_count--;
-        }
-        pthread_t thread = (pthread_t)malloc(sizeof(pthread_t));
-        pthread_create(&thread, NULL, spawn, nvm);
-        vm->threads =
-            realloc(vm->threads, vm->thread_count * sizeof(pthread_t));
-        vm->coro_done = realloc(vm->coro_done, vm->thread_count * sizeof(bool));
-        vm->threads[vm->thread_count - 1] = thread;
-        vm->coro_done[vm->thread_count - 1] = false;
-    }
-}
-
-void handle_const_64(VM *vm) {
-    uint64_t val = read_u64(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, INT_VAL(val));
-    vm->call_frame->ip += 8;
-}
-
-void handle_const_32(VM *vm) {
-    uint32_t val = read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, val);
-    vm->call_frame->ip += 4;
-}
-
-void handle_const_8(VM *vm) {
-    uint8_t val = vm->call_frame->func->code[vm->call_frame->ip + 1];
-    push(vm, CHAR_VAL(val));
-    vm->call_frame->ip += 1;
-}
-
-void handle_const_double(VM *vm) {
-    double val =
-        read_double(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    push(vm, FLOAT_VAL(val));
-    vm->call_frame->ip += 8;
+void handle_ige(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i >= vm->regs[r2].i;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
 void handle_fadd(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b)));
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    float result = vm->regs[r1].f + vm->regs[r2].f;
+    vm->regs[res].f = result;
 }
 
 void handle_fsub(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(a) - AS_FLOAT(b)));
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    float result = vm->regs[r1].f - vm->regs[r2].f;
+    vm->regs[res].f = result;
 }
 
 void handle_fmul(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(a) * AS_FLOAT(b)));
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    float result = vm->regs[r1].f * vm->regs[r2].f;
+    vm->regs[res].f = result;
 }
 
 void handle_fdiv(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(AS_FLOAT(a) / AS_FLOAT(b)));
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    float result = vm->regs[r1].f / vm->regs[r2].f;
+    vm->regs[res].f = result;
 }
 
-void handle_fmod(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(fmod(AS_FLOAT(a), AS_FLOAT(b))));
+void handle_frem(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    float result = fmod(vm->regs[r1].f, vm->regs[r2].f);
+    vm->regs[res].f = result;
 }
 
-void handle_fless(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b)));
+void handle_fne(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f != vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_fgreater(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b)));
+void handle_feq(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f == vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_fless_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b)));
+void handle_flt(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f < vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_fgreater_equal(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b)));
+void handle_fle(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f <= vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_fnegate(VM *vm) {
-    Value a = pop(vm);
-    push(vm, FLOAT_VAL(-AS_FLOAT(a)));
+void handle_fgt(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f > vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_sconcat(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    char *str1 = AS_CSTRING(a);
-    char *str2 = AS_CSTRING(b);
-    char *newstr = malloc(strlen(str1) + strlen(str2) + 1);
-    memcpy(newstr, str1, strlen(str1));
-    memcpy(newstr + strlen(str1), str2, strlen(str2));
-    newstr[strlen(str1) + strlen(str2)] = '\0';
-    push(vm, OBJ_VAL(newstr));
+void handle_fge(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].f >= vm->regs[r2].f;
+    int res = code[++vm->call_frame->ip];
+    vm->regs[res].i = result;
 }
 
-void handle_i2f(VM *vm) {
-    // read the next u32 to knwo the index
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    vm->call_frame->ip += 4;
-    Value a = vm->stack[vm->stack_size - index];
-    vm->stack[vm->stack_size - index] = FLOAT_VAL(AS_INT(a));
+void handle_band(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i & vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_i2s(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    vm->call_frame->ip += 4;
-    Value a = vm->stack[vm->stack_size - index];
-    char *str = malloc(32);
-    int len = sprintf(str, "%ld", AS_INT(a));
-    str = realloc(str, len + 1);
-    Obj *obj = new_obj(vm, OBJ_STRING);
-    obj->string.data = str;
-    obj->string.constant = 0;
-    vm->stack[vm->stack_size - index] = OBJ_VAL(str);
+void handle_bor(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i | vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_f2s(VM *vm) {
-    uint32_t index =
-        read_u32(vm->call_frame->func->code, vm->call_frame->ip + 1);
-    vm->call_frame->ip += 4;
-    Value a = vm->stack[vm->stack_size - index];
-    char *str = malloc(32);
-    int len = sprintf(str, "%f", AS_FLOAT(a));
-    str = realloc(str, len + 1);
-    Obj *obj = new_obj(vm, OBJ_STRING);
-    obj->string.data = str;
-    obj->string.constant = 0;
-    vm->stack[vm->stack_size - index] = OBJ_VAL(str);
+void handle_bxor(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i ^ vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitand(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, INT_VAL(AS_INT(a) & AS_INT(b)));
+void handle_bnot(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = ~vm->regs[r1].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitor(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, INT_VAL(AS_INT(a) | AS_INT(b)));
+void handle_land(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i && vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitxor(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, INT_VAL(AS_INT(a) ^ AS_INT(b)));
+void handle_lor(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    bool result = vm->regs[r1].i || vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitnot(VM *vm) {
-    Value a = pop(vm);
-    push(vm, INT_VAL(~AS_INT(a)));
+void handle_lnot(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    bool result = !vm->regs[r1].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitshift_left(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, INT_VAL(AS_INT(a) << AS_INT(b)));
+void handle_bshl(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i << vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-void handle_bitshift_right(VM *vm) {
-    Value b = pop(vm);
-    Value a = pop(vm);
-    push(vm, INT_VAL(AS_INT(a) >> AS_INT(b)));
+void handle_bshr(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    int result = vm->regs[r1].i >> vm->regs[r2].i;
+    vm->regs[res].i = result;
 }
 
-// ------------------ NATIVE FUNCTIONS ------------------
+void handle_fneg(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    float result = -vm->regs[r1].f;
+    vm->regs[r1].f = result;
+}
 
-#define PRE_NATIVE                                                             \
-    CallFrame *frame = vm->call_frame;                                         \
-    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);             \
-    uint32_t argc = read_u32(frame->func->code, frame->ip + 5);                \
-    Value *args = allocate(vm, sizeof(Value) * argc);                          \
-    for (int i = argc - 1; i >= 0; --i) {                                      \
-        Value val = pop(vm);                                                   \
-        args[i] = val;                                                         \
+void handle_ineg(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int result = -vm->regs[r1].i;
+    vm->regs[r1].i = result;
+}
+
+void make_map(VM *vm, int reg, int len) {
+    Obj *obj = new_obj(vm, OBJ_MAP);
+    obj->map.map = new_rb_node(0);
+    vm->regs[reg].i = (uint64_t)obj;
+#ifdef DEBUG
+    printf("make map %p - reg %d\n", obj, reg);
+#endif
+}
+
+void make_list(VM *vm, int reg, int len) {
+    Obj *obj = new_obj(vm, OBJ_LIST);
+    size_t cap = GROW_CAPACITY(len);
+    obj->list.items = malloc(sizeof(Value) * cap);
+    obj->list.length = len;
+    obj->list.capacity = cap;
+    for (int i = 0; i < len; ++i) {
+        obj->list.items[i] = 0;
     }
+    vm->regs[reg].i = (uint64_t)obj;
+#ifdef DEBUG
+    printf("make list %p - reg %d\n", obj, reg);
+#endif
+}
 
-#define POST_NATIVE free(args);
+void make_chan(VM *vm, int reg, int len) {
+    Obj *obj = new_obj(vm, OBJ_CHAN);
+    obj->channel.chan = new_chan(len);
+    vm->regs[reg].i = (uint64_t)obj;
+#ifdef DEBUG
+    printf("make chan %p - reg %d\n", obj, reg);
+#endif
+}
+
+typedef void (*MakeFn)(VM *vm, int reg, int len);
+
+static MakeFn make_fns[] = {make_list, make_map, make_chan};
+
+void handle_make(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int res = code[++vm->call_frame->ip];
+    int len = code[++vm->call_frame->ip];
+    int type = code[++vm->call_frame->ip] - 5;
+    make_fns[type](vm, res, len);
+}
+
+void handle_listset(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int list = code[++vm->call_frame->ip];
+    int index = code[++vm->call_frame->ip];
+    int value = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[list].i;
+    obj->list.items[index] = vm->regs[value].i;
+}
+
+void handle_listget(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int list = code[++vm->call_frame->ip];
+    int index = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[list].i;
+    vm->regs[res].i = obj->list.items[index];
+}
+
+void handle_mapset(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int map = code[++vm->call_frame->ip];
+    int key = code[++vm->call_frame->ip];
+    int value = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[map].i;
+    rb_insert(obj->map.map, ((Obj *)vm->regs[key].i)->map.map);
+}
+
+void handle_mapget(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int map = code[++vm->call_frame->ip];
+    int key = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[map].i;
+    RBNode *n = rb_search(obj->map.map, vm->regs[key].i);
+    if (n) {
+        vm->regs[res].i = n->value;
+    } else {
+        vm->regs[res].i = 0;
+    }
+}
+
+void handle_list(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int len = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    // pop len values from stack
+    Obj *newobj = new_obj(vm, OBJ_LIST);
+    newobj->list.length = len;
+    newobj->list.capacity = len;
+    newobj->list.items = malloc(sizeof(Value) * len);
+    for (int i = 0; i < len; ++i) {
+        newobj->list.items[i] = pop(vm);
+    }
+    vm->regs[res].i = (uint64_t)newobj;
+}
+
+void handle_tuple(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int len = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    // pop len values from stack
+    Obj *newobj = new_obj(vm, OBJ_TUPLE);
+    newobj->tuple.length = len;
+    newobj->tuple.items = malloc(sizeof(Value) * len);
+    for (int i = 0; i < len; ++i) {
+        newobj->tuple.items[i] = pop(vm);
+    }
+    vm->regs[res].i = (uint64_t)newobj;
+}
+
+void handle_tupleget(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int tuple = code[++vm->call_frame->ip];
+    int index = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[tuple].i;
+    vm->regs[res].i = obj->tuple.items[index];
+}
+
+void handle_chansend(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int chan = code[++vm->call_frame->ip];
+    int value = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[chan].i;
+    chan_write(obj->channel.chan, vm->regs[value].i);
+}
+
+void handle_chanrecv(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int chan = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[chan].i;
+    chan_read(obj->channel.chan, &vm->regs[res].i);
+}
+
+void handle_strget(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int str = code[++vm->call_frame->ip];
+    int index = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[str].i;
+    vm->regs[res].i = obj->string.data[index];
+}
+
+void handle_jmp(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int offset = read_u64(code, vm->call_frame->ip + 1);
+    vm->call_frame->ip = offset - 1;
+}
+
+void handle_jmpifnot(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int cond = code[++vm->call_frame->ip];
+    int offset = read_u64(code, ++vm->call_frame->ip);
+    if (vm->regs[cond].i) {
+#ifdef DEBUG
+        printf("jmpifnot: condition is true, not jumping\n");
+#endif
+        vm->call_frame->ip += 7;
+    } else {
+        vm->call_frame->ip = offset - 1;
+    }
+}
+
+void handle_call(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int func = read_u64(code, vm->call_frame->ip + 1);
+    int nargs = read_u64(code, vm->call_frame->ip + 9);
+    // read arg registers and put them in local registers of the new call frame
+    CallFrame *cf = new_call_frame(vm->funcs + func, vm->call_frame);
+    cf->locals_count = nargs;
+    cf->locals_capacity = GROW_CAPACITY(nargs);
+    cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
+    for (int i = 0; i < nargs; ++i) {
+        int reg = code[vm->call_frame->ip + 17 + i];
+        cf->locals[i] = vm->regs[reg].i;
+    }
+    vm->call_frame->ip +=
+        16 + nargs; // 16 instead of 17 because we pre-increment ip again
+    vm->call_frame = cf;
+    vm->call_frame->ip = -1;
+}
 
 typedef void (*native_fn_t)(VM *vm);
 
-void native_clear_screen(VM *vm) { printf("\033[2J\033[1;1H"); }
-
-void native_rand(VM *vm) {
-    PRE_NATIVE
-    int r = rand() % AS_INT(args[0]) + AS_INT(args[1]);
-    push(vm, FLOAT_VAL((double)r));
-    POST_NATIVE
-}
-
-void native_sleep(VM *vm) {
-    PRE_NATIVE
-    sleep(args[0]);
-    POST_NATIVE
-}
-
-void native_randf(VM *vm) {
-    PRE_NATIVE
-    push(vm, FLOAT_VAL((float)rand() / (float)RAND_MAX));
-    POST_NATIVE
-}
-
-void native_exp(VM *vm) {
-    PRE_NATIVE
-    push(vm, FLOAT_VAL(exp(AS_FLOAT(args[0]))));
-    POST_NATIVE
-}
-
-void native_pow(VM *vm) {
-    PRE_NATIVE
-    push(vm, FLOAT_VAL(pow(AS_FLOAT(args[0]), AS_FLOAT(args[1]))));
-    POST_NATIVE
-}
-
-void native_exit(VM *vm) {
-    PRE_NATIVE
-    free_vm(vm);
-    exit(args[0]);
-}
-
-void native_print(VM *vm) {
-    PRE_NATIVE
-    // char str[1024 * 4];
-    // memset(str, 0, 1024 * 4);
-    // int len = 0;
-    // for (int i = 0; i < argc; ++i) {
-    //     char *s = stringify(args[i]);
-    //     memcpy(str + len, s, strlen(s));
-    //     len += strlen(s);
-    //     free(s);
-    //     if (len > 1024 * 3.5) {
-    //         str[len] = '.';
-    //         str[len + 1] = '.';
-    //         str[len + 2] = '.';
-    //         str[len + 3] = '\0';
-    //         break;
-    //     }
-    // }
-    // printf("%s", str);
+void native_print_int(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    // read regs and print them
     for (int i = 0; i < argc; ++i) {
-        print_value(args[i]);
+        int arg = code[++vm->call_frame->ip];
+        printf("%ld", vm->regs[arg].i);
     }
-    POST_NATIVE
 }
 
-void native_tanh(VM *vm) {
-    PRE_NATIVE
-    push(vm, FLOAT_VAL(tanh(AS_FLOAT(args[0]))));
-    POST_NATIVE
+void native_print_float(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    // read regs and print them
+    for (int i = 0; i < argc; ++i) {
+        int arg = code[++vm->call_frame->ip];
+        printf("%lf", vm->regs[arg].f);
+    }
 }
 
-void native_log(VM *vm) {
-    PRE_NATIVE
-    push(vm, FLOAT_VAL(log(AS_FLOAT(args[0]))));
-    POST_NATIVE
+void native_print_char(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    // read regs and print them
+    for (int i = 0; i < argc; ++i) {
+        int arg = code[++vm->call_frame->ip];
+        printf("%c", vm->regs[arg].c);
+    }
 }
 
-void native_tcp_server(VM *vm) {
-    PRE_NATIVE
-    int port = AS_INT(args[0]);
-    Chan *chan = AS_OBJ(args[1])->channel.chan;
-    TcpServer *server = malloc(sizeof(TcpServer));
-    server->port = port;
-    server->chan = chan;
-    server->vm = vm;
-    pthread_t thread;
-    pthread_create(&thread, NULL, tcp_server_thread, (void *)server);
-    APPEND_THREAD(thread)
-    POST_NATIVE
+void native_print_bool(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    // read regs and print them
+    for (int i = 0; i < argc; ++i) {
+        int arg = code[++vm->call_frame->ip];
+        printf("%s", vm->regs[arg].i ? "true" : "false");
+    }
 }
 
-void native_close_chan(VM *vm) {
-    PRE_NATIVE
-    Chan *chan = AS_OBJ(args[0])->channel.chan;
-    close_chan(chan);
-    POST_NATIVE
+void native_print_str(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    // read regs and print them
+    for (int i = 0; i < argc; ++i) {
+        int arg = code[++vm->call_frame->ip];
+        Obj *obj = (Obj *)vm->regs[arg].i;
+        printf("%s", obj->string.data);
+    }
 }
 
-void native_is_open_chan(VM *vm) {
-    PRE_NATIVE
-    Chan *chan = AS_OBJ(args[0])->channel.chan;
-    push(vm, BOOL_VAL(!chan->closed));
-    POST_NATIVE
+void native_append(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    int list = vm->call_frame->func->code[++vm->call_frame->ip];
+    int value = vm->call_frame->func->code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[list].i;
+    if (obj->list.length == obj->list.capacity) {
+        obj->list.capacity *= 2;
+        obj->list.items =
+            realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
+    }
+    obj->list.items[obj->list.length++] = vm->regs[value].i;
+}
+
+void native_len(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
+    int list = vm->call_frame->func->code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[list].i;
+    vm->regs[0].i = obj->list.length;
 }
 
 static native_fn_t native_functions[] = {
-    native_clear_screen, native_rand, native_sleep,      native_randf,
-    native_exp,          native_pow,  native_exit,       native_print,
-    native_tanh,         native_log,  native_tcp_server, native_close_chan,
-    native_is_open_chan};
+    native_print_int, native_print_float, native_print_char, native_print_bool,
+    native_print_str, native_append,      native_len};
 
-void handle_native_call(VM *vm) {
-    CallFrame *frame = vm->call_frame;
-    uint32_t funcidx = read_u32(frame->func->code, frame->ip + 1);
-    native_functions[funcidx](vm);
-    frame->ip += 8;
+void handle_ncall(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int func = code[++vm->call_frame->ip];
+    native_fn_t fn = native_functions[func];
+    fn(vm);
 }
 
-void handle_make_chan(VM *vm) {
-    Obj *obj = new_obj(vm, OBJ_CHAN);
-    obj->channel.chan = new_chan(128);
-    push(vm, OBJ_VAL(obj));
+void handle_const(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int index = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int reg = code[vm->call_frame->ip];
+    vm->regs[reg].i = vm->consts[index];
+#ifdef DEBUG
+    printf("const %ld loaded into reg %d\n", vm->regs[vm->call_frame->ip].i,
+           reg);
+#endif
 }
 
-void handle_chan_read(VM *vm) {
-    Obj *obj = AS_OBJ(pop(vm));
-    if (obj->type != OBJ_CHAN) {
-        error(vm, "Expected channel");
+void handle_load(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int index = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int reg = code[vm->call_frame->ip];
+    vm->regs[reg].i = vm->call_frame->locals[index];
+#ifdef DEBUG
+    printf("local %d (%ld) loaded into reg %d\n", index,
+           vm->call_frame->locals[index], reg);
+#endif
+}
+
+void handle_store(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int index = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int reg = code[vm->call_frame->ip];
+    if (index >= vm->call_frame->locals_capacity) {
+        vm->call_frame->locals_capacity = index + 1;
+        vm->call_frame->locals =
+            realloc(vm->call_frame->locals,
+                    sizeof(Value) * vm->call_frame->locals_capacity);
     }
-    Value val;
-    chan_read(obj->channel.chan, &val);
-    push(vm, val);
-}
-
-void handle_chan_write(VM *vm) {
-    Obj *obj = AS_OBJ(pop(vm));
-    Value val = pop(vm);
-    if (obj->type != OBJ_CHAN) {
-        error(vm, "Expected channel");
+    if (index >= vm->call_frame->locals_count) {
+        vm->call_frame->locals_count = index + 1;
     }
-    chan_write(obj->channel.chan, val);
+    vm->call_frame->locals[index] = vm->regs[reg].i;
+#ifdef DEBUG
+    printf("reg %d (%ld) stored into local %d\n", reg, vm->regs[reg].i, reg);
+#endif
 }
 
-void handle_spawn(VM *vm) { vm->coro_to_be_spawned = true; }
-
-void handle_make_map(VM *vm) {
-    Obj *obj = new_obj(vm, OBJ_MAP);
-    obj->map.map = new_rb_node(0);
-    push(vm, OBJ_VAL(obj));
-}
+const int TYPE_INT = 0;
+const int TYPE_FLOAT = 1;
+const int TYPE_BOOL = 2;
+const int TYPE_CHAR = 3;
 
 void handle_cast(VM *vm) {
-    Value val = pop(vm);
-    // INT - 1
-    // FLOAT - 2
-    // BOOL - 3
-    // Char - 4
-    uint32_t from = read_u32(vm->call_frame->func->code,
-                             vm->call_frame->ip + 1);
-    uint32_t to = read_u32(vm->call_frame->func->code,
-                           vm->call_frame->ip + 5);
-    if (from == 4 && to == 1 ) {
-        push(vm, INT_VAL((int64_t)AS_CHAR(val)));
-    } else if (from == 1 && to == 4 ) {
-        push(vm, CHAR_VAL((char)AS_INT(val)));
-    } else if (from == 1 && to == 2) {
-        push(vm, FLOAT_VAL((double)AS_INT(val)));
-    } else {
-        error(vm, "Invalid cast");
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int ty1 = code[++vm->call_frame->ip];
+    int ty2 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    if (ty1 == ty2) {
+        vm->regs[r2].i = vm->regs[r1].i;
+    } else if (ty1 == TYPE_INT && ty2 == TYPE_FLOAT) {
+        vm->regs[r2].f = (double)vm->regs[r1].i;
+    } else if (ty1 == TYPE_FLOAT && ty2 == TYPE_INT) {
+        vm->regs[r2].i = (int)vm->regs[r1].f;
+    } else if (ty1 == TYPE_INT && ty2 == TYPE_BOOL) {
+        vm->regs[r2].i = vm->regs[r1].i != 0;
+    } else if (ty1 == TYPE_BOOL && ty2 == TYPE_INT) {
+        vm->regs[r2].i = vm->regs[r1].i;
+    } else if (ty1 == TYPE_CHAR && ty2 == TYPE_INT) {
+        vm->regs[r2].i = vm->regs[r1].c;
+    } else if (ty1 == TYPE_INT && ty2 == TYPE_CHAR) {
+        vm->regs[r2].c = (char)vm->regs[r1].i;
     }
-    vm->call_frame->ip += 8;
 }
 
+void handle_move(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
+    vm->regs[r1].i = vm->regs[r2].i;
+#ifdef DEBUG
+    printf("reg %d (%ld) moved into reg %d\n", r2, vm->regs[r2].i, r1);
+#endif
+}
+
+void handle_ret(VM *vm) {
+    if (vm->call_frame->prev) {
+        CallFrame *curr = vm->call_frame;
+        vm->call_frame = vm->call_frame->prev;
+        free_call_frame(curr);
+    } else {
+        free_vm(vm);
+        exit(0);
+    }
+}
+
+void handle_return(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r = code[++vm->call_frame->ip];
+    vm->regs[0].i = vm->regs[r].i;
+    handle_ret(vm);
+}
+
+void handle_push(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r = code[++vm->call_frame->ip];
+    push(vm, vm->regs[r].i);
+}
+
+void handle_pop(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int r = code[++vm->call_frame->ip];
+    vm->regs[r].i = pop(vm);
+}
+
+void handle_spawn(VM *vm) { ++vm->call_frame->ip; }
+
+void handle_nop(VM *vm) { ++vm->call_frame->ip; }
+
 // Create function pointer table for opcodes
-static OpcodeHandler opcode_handlers[NUM_OPCODES] = {
-    handle_add,
-    handle_sub,
-    handle_mul,
-    handle_div,
-    handle_mod,
-    handle_neg,
-    handle_not,
-    handle_and,
-    handle_or,
-    handle_equal,
-    handle_not_equal,
-    handle_less,
-    handle_less_equal,
-    handle_greater,
-    handle_greater_equal,
-    handle_true,
-    handle_false,
-    handle_jump,
-    handle_jump_if_false,
-    handle_store,
-    handle_index,
-    handle_append,
-    handle_length,
-    handle_list,
-    handle_const_64,
-    handle_const_32,
-    handle_const_8,
-    handle_string,
-    handle_def_local,
-    handle_get_local,
-    handle_assign,
-    handle_call,
-    handle_return,
-    handle_print,
-    handle_pop,
-    handle_make_list,
-    handle_make_tuple,
-    handle_native_call,
-    handle_const_double,
-    handle_make_chan,
-    handle_chan_read,
-    handle_chan_write,
-    handle_spawn,
-    handle_make_map,
-    handle_fadd,
-    handle_fsub,
-    handle_fmul,
-    handle_fdiv,
-    handle_fnegate,
-    handle_fless,
-    handle_fless_equal,
-    handle_fgreater,
-    handle_fgreater_equal,
-    handle_sconcat,
-    handle_i2f,
-    handle_i2s,
-    handle_f2s,
-    handle_fmod,
-    handle_bitand,
-    handle_bitor,
-    handle_bitxor,
-    handle_bitshift_left,
-    handle_bitshift_right,
-    handle_cast,
-};
+static OpcodeHandler opcode_handlers[] = {
+    handle_iadd,   handle_isub,     handle_imul,     handle_idiv,
+    handle_irem,   handle_ine,      handle_ieq,      handle_ilt,
+    handle_ile,    handle_igt,      handle_ige,      handle_fadd,
+    handle_fsub,   handle_fmul,     handle_fdiv,     handle_frem,
+    handle_fne,    handle_feq,      handle_flt,      handle_fle,
+    handle_fgt,    handle_fge,      handle_band,     handle_bor,
+    handle_bxor,   handle_bnot,     handle_land,     handle_lor,
+    handle_lnot,   handle_bshl,     handle_bshr,     handle_fneg,
+    handle_ineg,   handle_make,     handle_listset,  handle_listget,
+    handle_list,   handle_tupleget, handle_tuple,    handle_strget,
+    handle_mapget, handle_mapset,   handle_chansend, handle_chanrecv,
+    handle_jmp,    handle_jmpifnot, handle_call,     handle_ncall,
+    handle_const,  handle_load,     handle_store,    handle_cast,
+    handle_move,   handle_return,   handle_push,     handle_pop,
+    handle_spawn,  handle_nop,      handle_ret};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {
         uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
 
 #ifdef PRINT_OPCODES
-        printf("%d ", vm->coro_id);
         printf("%d ", vm->call_frame->ip);
         print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
 #endif
@@ -1002,25 +854,7 @@ void run(VM *vm) {
 
         opcode_handlers[instruction](vm);
 
-        ++vm->call_frame->ip;
-    }
-
-    for (int i = 0; i < vm->thread_count; ++i) {
-        if (!vm->coro_done[i]) pthread_join(vm->threads[i], NULL);
-    }
-
-    // clear call frame
-    vm->call_frame->locals_count = 0;
-    collect_garbage(vm);
-    CallFrame *frame = vm->call_frame;
-    while (frame->prev) {
-        frame = frame->prev;
-    }
-    while (frame) {
-        CallFrame *next = frame->next;
-        free_call_frame(frame);
-        if (frame == next) break;
-        frame = next;
+        vm->call_frame->ip++;
     }
 }
 
@@ -1031,11 +865,11 @@ int main(int argc, char **argv) {
     const char *filename = argv[1];
     Code *code = read_bytecode(filename);
     printf("length %ld\n", code->length);
-    dissassemble(code->bytes, code->length);
+    // dissassemble(code->bytes, code->length);
     puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
     run(vm);
-    free(code->bytes);
+    // free(code->bytes);
     free(code);
     free_vm(vm);
 }

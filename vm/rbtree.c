@@ -165,20 +165,20 @@ RBNode *rb_search(RBNode *root, Value key) {
     return rb_search(root->right, key);
 }
 
-LinkedList *rb_to_ll(RBNode *root) {
-    LinkedList *head = NULL;
-    LinkedList *tail = NULL;
+LinkedListRB *rb_to_ll(RBNode *root) {
+    LinkedListRB *head = NULL;
+    LinkedListRB *tail = NULL;
     if (root == NULL) {
         return NULL;
     }
-    LinkedList *node = malloc(sizeof(LinkedList));
+    LinkedListRB *node = malloc(sizeof(LinkedListRB));
     node->key = root->key;
     node->value = root->value;
     node->next = NULL;
     head = node;
     tail = node;
-    LinkedList *left = rb_to_ll(root->left);
-    LinkedList *right = rb_to_ll(root->right);
+    LinkedListRB *left = rb_to_ll(root->left);
+    LinkedListRB *right = rb_to_ll(root->right);
     if (left != NULL) {
         tail->next = left;
         while (tail->next != NULL) {

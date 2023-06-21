@@ -7,12 +7,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// #define PRINT_OPCODES
+#define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
-// #define DEBUG
+#define DEBUG
 // #define MINARR
-#define UNSAFE
+// #define UNSAFE
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
@@ -117,13 +117,24 @@ struct Obj {
 
 typedef struct Obj Obj;
 
+struct Reg {
+    uint64_t i;
+    double f;
+    char c;
+    Obj *o;
+};
+
+typedef struct Reg Reg;
+
 struct VM {
     Value *stack;
     int stack_size;
+    Reg *regs; // 256 regs
     Func *funcs;
     int funcs_count;
     int string_count;
-    char **strings;
+    Value *consts;
+    uint32_t consts_count;
     CallFrame *call_frame;
     int start_func;
 
