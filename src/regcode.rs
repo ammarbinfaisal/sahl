@@ -72,6 +72,7 @@ pub enum RegCode {
     Nop,
     Phi(usize),
     FreeRegs,
+    Pop(u8)
 }
 
 pub struct RegCodeGen<'a> {
@@ -115,6 +116,12 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
+    fn add_local(&mut self, name: &'a str) -> usize {
+        let idx = self.locals.len();
+        self.locals.insert(name, idx);
+        idx
+    }
+
     fn get_local(&self, name: &str) -> Option<&usize> {
         self.locals.get(name)
     }
@@ -139,9 +146,8 @@ impl<'a> RegCodeGen<'a> {
     // native_ix, arity
     fn builtin(&mut self, name: &str) -> Option<(u8, u8, bool)> {
         match name {
-            "append" => Some((2, 2, false)),
-            "assert" => Some((3, 2, false)),
-            "len" => Some((4, 1, true)),
+            "append" => Some((5, 2, false)),
+            "len" => Some((6, 1, true)),
             _ => None,
         }
     }
@@ -164,6 +170,67 @@ impl<'a> RegCodeGen<'a> {
         reg
     }
 
+    fn compile_print(&mut self, reg: u8, arg_ty: Type) {
+        match arg_ty {
+            Type::Int => {
+                self.code.push(RegCode::NCall(0, vec![reg]));
+            }
+            Type::Double => {
+                self.code.push(RegCode::NCall(1, vec![reg]));
+            }
+            Type::Char => {
+                self.code.push(RegCode::NCall(2, vec![reg]));
+            }
+            Type::Bool => {
+                self.code.push(RegCode::NCall(3, vec![reg]));
+            }
+            Type::Str => {
+                self.code.push(RegCode::NCall(4, vec![reg]));
+            }
+            _ => panic!("invalid type for print"),
+        }
+    }
+
+    fn compile_complex_print(&mut self, reg: u8, arg_ty: Type) {
+        match arg_ty {
+            Type::List(ty) => {
+                // compile into a loop
+                // NCall(6, [reg]) is for length
+                // ListGet(reg, reg, reg) is for getting the element
+                let const_ix = self.consts.len();
+                self.consts.push((Type::Int, 0u64.to_le_bytes().to_vec()));
+                let const_ix_1 = self.consts.len();
+                self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
+                let ix_reg = self.get_reg();
+                self.code.push(RegCode::Const(const_ix, ix_reg));
+                let len_reg = self.get_reg();
+                self.code.push(RegCode::NCall(6, vec![reg]));
+                self.code.push(RegCode::Move(0, len_reg));
+                let loop_start = self.code.len();
+                self.code.push(RegCode::ILt(ix_reg, len_reg, reg));
+                let jump_ix = self.code.len();
+                self.code.push(RegCode::Nop);
+                let el_reg = self.get_reg();
+                self.code.push(RegCode::ListGet(reg, ix_reg, el_reg));
+                self.compile_print(el_reg, *ty);
+                let _1_reg = self.get_reg();
+                self.code.push(RegCode::Const(const_ix_1, _1_reg));
+                self.code.push(RegCode::IAdd(_1_reg, ix_reg, ix_reg));
+                self.code.push(RegCode::Jmp(loop_start));
+                self.code[jump_ix] = RegCode::Jmp(self.code.len());
+            }
+            Type::Map(_, _) => {
+                // compile into a loop
+            }
+            Type::Tuple(tys) => {
+                // compile into a loop
+            }
+            ty => {
+                self.compile_print(reg, ty);
+            }
+        }
+    }
+
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
         println!("compiling expr: {:?}", expr);
         self.span = (expr.0, expr.2);
@@ -179,7 +246,7 @@ impl<'a> RegCodeGen<'a> {
                             .push((Type::Double, bytes.to_le_bytes().to_vec()));
                     }
                     Lit::Char(c) => {
-                        self.consts.push((Type::Char, c.to_le_bytes().to_vec()));
+                        self.consts.push((Type::Char, vec![*c]));
                     }
                     Lit::Bool(b) => {
                         if *b {
@@ -205,6 +272,7 @@ impl<'a> RegCodeGen<'a> {
                     let local = *local.unwrap();
                     let reg = self.get_reg();
                     self.code.push(RegCode::Load(local, reg));
+                    println!("{:?}", self.code);
                     self.stack_push(reg);
                 } else {
                     panic!("Unknown variable: {}", name);
@@ -281,8 +349,8 @@ impl<'a> RegCodeGen<'a> {
             } => {
                 self.compile_expr(&left);
                 self.compile_expr(&right);
-                let arg1 = self.stack_pop();
                 let arg2 = self.stack_pop();
+                let arg1 = self.stack_pop();
                 let ty = left.1.get_type();
                 let op = if ty == Type::Int {
                     match op {
@@ -335,12 +403,13 @@ impl<'a> RegCodeGen<'a> {
                     arg_regs.push(self.stack.pop().unwrap());
                 }
                 if name == "print" {
-                    self.code.push(RegCode::NCall(0, arg_regs));
-                    return;
-                } else if name == "println" {
-                    self.code.push(RegCode::NCall(1, arg_regs));
+                    let argtys = args.iter().map(|e| e.1.get_type());
+                    for arg in arg_regs.iter().zip(argtys).rev() {
+                        self.compile_complex_print(*arg.0, arg.1);
+                    }
                     return;
                 } else if let Some((native_ix, _arity, returns)) = self.builtin(name) {
+                    let arg_regs = arg_regs.into_iter().rev().collect::<Vec<_>>();
                     self.code.push(RegCode::NCall(native_ix, arg_regs));
                     if returns {
                         let reg = self.get_reg();
@@ -353,9 +422,17 @@ impl<'a> RegCodeGen<'a> {
                 let func = self.func_idx.get(name.as_str());
                 if func.is_some() {
                     let func = *func.unwrap();
+                    // save registers
+                    for i in self.stack.iter().rev() {
+                        self.code.push(RegCode::Push(*i));
+                    }
                     self.code.push(RegCode::Call(func, arg_regs));
+                    // restore registers
+                    for i in self.stack.iter() {
+                        self.code.push(RegCode::Pop(*i));
+                    }
                     if ty.is_some() {
-                        self.code.push(RegCode::Move(0, reg));
+                        self.code.push(RegCode::Move(reg, 0));
                         self.stack_push(reg);
                     } else {
                         self.free_reg(reg);
@@ -493,8 +570,7 @@ impl<'a> RegCodeGen<'a> {
             }
             Stmt::Decl(var, expr) => {
                 self.compile_expr(&expr);
-                let lcl = self.locals.len();
-                self.locals.insert(var.as_str(), lcl);
+                let lcl = self.add_local(var.as_str());
                 let arg = self.stack_pop();
                 self.code.push(RegCode::Store(lcl, arg));
             }
@@ -553,6 +629,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::JmpIfNot(iter, jmp_ix + 2));
                     let jmp_ix2 = self.code.len();
                     self.code.push(RegCode::Nop);
+                    self.loop_starts.push(jmp_ix);
                     // assign var
                     let reg = self.get_reg();
                     self.code.push(RegCode::ListGet(arg, iter, reg));
@@ -590,6 +667,7 @@ impl<'a> RegCodeGen<'a> {
                 self.breaks.push(vec![]);
                 let arg = self.stack_unfree_pop();
                 let jmp_ix2 = self.code.len();
+                self.code.push(RegCode::Nop);
                 self.loop_starts.push(jmp_ix);
                 for stmt in body {
                     self.compile_stmt(&stmt);
@@ -603,6 +681,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code[*ix] = RegCode::Jmp(jmp_ix4);
                 }
                 self.breaks.pop();
+                self.free_reg(arg);
             }
             Stmt::Return(expr) => {
                 self.compile_expr(&expr);
@@ -616,6 +695,9 @@ impl<'a> RegCodeGen<'a> {
                 self.breaks[loop_ix].push(jmp_ix);
             }
             Stmt::Continue => {
+                if self.loop_starts.len() == 0 {
+                    panic!("Cannot continue outside of loop");
+                }
                 let start_ix = self.loop_starts.last().unwrap();
                 self.code.push(RegCode::Jmp(*start_ix));
             }
