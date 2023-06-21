@@ -1,5 +1,5 @@
-mod asm;
 mod bytecode;
+mod bytes;
 mod cfg;
 mod go;
 mod parser;
@@ -7,13 +7,14 @@ mod regcode;
 mod semant;
 mod syntax;
 
-use asm::*;
 use parser::*;
+use regcode::RegCodeGen;
 use semant::*;
 use std::fs::*;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::process::exit;
 
+use crate::bytes::{consts_vec, emit_bytes};
 use crate::cfg::*;
 
 fn usage() {
@@ -91,42 +92,46 @@ fn main() {
                 match res {
                     Ok(env) => {
                         if verbose {
-                            let mut regcodegen = regcode::RegCodeGen::new(source.clone());
-                            regcodegen.compile_program(&p);
-                            for funcs in regcodegen.func_code.iter() {
-                                for instr in funcs.iter().enumerate() {
-                                    println!("\t{}: {:?}", instr.0, instr.1);
-                                }
-                            }
-                            println!("CFG:");
-                            for (funcs, local_count) in regcodegen.func_code.iter().zip(regcodegen.local_counts.iter()) {
-                                let mut cfg = construct_cfg(funcs);
-                                let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
-                                for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
-                                    println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
-                                }
-                                let dom = construct_dominators(&cfg, &cfg_nodes);
-                                let domf = construct_dominance_frontiers(&cfg, &cfg_nodes, &dom);
-                                for (idx, dom) in dom.iter().enumerate() {
-                                    println!("\t{}: {:?}", idx, dom);
-                                }
-                                for (idx, dom) in domf.iter().enumerate() {
-                                    println!("\t{}: {:?}", idx, dom);
-                                }
-                            }
                             println!("Program is well-typed");
                         }
                         if to_go {
                             let res = go::compile_program(&p);
                             println!("{}", res)
-                        } else if to_compile {
-                            let mut codebyte =
-                                bytecode::Bytecode::new(filename.unwrap().to_string());
-                            codebyte.compile_program(&p);
-                            codebyte.write("exe.bin");
                         } else {
-                            let mut asm = Asm::new(env);
-                            asm.compile(&p);
+                            println!("CFG:");
+                            let mut gen = RegCodeGen::new(source.clone());
+                            gen.compile_program(&p);
+                            for funcs in gen.func_code.iter() {
+                                for instr in funcs.iter().enumerate() {
+                                    println!("\t{}: {:?}", instr.0, instr.1);
+                                }
+                            }
+                            for funcs in gen.func_code.iter() {
+                                let cfg = construct_cfg(funcs);
+                                let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
+                                for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
+                                    println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
+                                }
+                            }
+                            if to_compile {
+                                let main_idx = gen.start_func_idx;
+                                let consts = consts_vec(&gen.consts);
+                                let mut file = File::create("exe.bin").unwrap();
+                                file.write_all(&main_idx.to_le_bytes()).unwrap();
+                                file.write_all(&gen.consts.len().to_le_bytes()).unwrap();
+                                println!("consts count {}", consts.len());
+                                file.write_all(&consts).unwrap();
+                                file.write_all(&gen.func_code.len().to_le_bytes()).unwrap();
+                                for func in gen.func_code.iter() {
+                                    let func_bytes = emit_bytes(func);
+                                    println!("func_bytes_len {}", func_bytes.len());
+                                    file.write_all(&func_bytes.len().to_le_bytes()).unwrap();
+                                    file.write_all(&func_bytes).unwrap();
+                                }
+                            } else {
+                                // let mut asm = Asm::new(env);
+                                // asm.compile(&p);
+                            }
                         }
                     }
                     Err(e) => {
