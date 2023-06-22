@@ -402,14 +402,14 @@ impl<'a> RegCodeGen<'a> {
                 for _ in 0..args.len() {
                     arg_regs.push(self.stack.pop().unwrap());
                 }
+                let arg_regs = arg_regs.into_iter().rev().collect::<Vec<_>>();
                 if name == "print" {
                     let argtys = args.iter().map(|e| e.1.get_type());
-                    for arg in arg_regs.iter().zip(argtys).rev() {
+                    for arg in arg_regs.iter().zip(argtys) {
                         self.compile_complex_print(*arg.0, arg.1);
                     }
                     return;
                 } else if let Some((native_ix, _arity, returns)) = self.builtin(name) {
-                    let arg_regs = arg_regs.into_iter().rev().collect::<Vec<_>>();
                     self.code.push(RegCode::NCall(native_ix, arg_regs));
                     if returns {
                         let reg = self.get_reg();
