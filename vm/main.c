@@ -424,7 +424,7 @@ void make_list(VM *vm, int reg, int len) {
     obj->list.length = len;
     obj->list.capacity = cap;
     for (int i = 0; i < len; ++i) {
-        obj->list.items[i] = pop(vm);
+        obj->list.items[i] = 0;
     }
     vm->regs[reg].i = (uint64_t)obj;
 #ifdef DEBUG
