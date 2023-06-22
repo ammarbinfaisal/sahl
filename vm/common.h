@@ -7,10 +7,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PRINT_OPCODES
+// #define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
-#define DEBUG
+// #define DEBUG
 // #define MINARR
 // #define UNSAFE
 
@@ -118,7 +118,7 @@ struct Obj {
 typedef struct Obj Obj;
 
 struct Reg {
-    uint64_t i;
+    int64_t i;
     double f;
     char c;
     Obj *o;

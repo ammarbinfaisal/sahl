@@ -7,6 +7,7 @@ CallFrame *new_call_frame(Func *func, CallFrame *prev) {
     frame->prev = prev;
     frame->depth = prev ? prev->depth + 1 : 0;
     frame->next = NULL;
+    prev ? prev->next = frame : 0;
     return frame;
 }
 

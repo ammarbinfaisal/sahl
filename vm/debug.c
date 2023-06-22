@@ -120,9 +120,9 @@ int print_opcode(uint8_t *code, int i) {
         break;
     case OP_LIST: {
         uint64_t len = read_u64(code, i + 1);
-        uint8_t res = code[i + 5];
+        uint8_t res = code[i + 9];
         printf("list %ld - %d\n", len, res);
-        return i + 6;
+        return i + 10;
     }
     case OP_TUPLEGET: {
         uint8_t tup_reg = code[i + 1];

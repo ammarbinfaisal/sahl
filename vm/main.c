@@ -182,6 +182,10 @@ void handle_ilt(VM *vm) {
     int r2 = code[++vm->call_frame->ip];
     bool result = vm->regs[r1].i < vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
+#ifdef DEBUG
+    printf("handle_ilt: %ld < %ld = %d\n", vm->regs[r1].i, vm->regs[r2].i,
+           result);
+#endif
     vm->regs[res].i = result;
 }
 
@@ -420,7 +424,7 @@ void make_list(VM *vm, int reg, int len) {
     obj->list.length = len;
     obj->list.capacity = cap;
     for (int i = 0; i < len; ++i) {
-        obj->list.items[i] = 0;
+        obj->list.items[i] = pop(vm);
     }
     vm->regs[reg].i = (uint64_t)obj;
 #ifdef DEBUG
@@ -446,7 +450,7 @@ void handle_make(VM *vm) {
     int res = code[++vm->call_frame->ip];
     int len = code[++vm->call_frame->ip];
     int type = code[++vm->call_frame->ip] - 5;
-    make_fns[type](vm, res, len);
+    make_fns[type](vm, res, vm->regs[len].i);
 }
 
 void handle_listset(VM *vm) {
@@ -455,7 +459,8 @@ void handle_listset(VM *vm) {
     int index = code[++vm->call_frame->ip];
     int value = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[list].i;
-    obj->list.items[index] = vm->regs[value].i;
+    int idx = vm->regs[index].i;
+    obj->list.items[idx] = vm->regs[value].i;
 }
 
 void handle_listget(VM *vm) {
@@ -464,7 +469,8 @@ void handle_listget(VM *vm) {
     int index = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[list].i;
-    vm->regs[res].i = obj->list.items[index];
+    int idx = vm->regs[index].i;
+    vm->regs[res].i = obj->list.items[idx];
 }
 
 void handle_mapset(VM *vm) {
@@ -493,7 +499,7 @@ void handle_mapget(VM *vm) {
 void handle_list(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
-    vm->call_frame->ip += 8;    
+    vm->call_frame->ip += 8;
     int res = code[vm->call_frame->ip];
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_LIST);
@@ -659,25 +665,30 @@ void native_append(VM *vm) {
     int value = vm->call_frame->func->code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[list].i;
     if (obj->list.length == obj->list.capacity) {
-        obj->list.capacity *= 2;
+        obj->list.capacity = GROW_CAPACITY(obj->list.capacity);
         obj->list.items =
             realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
     }
-    obj->list.items[obj->list.length++] = vm->regs[value].i;
+    obj->list.items[obj->list.length] = vm->regs[value].i;
+    ++obj->list.length;
+#ifdef DEBUG
+    printf("appended %ld to list of length %ld\n", vm->regs[value].i,
+           obj->list.length);
+#endif
 }
 
-void native_len(VM *vm) {
+void native_list_len(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int argc = read_u64(code, ++vm->call_frame->ip);
-    vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
-    int list = vm->call_frame->func->code[++vm->call_frame->ip];
+    vm->call_frame->ip += 8; // 7 instead of 8 because we pre-increment ip again
+    int list = code[vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[list].i;
     vm->regs[0].i = obj->list.length;
 }
 
 static native_fn_t native_functions[] = {
     native_print_int, native_print_float, native_print_char, native_print_bool,
-    native_print_str, native_append,      native_len};
+    native_print_str, native_append,      native_list_len};
 
 void handle_ncall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
@@ -693,8 +704,7 @@ void handle_const(VM *vm) {
     int reg = code[vm->call_frame->ip];
     vm->regs[reg].i = vm->consts[index];
 #ifdef DEBUG
-    printf("const %ld loaded into reg %d\n", vm->regs[reg].i ,
-           reg);
+    printf("const %ld loaded into reg %d\n", (int64_t)vm->consts[index], reg);
 #endif
 }
 
