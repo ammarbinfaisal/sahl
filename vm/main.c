@@ -492,8 +492,9 @@ void handle_mapget(VM *vm) {
 
 void handle_list(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
-    int len = code[++vm->call_frame->ip];
-    int res = code[++vm->call_frame->ip];
+    int len = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;    
+    int res = code[vm->call_frame->ip];
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_LIST);
     newobj->list.length = len;
