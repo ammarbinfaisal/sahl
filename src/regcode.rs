@@ -730,6 +730,7 @@ impl<'a> RegCodeGen<'a> {
         for stmt in &func.body {
             self.compile_stmt(&stmt);
         }
+        self.code.push(RegCode::Return(0));
     }
 
     pub fn compile_program(&mut self, prog: &'a Program) {
