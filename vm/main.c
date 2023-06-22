@@ -693,7 +693,7 @@ void handle_const(VM *vm) {
     int reg = code[vm->call_frame->ip];
     vm->regs[reg].i = vm->consts[index];
 #ifdef DEBUG
-    printf("const %ld loaded into reg %d\n", vm->regs[vm->call_frame->ip].i,
+    printf("const %ld loaded into reg %d\n", vm->regs[reg].i ,
            reg);
 #endif
 }
@@ -726,7 +726,7 @@ void handle_store(VM *vm) {
     }
     vm->call_frame->locals[index] = vm->regs[reg].i;
 #ifdef DEBUG
-    printf("reg %d (%ld) stored into local %d\n", reg, vm->regs[reg].i, reg);
+    printf("reg %d (%ld) stored into local %d\n", reg, vm->regs[reg].i, index);
 #endif
 }
 
