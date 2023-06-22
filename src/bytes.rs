@@ -202,8 +202,7 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::Make(ty, res, def) => {
                 let mut tyvec = Vec::new();
                 rec_vectorise_ty(ty, &mut tyvec);
-                let def = if let Some(len) = def { len.clone() } else { 0 };
-                bytes.extend(vec![MAKE, *res, def]);
+                bytes.extend(vec![MAKE, *res, *def]);
                 bytes.extend(tyvec);
             }
             RegCode::ListSet(ls_reg, idx_reg, val_reg) => {
