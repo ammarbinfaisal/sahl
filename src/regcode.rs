@@ -201,6 +201,23 @@ impl<'a> RegCodeGen<'a> {
                 self.consts.push((Type::Int, 0u64.to_le_bytes().to_vec()));
                 let const_ix_1 = self.consts.len();
                 self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
+                // , 
+                let comma_reg = self.get_reg();
+                let const_comma = self.consts.len();
+                self.consts.push((Type::Str, b", ".to_vec()));
+                self.code.push(RegCode::Const(const_comma, comma_reg));
+                // [
+                let open_reg = self.get_reg();
+                let const_open = self.consts.len();
+                self.consts.push((Type::Char, vec![b'[']));
+                self.code.push(RegCode::Const(const_open, open_reg));
+                // ]
+                let close_reg = self.get_reg();
+                let const_close = self.consts.len();
+                self.consts.push((Type::Char, vec![b']']));
+                self.code.push(RegCode::Const(const_close, close_reg));
+                // print [
+                self.code.push(RegCode::NCall(2, vec![open_reg]));
                 let ix_reg = self.get_reg();
                 self.code.push(RegCode::Const(const_ix, ix_reg));
                 let len_reg = self.get_reg();
@@ -214,16 +231,23 @@ impl<'a> RegCodeGen<'a> {
                 let el_reg = self.get_reg();
                 self.code.push(RegCode::ListGet(reg, ix_reg, el_reg));
                 self.compile_print(el_reg, *ty);
+                // print ,
+                self.code.push(RegCode::NCall(4, vec![comma_reg]));
                 let _1_reg = self.get_reg();
                 self.code.push(RegCode::Const(const_ix_1, _1_reg));
                 self.code.push(RegCode::IAdd(_1_reg, ix_reg, ix_reg));
                 self.code.push(RegCode::Jmp(loop_start));
                 self.code[jump_ix] = RegCode::JmpIfNot(cond_reg, self.code.len());
+                // print ]
+                self.code.push(RegCode::NCall(2, vec![close_reg]));
                 self.free_reg(ix_reg);
                 self.free_reg(len_reg);
                 self.free_reg(cond_reg);
                 self.free_reg(el_reg);
                 self.free_reg(_1_reg);
+                self.free_reg(comma_reg);
+                self.free_reg(open_reg);
+                self.free_reg(close_reg);
             }
             Type::Map(_, _) => {
                 // compile into a loop
