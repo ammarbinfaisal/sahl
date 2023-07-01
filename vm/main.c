@@ -646,7 +646,7 @@ void native_print_char(VM *vm) {
     // read regs and print them
     for (int i = 0; i < argc; ++i) {
         int arg = code[++vm->call_frame->ip];
-        printf("%c", vm->regs[arg].c);
+        printf("%c", (char)vm->regs[arg].i);
     }
 }
 
@@ -778,9 +778,9 @@ void handle_cast(VM *vm) {
     } else if (ty1 == TYPE_BOOL && ty2 == TYPE_INT) {
         vm->regs[r2].i = vm->regs[r1].i;
     } else if (ty1 == TYPE_CHAR && ty2 == TYPE_INT) {
-        vm->regs[r2].i = vm->regs[r1].c;
+        vm->regs[r2].i = vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_CHAR) {
-        vm->regs[r2].c = (char)vm->regs[r1].i;
+        vm->regs[r2].i = (char)vm->regs[r1].i;
     }
 }
 

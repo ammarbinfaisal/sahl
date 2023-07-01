@@ -120,7 +120,6 @@ typedef struct Obj Obj;
 struct Reg {
     int64_t i;
     double f;
-    char c;
     Obj *o;
 };
 

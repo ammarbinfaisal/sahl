@@ -201,6 +201,8 @@ impl<'a> RegCodeGen<'a> {
                 self.consts.push((Type::Int, 0u64.to_le_bytes().to_vec()));
                 let const_ix_1 = self.consts.len();
                 self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
+                let _1_reg = self.get_reg();
+                self.code.push(RegCode::Const(const_ix_1, _1_reg));
                 // , 
                 let comma_reg = self.get_reg();
                 let const_comma = self.consts.len();
@@ -231,10 +233,15 @@ impl<'a> RegCodeGen<'a> {
                 let el_reg = self.get_reg();
                 self.code.push(RegCode::ListGet(reg, ix_reg, el_reg));
                 self.compile_print(el_reg, *ty);
-                // print ,
+                // print , if not last
+                let is_last_cond_reg = self.get_reg();
+                let len_minus_1_reg = self.get_reg();
+                self.code.push(RegCode::ISub(len_reg, _1_reg, len_minus_1_reg));
+                self.code.push(RegCode::INe(ix_reg, len_minus_1_reg, is_last_cond_reg));
+                let jump_ix2 = self.code.len();
+                self.code.push(RegCode::Nop);
                 self.code.push(RegCode::NCall(4, vec![comma_reg]));
-                let _1_reg = self.get_reg();
-                self.code.push(RegCode::Const(const_ix_1, _1_reg));
+                self.code[jump_ix2] = RegCode::JmpIfNot(is_last_cond_reg, self.code.len());
                 self.code.push(RegCode::IAdd(_1_reg, ix_reg, ix_reg));
                 self.code.push(RegCode::Jmp(loop_start));
                 self.code[jump_ix] = RegCode::JmpIfNot(cond_reg, self.code.len());
@@ -248,6 +255,8 @@ impl<'a> RegCodeGen<'a> {
                 self.free_reg(comma_reg);
                 self.free_reg(open_reg);
                 self.free_reg(close_reg);
+                self.free_reg(len_minus_1_reg);
+                self.free_reg(is_last_cond_reg);
             }
             Type::Map(_, _) => {
                 // compile into a loop
