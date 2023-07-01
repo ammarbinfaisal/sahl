@@ -564,7 +564,7 @@ void handle_chanrecv(VM *vm) {
     int chan = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[chan].i;
-    chan_read(obj->channel.chan, &vm->regs[res].i);
+    chan_read(obj->channel.chan, (Value *)&vm->regs[res].i);
 }
 
 void handle_strget(VM *vm) {
