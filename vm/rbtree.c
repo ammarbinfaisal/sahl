@@ -23,9 +23,7 @@ RBNode *rb_insert(RBNode *trav, RBNode *temp) {
     // return a new node
     if (trav == NULL) return temp;
 
-    if (obj_is_equal(temp->key, trav->key)) {
-        // do nothing
-    } else if (obj_is_less(temp->key, trav->key)) {
+    if (temp->key < trav->key) {
         trav->left = rb_insert(trav->left, temp);
         trav->left->parent = trav;
     } else {
@@ -160,8 +158,8 @@ void rb_fixup(RBNode *root, RBNode *pt) {
 }
 
 RBNode *rb_search(RBNode *root, Value key) {
-    if (root == NULL || obj_is_equal(key, root->key)) return root;
-    if (obj_is_less(key, root->key)) return rb_search(root->left, key);
+    if (root == NULL || key == root->key) return root;
+    if (key < root->key) return rb_search(root->left, key);
     return rb_search(root->right, key);
 }
 

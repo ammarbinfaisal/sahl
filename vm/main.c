@@ -479,7 +479,11 @@ void handle_mapset(VM *vm) {
     int key = code[++vm->call_frame->ip];
     int value = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[map].i;
-    rb_insert(obj->map.map, ((Obj *)vm->regs[key].i)->map.map);
+    RBNode *new = new_rb_node(vm->regs[key].i);
+    new->value = vm->regs[value].i;
+    rb_insert(obj->map.map, new);
+    rb_fixup(obj->map.map, new);
+    obj->map.map->color = BLACK;
 }
 
 void handle_mapget(VM *vm) {
@@ -489,11 +493,23 @@ void handle_mapget(VM *vm) {
     int res = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[map].i;
     RBNode *n = rb_search(obj->map.map, vm->regs[key].i);
+#ifdef DEBUG
+    printf("mapget %p %ld\n", obj, vm->regs[key].i);
+#endif
     if (n) {
         vm->regs[res].i = n->value;
     } else {
         vm->regs[res].i = 0;
     }
+}
+
+void handle_map_to_list(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int map = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->regs[map].i;
+    Obj *newlist = map_to_list(vm, obj);
+    vm->regs[res].i = (uint64_t)newlist;
 }
 
 void handle_list(VM *vm) {
