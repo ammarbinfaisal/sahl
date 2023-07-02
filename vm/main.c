@@ -127,7 +127,7 @@ void handle_isub(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i - vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i - vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -136,7 +136,7 @@ void handle_imul(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i * vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i * vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -145,7 +145,7 @@ void handle_idiv(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i / vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i / vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -154,7 +154,7 @@ void handle_irem(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i % vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i % vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -342,7 +342,7 @@ void handle_band(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i & vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i & vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -351,7 +351,7 @@ void handle_bor(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i | vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i | vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -360,7 +360,7 @@ void handle_bxor(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i ^ vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i ^ vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -368,7 +368,7 @@ void handle_bnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = ~vm->regs[r1].i;
+    int64_t result = ~vm->regs[r1].i;
     vm->regs[res].i = result;
 }
 
@@ -403,7 +403,7 @@ void handle_bshl(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i << vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i << vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -412,7 +412,7 @@ void handle_bshr(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    int result = vm->regs[r1].i >> vm->regs[r2].i;
+    int64_t result = vm->regs[r1].i >> vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
@@ -426,7 +426,7 @@ void handle_fneg(VM *vm) {
 void handle_ineg(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
-    int result = -vm->regs[r1].i;
+    int64_t result = -vm->regs[r1].i;
     vm->regs[r1].i = result;
 }
 
