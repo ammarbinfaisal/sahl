@@ -552,8 +552,9 @@ void handle_list(VM *vm) {
 
 void handle_tuple(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
-    int len = code[++vm->call_frame->ip];
-    int res = code[++vm->call_frame->ip];
+    int len = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int res = code[vm->call_frame->ip];
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_TUPLE);
     newobj->tuple.length = len;
@@ -570,7 +571,7 @@ void handle_tupleget(VM *vm) {
     int index = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
     Obj *obj = (Obj *)vm->regs[tuple].i;
-    vm->regs[res].i = obj->tuple.items[index];
+    vm->regs[res].i = obj->tuple.items[vm->regs[index].i];
 }
 
 void handle_chansend(VM *vm) {
