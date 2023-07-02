@@ -221,8 +221,10 @@ void handle_fadd(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    float result = vm->regs[r1].f + vm->regs[r2].f;
-    vm->regs[res].f = result;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    double result = arg1 + arg2;
+    vm->regs[res].i = *(uint64_t *)&result;
 }
 
 void handle_fsub(VM *vm) {
@@ -230,8 +232,10 @@ void handle_fsub(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    float result = vm->regs[r1].f - vm->regs[r2].f;
-    vm->regs[res].f = result;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    double result = arg1 - arg2;
+    vm->regs[res].i = *(int *)&result;
 }
 
 void handle_fmul(VM *vm) {
@@ -239,8 +243,10 @@ void handle_fmul(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    float result = vm->regs[r1].f * vm->regs[r2].f;
-    vm->regs[res].f = result;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    double result = arg1 * arg2;
+    vm->regs[res].i = *(int *)&result;
 }
 
 void handle_fdiv(VM *vm) {
@@ -248,8 +254,10 @@ void handle_fdiv(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    float result = vm->regs[r1].f / vm->regs[r2].f;
-    vm->regs[res].f = result;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    double result = arg1 / arg2;
+    vm->regs[res].i = *(int *)&result;
 }
 
 void handle_frem(VM *vm) {
@@ -257,15 +265,19 @@ void handle_frem(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    float result = fmod(vm->regs[r1].f, vm->regs[r2].f);
-    vm->regs[res].f = result;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    double result = fmod(arg1, arg2);
+    vm->regs[res].i = *(int *)&result;
 }
 
 void handle_fne(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f != vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 != arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -274,7 +286,9 @@ void handle_feq(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f == vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 == arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -283,7 +297,9 @@ void handle_flt(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f < vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 < arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -292,7 +308,9 @@ void handle_fle(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f <= vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 <= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -301,7 +319,9 @@ void handle_fgt(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f > vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 > arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -310,7 +330,9 @@ void handle_fge(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    bool result = vm->regs[r1].f >= vm->regs[r2].f;
+    double arg1 = *(double *)&vm->regs[r1].i;
+    double arg2 = *(double *)&vm->regs[r2].i;
+    bool result = arg1 >= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
@@ -397,8 +419,8 @@ void handle_bshr(VM *vm) {
 void handle_fneg(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
-    float result = -vm->regs[r1].f;
-    vm->regs[r1].f = result;
+    double result = -vm->regs[r1].f;
+    vm->regs[r1].f = *(int *)&result;
 }
 
 void handle_ineg(VM *vm) {
@@ -635,7 +657,7 @@ void native_print_float(VM *vm) {
     // read regs and print them
     for (int i = 0; i < argc; ++i) {
         int arg = code[++vm->call_frame->ip];
-        printf("%lf", vm->regs[arg].f);
+        printf("%lf", *(double *)&vm->regs[arg].i);
     }
 }
 
@@ -770,9 +792,9 @@ void handle_cast(VM *vm) {
     if (ty1 == ty2) {
         vm->regs[r2].i = vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_FLOAT) {
-        vm->regs[r2].f = (double)vm->regs[r1].i;
+        vm->regs[r2].i = (double)vm->regs[r1].i;
     } else if (ty1 == TYPE_FLOAT && ty2 == TYPE_INT) {
-        vm->regs[r2].i = (int)vm->regs[r1].f;
+        vm->regs[r2].i = (int64_t)vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_BOOL) {
         vm->regs[r2].i = vm->regs[r1].i != 0;
     } else if (ty1 == TYPE_BOOL && ty2 == TYPE_INT) {
