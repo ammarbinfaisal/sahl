@@ -16,6 +16,8 @@
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
+#define AS_DOUBLE(x) *(double *)&x
+
 typedef uint64_t Value;
 
 struct Queue {
