@@ -23,9 +23,7 @@ RBNode *rb_insert(RBNode *trav, RBNode *temp) {
     // return a new node
     if (trav == NULL) return temp;
 
-    if (obj_is_equal(temp->key, trav->key)) {
-        // do nothing
-    } else if (obj_is_less(temp->key, trav->key)) {
+    if (temp->key < trav->key) {
         trav->left = rb_insert(trav->left, temp);
         trav->left->parent = trav;
     } else {
@@ -160,25 +158,25 @@ void rb_fixup(RBNode *root, RBNode *pt) {
 }
 
 RBNode *rb_search(RBNode *root, Value key) {
-    if (root == NULL || obj_is_equal(key, root->key)) return root;
-    if (obj_is_less(key, root->key)) return rb_search(root->left, key);
+    if (root == NULL || key == root->key) return root;
+    if (key < root->key) return rb_search(root->left, key);
     return rb_search(root->right, key);
 }
 
-LinkedList *rb_to_ll(RBNode *root) {
-    LinkedList *head = NULL;
-    LinkedList *tail = NULL;
+LinkedListRB *rb_to_ll(RBNode *root) {
+    LinkedListRB *head = NULL;
+    LinkedListRB *tail = NULL;
     if (root == NULL) {
         return NULL;
     }
-    LinkedList *node = malloc(sizeof(LinkedList));
+    LinkedListRB *node = malloc(sizeof(LinkedListRB));
     node->key = root->key;
     node->value = root->value;
     node->next = NULL;
     head = node;
     tail = node;
-    LinkedList *left = rb_to_ll(root->left);
-    LinkedList *right = rb_to_ll(root->right);
+    LinkedListRB *left = rb_to_ll(root->left);
+    LinkedListRB *right = rb_to_ll(root->right);
     if (left != NULL) {
         tail->next = left;
         while (tail->next != NULL) {

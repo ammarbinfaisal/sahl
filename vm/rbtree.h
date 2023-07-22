@@ -7,13 +7,13 @@
 
 #include "common.h"
 
-struct LinkedList {
-    struct LinkedList *next;
+struct LinkedListRB {
+    struct LinkedListRB *next;
     Value key;
     Value value;
 };
 
-typedef struct LinkedList LinkedList;
+typedef struct LinkedListRB LinkedListRB;
 
 RBNode *new_rb_node(Value key);
 RBNode *rb_insert(RBNode *root, RBNode *node);
@@ -21,7 +21,7 @@ void rb_rightrotate(RBNode **root, RBNode *temp);
 void rb_leftrotate(RBNode **root, RBNode *temp);
 void rb_fixup(RBNode *root, RBNode *pt);
 RBNode *rb_search(RBNode *root, Value key);
-LinkedList *rb_to_ll(RBNode *root);
+LinkedListRB *rb_to_ll(RBNode *root);
 void rb_free(RBNode *root);
 void rb_mark(VM *vm, RBNode *root);
 

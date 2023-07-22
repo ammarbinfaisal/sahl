@@ -1,243 +1,272 @@
 #include "debug.h"
 #include "opcodes.h"
 #include "read.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 int print_opcode(uint8_t *code, int i) {
     switch (code[i]) {
-    case IADD:
-        printf("IAdd\n");
+    case OP_IADD:
+        printf("iadd %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_ISUB:
+        printf("isub %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IMUL:
+        printf("imul %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IDIV:
+        printf("idiv %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IREM:
+        printf("irem %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_INE:
+        printf("ine %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IEQ:
+        printf("ieq %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_ILT:
+        printf("ilt %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_ILE:
+        printf("ile %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IGT:
+        printf("igt %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_IGE:
+        printf("ige %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FADD:
+        printf("fadd %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FSUB:
+        printf("fsub %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FMUL:
+        printf("fmul %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FDIV:
+        printf("fdiv %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FREM:
+        printf("frem %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FNE:
+        printf("fne %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FEQ:
+        printf("feq %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FLT:
+        printf("flt %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FLE:
+        printf("fle %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FGT:
+        printf("fgt %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FGE:
+        printf("fge %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_BAND:
+        printf("band %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_BOR:
+        printf("bor %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_BXOR:
+        printf("bxor %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_BNOT:
+        printf("bnot %d - %d\n", code[i + 1], code[i + 2]);
+        return i + 3;
+    case OP_LAND:
+        printf("land %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_LOR:
+        printf("lor %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_LNOT:
+        printf("lnot %d - %d\n", code[i + 1], code[i + 2]);
+        return i + 3;
+    case OP_BSHL:
+        printf("bshl %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_BSHR:
+        printf("bshr %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
+    case OP_FNEG:
+        printf("fneg %d, - %d\n", code[i + 1], code[i + 2]);
+        return i + 3;
+    case OP_INEG:
+        printf("ineg %d, - %d\n", code[i + 1], code[i + 2]);
+        return i + 3;
+    case OP_MAKE:
+        printf("make reg: %d, size: %d, type: %d\n", code[i + 1], code[i + 2],
+               code[i + 3]);
+        return i + 4;
+    case OP_LISTSET:
+        printf("listset %d, %d, %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
         break;
-    case ISUB:
-        printf("ISub\n");
+    case OP_LISTGET:
+        printf("listget %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
+        return i + 4;
         break;
-    case IMUL:
-        printf("IMul\n");
-        break;
-    case IDIV:
-        printf("IDiv\n");
-        break;
-    case IMOD:
-        printf("IMod\n");
-        break;
-    case INEG:
-        printf("INeg\n");
-        break;
-    case NOT:
-        printf("Not\n");
-        break;
-    case AND:
-        printf("And\n");
-        break;
-    case OR:
-        printf("Or\n");
-        break;
-    case EQUAL:
-        printf("Equal\n");
-        break;
-    case NOT_EQUAL:
-        printf("NotEqual\n");
-        break;
-    case ILESS:
-        printf("Less\n");
-        break;
-    case ILESS_EQUAL:
-        printf("LessEqual\n");
-        break;
-    case IGREATER:
-        printf("IGreater\n");
-        break;
-    case IGREATER_EQUAL:
-        printf("IGreaterEqual\n");
-        break;
-    case TRUE:
-        printf("True\n");
-        break;
-    case FALSE:
-        printf("False\n");
-        break;
-    case JUMP:
-        // u64 code
-        printf("Jump %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case JUMP_IF_FALSE:
-        // u64 code
-        printf("JumpIfFalse %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case STORE:
-        // u8 index
-        printf("Store");
-        break;
-    case LIST_INDEX:
-        printf("Index\n");
-        break;
-    case CONST_U32:
-        // u32 code
-        printf("ConstU32 %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case CONST_U64:
-        // u64 code
-        printf("ConstU64 %lu\n", read_u64(code, i + 1));
-        i += 8;
-        break;
-    case CONST_U8:
-        // u8 code
-        printf("ConstU8 %u\n", code[i + 1]);
-        i += 1;
-        break;
-    case LIST:
-        // u32 length
-        printf("List %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case MAKE_LIST:
-        printf("MakeList\n");
-        break;
-    case STRING: {
-        // u32 length
-        uint32_t stridx = read_u32(code, i + 1);
-        i += 5;
-        printf("string at index %d\n", stridx);
-        break;
+    case OP_LIST: {
+        uint64_t len = read_u64(code, i + 1);
+        uint8_t res = code[i + 9];
+        printf("list %ld - %d\n", len, res);
+        return i + 10;
     }
-    case LIST_APPEND:
-        printf("Append\n");
-        break;
-    case DEF_LOCAL:
-        // u32 index
-        printf("DefLocal %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case GET_LOCAL:
-        // u32 index
-        printf("GetLocal %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case ASSIGN:
-        // u32 index
-        printf("Assign %u\n", read_u32(code, i + 1));
-        i += 4;
-        break;
-    case LIST_LENGTH:
-        printf("Length\n");
-        break;
-    case CALL:
-        // u32 function index, u32 arg count
-        printf("Call \t fn: %u \t arg count: %u \n", read_u32(code, i + 1),
-               read_u32(code, i + 5));
+    case OP_TUPLEGET: {
+        uint8_t tup_reg = code[i + 1];
+        uint8_t idx_reg = code[i + 2];
+        uint8_t res_reg = code[i + 3];
+        printf("tupleget %d %d - %d\n", tup_reg, idx_reg, res_reg);
+        return i + 4;
+    }
+    case OP_TUPLE: {
+        uint64_t len = read_u64(code, i + 1);
+        uint8_t res = code[i + 5];
+        printf("tuple %ld - %d\n", len, res);
+        return i + 6;
+    }
+    case OP_STRGET: {
+        uint8_t str_reg = code[i + 1];
+        uint8_t idx_reg = code[i + 2];
+        uint8_t res_reg = code[i + 3];
+        printf("strget %d %d - %d\n", str_reg, idx_reg, res_reg);
+        return i + 4;
+    }
+    case OP_MAPGET: {
+        uint8_t map_reg = code[i + 1];
+        uint8_t key_reg = code[i + 2];
+        uint8_t res_reg = code[i + 3];
+        printf("mapget %d %d - %d\n", map_reg, key_reg, res_reg);
+        return i + 4;
+    }
+    case OP_MAPSET: {
+        uint8_t map_reg = code[i + 1];
+        uint8_t key_reg = code[i + 2];
+        uint8_t val_reg = code[i + 3];
+        printf("mapset %d %d %d\n", map_reg, key_reg, val_reg);
+        return i + 4;
+    }
+    case OP_CHANSEND: {
+        uint16_t chan_var = read_u64(code, i + 1);
+        uint8_t val_reg = code[i + 3];
+        printf("chansend %d - %d\n", chan_var, val_reg);
+        return i + 4;
+    }
+    case OP_CHANRECV: {
+        uint16_t chan_var = read_u64(code, i + 1);
+        uint8_t res_reg = code[i + 3];
+        printf("chanrecv %d - %d\n", chan_var, res_reg);
+        return i + 4;
+    }
+    case OP_JMP: {
+        uint64_t addr = read_u64(code, i + 1);
+        printf("jmp %ld\n", addr);
+        return i + 9;
+    }
+    case OP_JMPNOT: {
+        uint8_t r1 = code[i + 1];
+        uint64_t addr = read_u64(code, i + 2);
+        printf("jmpnot %d %ld\n", r1, addr);
+        return i + 10;
+    }
+    case OP_CALL: {
+        uint64_t ix = read_u64(code, i + 1);
+        uint64_t argc = read_u64(code, i + 9);
+        printf("call %ld - argc %ld\n", ix, argc);
+        return i + 17 + argc;
+    }
+    case OP_NCALL: {
+        uint8_t ix = code[i + 1];
+        uint64_t args_count = read_u64(code, i + 2);
+        printf("ncall %d - args_count %ld\n", ix, args_count);
+        return i + 10 + args_count;
+    }
+    case OP_CONST: {
+        uint64_t c = read_u64(code, i + 1);
+        uint8_t res = code[i + 9];
+        printf("const %lu - %d\n", c, res);
+        return i + 10;
+    }
+    case OP_LOAD: {
+        uint64_t mem = read_u64(code, i + 1);
+        uint8_t res = code[i + 9];
+        printf("load %ld - %d\n", mem, res);
+        return i + 10;
+    }
+    case OP_STORE: {
+        uint64_t mem = read_u64(code, ++i);
         i += 8;
-        break;
-    case RETURN:
-        printf("Return\n");
-        break;
-    case PRINT:
-        printf("Print\n");
-        break;
-    case POP:
-        printf("Pop\n");
-        break;
-    case NATIVE_CALL:
-        // u32 function index, u32 arg count
-        printf("NativeCall \t fn: %u \t arg count: %u \n",
-               read_u32(code, i + 1), read_u32(code, i + 5));
-        i += 8;
-        break;
-    case CONST_DOUBLE:
-        // u64 code
-        printf("ConstDouble %f\n", read_double(code, i + 1));
-        i += 8;
-        break;
-    case MAKE_CHAN:
-        printf("MakeChan\n");
-        break;
-    case SPAWN:
-        printf("Spawn\n");
-        break;
-    case CHAN_WRITE:
-        printf("ChanWrite\n");
-        break;
-    case CHAN_READ:
-        printf("ChanRead\n");
-        break;
-    case MAKE_MAP:
-        printf("MakeMap\n");
-        break;
-    case FADD:
-        printf("FAdd\n");
-        break;
-    case FSUB:
-        printf("FSub\n");
-        break;
-    case FMUL:
-        printf("FMul\n");
-        break;
-    case FDIV:
-        printf("FDiv\n");
-        break;
-    case FNEG:
-        printf("FNeg\n");
-        break;
-    case FLESS:
-        printf("FLess\n");
-        break;
-    case FLESS_EQUAL:
-        printf("FLessEqual\n");
-        break;
-    case FGREATER:
-        printf("FGreater\n");
-        break;
-    case FGREATER_EQUAL:
-        printf("FGreaterEqual\n");
-        break;
-    case SCONCAT:
-        printf("SConcat\n");
-        break;
-    case I2F:
-        printf("I2F %d\n", read_u32(code, i + 1));
-        i += 5;
-        break;
-    case I2S:
-        printf("I2F %d\n", read_u32(code, i + 1));
-        i += 5;
-        break;
-    case F2S:
-        printf("I2F %d\n", read_u32(code, i + 1));
-        i += 5;
-        break;
-    case FMOD:
-        printf("FMod\n");
-        break;
+        uint8_t res = code[i];
+        printf("store %ld - %d\n", mem, res);
+        return i + 1;
+    }
+    case OP_CAST: {
+        uint8_t reg = code[i + 1];
+        uint8_t fromty = code[i + 2];
+        uint8_t toty = code[i + 3];
+        uint8_t res = code[i + 4];
+        printf("cast %d %d %d - %d\n", reg, fromty, toty, res);
+        return i + 5;
+    }
+    case OP_MOVE: {
+        uint8_t res = code[i + 1];
+        uint8_t r1 = code[i + 2];
+        printf("move %d - %d\n", r1, res);
+        return i + 3;
+    }
+    case OP_RETURN: {
+        uint8_t r1 = code[i + 1];
+        printf("return %d\n", r1);
+        return i + 2;
+    } 
+    case OP_POP: {
+        uint8_t r1 = code[i + 1];
+        printf("pop %d\n", r1);
+        return i + 2;
+    }
+    case OP_PUSH: {
+        uint8_t r1 = code[i + 1];
+        printf("push %d\n", r1);
+        return i + 2;
+    }
+    case OP_SPAWN: {
+        printf("spawn\n");
+        return i + 1;
+    }
     default:
-        printf("Unknown opcode %u\n", code[i]);
-        break;
+        printf("Unknown opcode %d\n", code[i]);
+        return i + 1;
     }
     return i;
 }
 
 void dissassemble(uint8_t *code, int length) {
     int i = 0;
-    int filename_length = read_u32(code, i);
-    i += 4;
-    char *filename = read_string(code, i, filename_length);
-    printf("filename: %s\n", filename);
-    i += filename_length;
     printf("i: %d\n", i);
-    int start_ = read_u32(code, i);
+    int start_ = read_u64(code, i);
     printf("start: %d\n", start_);
-    i += 4;
+    i += 8;
     puts("strings:");
-    int strings_count = read_u32(code, i);
+    int strings_count = read_u64(code, i);
     printf("string count: %d\n", strings_count);
-    i += 4;
+    i += 8;
     while (strings_count-- && i < length) {
-        uint32_t len = read_u32(code, i);
-        i += 4;
+        uint64_t len = read_u64(code, i);
+        i += 8;
         char *str = read_string(code, i, len);
-        printf("\t%d ", len);
+        printf("\t%ld ", len);
         printf("%s\n", str);
         i += len;
         free(str);
@@ -245,14 +274,15 @@ void dissassemble(uint8_t *code, int length) {
     // read func count
     // read func length
     // then read those bytes and print opcode
-    int func_count = read_u32(code, i);
-    i += 4;
+    int func_count = read_u64(code, i);
+    i += 8;
     for (int j = 0; j < func_count; j++) {
-        int func_length = read_u32(code, i);
-        i += 4;
-        int argc = read_u32(code, i);
-        i += 4;
-        printf("func %d - length %d - argc %d\n", j, func_length, argc);
+        int func_length = read_u64(code, i);
+        i += 8;
+        // int argc = read_u64(code, i);
+        // i += 8;
+        // printf("func %d - length %d - argc %d\n", j, func_length, argc);
+        printf("func %d - length %d\n", j, func_length);
         int start_ = i;
         int end = i + func_length;
         while (i < end) {

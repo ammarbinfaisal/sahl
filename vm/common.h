@@ -12,9 +12,11 @@
 // #define PRINT_LOCALS
 // #define DEBUG
 // #define MINARR
-#define UNSAFE
+// #define UNSAFE
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
+
+#define AS_DOUBLE(x) *(double *)&x
 
 typedef uint64_t Value;
 
@@ -117,13 +119,23 @@ struct Obj {
 
 typedef struct Obj Obj;
 
+struct Reg {
+    int64_t i;
+    double f;
+    Obj *o;
+};
+
+typedef struct Reg Reg;
+
 struct VM {
     Value *stack;
     int stack_size;
+    Reg *regs; // 256 regs
     Func *funcs;
     int funcs_count;
     int string_count;
-    char **strings;
+    Value *consts;
+    uint32_t consts_count;
     CallFrame *call_frame;
     int start_func;
 

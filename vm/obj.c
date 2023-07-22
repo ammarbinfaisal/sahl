@@ -132,8 +132,8 @@ void print_value(Value value) {
         } else { // MAP
             printf("{");
             RBNode *root = obj->map.map;
-            LinkedList *list = rb_to_ll(root);
-            LinkedList *curr = list;
+            LinkedListRB *list = rb_to_ll(root);
+            LinkedListRB *curr = list;
             while (curr != NULL) {
                 if (curr != list) {
                     print_value(curr->key);
@@ -141,7 +141,7 @@ void print_value(Value value) {
                     print_value(curr->value);
                     if (curr->next != NULL) printf(", ");
                 }
-                LinkedList *temp = curr;
+                LinkedListRB *temp = curr;
                 curr = curr->next;
                 free(temp);
             }

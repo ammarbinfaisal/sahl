@@ -1,38 +1,67 @@
 #include "vm.h"
+#include "common.h"
+#include "obj.h"
+#include "rbtree.h"
+#include "list.h"
 #include "read.h"
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 VM *new_vm(uint8_t *code, int code_length) {
     VM *vm = malloc(sizeof(struct VM));
-    int filename_length = read_u32(code, 0);
-    vm->filename = read_string(code, 4, filename_length);
-    int offset = filename_length + 4;
-    vm->start_func = read_u32(code, offset);
-    vm->string_count = read_u32(code, offset + 4);
-    vm->strings = malloc(sizeof(char *) * vm->string_count);
-    offset += 8;
-    for (int i = 0; i < vm->string_count; ++i) {
-        uint32_t strlength = read_u32(code, offset);
-        offset += 4;
-        vm->strings[i] = read_string(code, offset, strlength);
-        offset += strlength;
+    int offset = 0;
+    vm->start_func = read_u64(code, offset);
+    vm->consts_count = read_u64(code, offset + 8);
+    vm->consts = malloc(sizeof(char *) * vm->consts_count);
+    offset += 16;
+
+    LinkedList* strings = new_list(); // strings to be added to vm->objects
+    LinkedList* strings_tail = strings;
+    for (int i = 0; i < vm->consts_count; ++i) {
+        uint8_t ty = code[offset];
+        offset++;
+        if (ty == 0 || ty == 1) {
+            vm->consts[i] = read_u64(code, offset);
+            offset += 8;
+        }
+        if (ty == 2 || ty == 3) {
+            vm->consts[i] = code[offset++];
+        }
+        if (ty == 4) {
+            int len = read_u64(code, offset);
+            offset += 8;
+            char *str = read_string(code, offset, len);
+            Obj *obj = malloc(sizeof(Obj));
+            obj->type = OBJ_STRING;
+            vm->objects = obj;
+            obj->marked = false;
+            obj->string.data = str;
+            obj->string.constant = true;
+            vm->consts[i] = (uint64_t)obj;
+            list_append(&strings_tail, obj);
+            strings_tail = strings_tail->next;
+            offset += len;
+        }
     }
-    int func_count = read_u32(code, offset);
-    offset += 4;
+
+    int func_count = read_u64(code, offset);
+    offset += 8;
     vm->funcs = malloc(sizeof(Func) * func_count);
     vm->funcs_count = func_count;
     for (int i = 0; i < func_count; ++i) {
-        uint32_t func_length = read_u32(code, offset);
-        offset += 4;
-        int argc = read_u32(code, offset);
-        offset += 4;
+        uint64_t func_length = read_u64(code, offset);
+        offset += 8;
+        // int argc = read_u32(code, offset);
+        // offset += 4;
         vm->funcs[i].code = code + offset;
         vm->funcs[i].code_length = func_length;
-        vm->funcs[i].args_count = argc;
+        // vm->funcs[i].args_count = argc;
         offset += func_length;
     }
     vm->stack_size = 0;
     vm->stack = malloc(sizeof(Value) * 1024);
+    vm->regs = malloc(sizeof(Value) * 256);
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
 
     // garbage collection
@@ -42,6 +71,16 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
     vm->allocated = 0;
     vm->nextGC = 1024 * 1024;
+
+    // add strings to vm->objects
+    LinkedList *node = strings;
+    while (node != NULL) {
+        Obj* obj = node->data;
+        obj->next = vm->objects;
+        vm->objects = obj;
+        node = node->next;
+    }
+    list_free(strings);
 
     // threads
     vm->is_coro = false;
@@ -57,11 +96,12 @@ VM *coro_vm(VM *curr, int start_func) {
     VM *vm = malloc(sizeof(struct VM));
     vm->start_func = start_func;
     vm->string_count = curr->string_count;
-    vm->strings = curr->strings;
+    vm->consts = curr->consts;
     vm->funcs = curr->funcs;
     vm->funcs_count = curr->funcs_count;
     vm->stack_size = 0;
     vm->stack = malloc(sizeof(Value) * 1024);
+    vm->regs = malloc(sizeof(Value) * 256);
     vm->call_frame = new_call_frame(curr->funcs + start_func, NULL);
 
     // garbage collection
@@ -85,10 +125,7 @@ void free_vm(VM *vm) {
         free_value(vm->stack[i]);
     }
     free(vm->stack);
-    for (int i = 0; i < vm->string_count; ++i) {
-        free(vm->strings[i]);
-    }
-    free(vm->strings);
+    free(vm->consts);
     free(vm->grayStack);
     free(vm);
 }
