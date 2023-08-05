@@ -90,7 +90,7 @@ fn main() {
                 let res = check_program(&mut p);
 
                 match res {
-                    Ok(env) => {
+                    Ok(_env) => {
                         if verbose {
                             println!("Program is well-typed");
                         }

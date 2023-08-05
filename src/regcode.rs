@@ -1,5 +1,5 @@
 use crate::syntax::*;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 // highlevel enum for 3/4 address code
 #[derive(Debug, Clone)]
@@ -267,7 +267,6 @@ impl<'a> RegCodeGen<'a> {
                 // compile into a loop
                 // NCall(6, [reg]) is for length
                 // ListGet(reg, reg, reg) is for getting the element
-                let const_ix = self.consts.len();
                 self.consts.push((Type::Int, 0u64.to_le_bytes().to_vec()));
                 let const_ix_1 = self.consts.len();
                 self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));

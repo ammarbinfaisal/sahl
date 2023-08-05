@@ -604,7 +604,7 @@ fn bitand<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
         comparision,
     )))(source)?;
     let mut res = t1;
-    for (op, lit) in exs {
+    for (_op, lit) in exs {
         let r = Expr::BitOp {
             op: BitOp::And,
             left: Box::new(res.clone()),
@@ -623,7 +623,7 @@ fn bitxor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
         bitand,
     )))(source)?;
     let mut res = t1;
-    for (op, lit) in exs {
+    for (_op, lit) in exs {
         let r = Expr::BitOp {
             op: BitOp::Xor,
             left: Box::new(res.clone()),
@@ -642,7 +642,7 @@ fn bitor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
         bitxor,
     )))(source)?;
     let mut res = t1;
-    for (op, lit) in exs {
+    for (_op, lit) in exs {
         let r = Expr::BitOp {
             op: BitOp::Or,
             left: Box::new(res.clone()),
