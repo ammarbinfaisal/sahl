@@ -1,4 +1,3 @@
-mod bytecode;
 mod bytes;
 mod cfg;
 mod go;
