@@ -233,7 +233,7 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Nop);
                 let el_reg = self.get_reg();
                 self.code.push(RegCode::ListGet(reg, ix_reg, el_reg));
-                self.compile_print(el_reg, *ty);
+                self.compile_complex_print(el_reg, *ty);
                 // print , if not last
                 let is_last_cond_reg = self.get_reg();
                 let len_minus_1_reg = self.get_reg();
