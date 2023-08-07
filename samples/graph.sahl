@@ -32,9 +32,7 @@ fun main() {
     while i < node_count {
         let j = 0
         while j < node_count {
-            if i % 2 == 0 && j % 2 == 0 {
-                g[i][j] = true
-            } else if i % 2 == 1 && j % 2 == 1 {
+            if i % 2 == j % 2 {
                 g[i][j] = true
             }
             j = j + 1
