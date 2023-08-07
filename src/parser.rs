@@ -12,43 +12,7 @@ use nom::{
     Err, IResult,
 };
 use std::str;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static IDX: AtomicUsize = AtomicUsize::new(0);
-
-#[derive(Debug)]
-pub struct ErrorPos<'a> {
-    pub idx: usize,
-    pub error: ErrorParse<'a>,
-    pub ctx: &'static str,
-}
-
-impl<'a> ParseError<&'a str> for ErrorPos<'a> {
-    fn from_error_kind(input: &'a str, kind: ErrorKind) -> Self {
-        match kind {
-            ErrorKind::Tag => ErrorPos {
-                idx: IDX.load(Ordering::SeqCst),
-                error: ErrorParse::Expected(input),
-                ctx: "",
-            },
-            _ => ErrorPos {
-                idx: IDX.load(Ordering::SeqCst),
-                error: ErrorParse::Unconsumed(input),
-                ctx: "",
-            },
-        }
-    }
-
-    fn append(_: &'a str, _: ErrorKind, other: Self) -> Self {
-        other
-    }
-}
-
-impl<'a> ContextError<&'a str> for ErrorPos<'a> {
-    fn add_context(_: &'a str, ctx: &'static str, other: Self) -> Self {
-        ErrorPos { ctx, ..other }
-    }
-}
+use nom_locate::{LocatedSpan, position};
 
 #[derive(Debug)]
 pub enum ErrorParse<'a> {
@@ -56,102 +20,80 @@ pub enum ErrorParse<'a> {
     Unconsumed(&'a str),
 }
 
-fn whitespace<'a>(input: &'a str) -> IResult<&'a str, &str, ErrorPos<'a>> {
+type SpanStr<'a> = LocatedSpan<&'a str>;
+
+fn whitespace<'a>(input: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>> {
     let (source, consumed) =
         take_while(|c: char| c.is_whitespace() || c == '\n' || c == '\r')(input)?;
-    IDX.fetch_add(consumed.len(), Ordering::SeqCst);
-    Ok((source, source))
-}
-
-fn comment<'a>(source: &'a str) -> IResult<&'a str, &str, ErrorPos<'a>> {
-    let (mut source, _) = whitespace(source)?;
-    while source.starts_with("//") {
-        (source, _) = spantag("//")(source)?;
-        (source, _) = take_while(|c| c != '\n')(source)?;        
-    }
-    Ok((source, ""))
-}
-
-fn faaaltu<'a>(source: &'a str) -> IResult<&'a str, &'a str, ErrorPos> {
-    let (source, consumeed) = alt((whitespace, comment))(source)?;
-    Ok((source, consumeed))
-}
-
-fn span_space0<'a>(input: &'a str) -> IResult<&'a str, &str, ErrorPos<'a>> {
-    let (source, consumed) = space0(input)?;
-    IDX.fetch_add(consumed.len(), Ordering::SeqCst);
     Ok((source, consumed))
 }
 
-fn spantag<'a>(s: &'a str) -> impl Fn(&'a str) -> IResult<&'a str, &'a str, ErrorPos<'a>> {
-    move |input: &'a str| {
-        let res = tag::<_, _, Error<_>>(s)(input);
-        match res {
-            Ok((source, consumed)) => {
-                IDX.fetch_add(consumed.len(), Ordering::SeqCst);
-                Ok((source, consumed))
-            }
-            Err(_) => Err(Err::Error(ErrorPos {
-                idx: IDX.load(Ordering::SeqCst),
-                error: ErrorParse::Expected(s),
-                ctx: "",
-            })),
-        }
-    }
+fn comment<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>> {
+    let (source, _) = whitespace(source)?;
+    let (source, _) = tag("//")(source)?;
+    let (source, s) = take_while(|c: char| c != '\n')(source)?;
+    Ok((source, s))
 }
 
-fn typee<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
-    let (source, ty) = alt::<_, _, ErrorPos, _>((
+fn faaaltu<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>> {
+    let (source, _) = many0(comment)(source)?;
+    let (source, consumeed) = whitespace(source)?;
+    Ok((source, consumeed))
+}
+
+
+fn typee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type> {
+    let (source, ty) = alt::<_, _, _, _>((
         listty,
         tuplety,
-        map(spantag("int"), |_| Type::Int),
-        map(spantag("bool"), |_| Type::Bool),
-        map(spantag("string"), |_| Type::Str),
-        map(spantag("char"), |_| Type::Char),
-        map(spantag("double"), |_| Type::Double),
+        map(tag("int"), |_| Type::Int),
+        map(tag("bool"), |_| Type::Bool),
+        map(tag("string"), |_| Type::Str),
+        map(tag("char"), |_| Type::Char),
+        map(tag("double"), |_| Type::Double),
         chanty,
         mapty,
     ))(source)?;
     Ok((source, ty))
 }
 
-fn mapty<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
-    let (source, _) = spantag("map")(source)?;
-    let (source, _) = spantag("<")(source)?;
-    let (source, _) = span_space0(source)?;
+fn mapty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type> {
+    let (source, _) = tag("map")(source)?;
+    let (source, _) = tag("<")(source)?;
+    let (source, _) = space0(source)?;
     let (source, key) = typee(source)?;
-    let (source, _) = spantag(",")(source)?;
-    let (source, _) = span_space0(source)?;
+    let (source, _) = tag(",")(source)?;
+    let (source, _) = space0(source)?;
     let (source, val) = typee(source)?;
-    let (source, _) = span_space0(source)?;
-    let (source, _) = spantag(">")(source)?;
+    let (source, _) = space0(source)?;
+    let (source, _) = tag(">")(source)?;
     Ok((source, Type::Map(Box::new(key), Box::new(val))))
 }
 
-fn chanty<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
-    let (source, _) = spantag("chan<")(source)?;
-    let (source, _) = span_space0(source)?;
+fn chanty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type> {
+    let (source, _) = tag("chan<")(source)?;
+    let (source, _) = space0(source)?;
     let (source, ty) = typee(source)?;
-    let (source, _) = span_space0(source)?;
-    let (source, _) = spantag(">")(source)?;
+    let (source, _) = space0(source)?;
+    let (source, _) = tag(">")(source)?;
     Ok((source, Type::Chan(Box::new(ty))))
 }
 
-fn listty<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
-    let (source, _) = spantag("[")(source)?;
+fn listty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type> {
+    let (source, _) = tag("[")(source)?;
     let (source, ty) = alt((listty, typee))(source)?;
-    let (source, _) = spantag("]")(source)?;
+    let (source, _) = tag("]")(source)?;
     Ok((source, Type::List(Box::new(ty))))
 }
 
-fn tuplety<'a>(source: &'a str) -> IResult<&'a str, Type, ErrorPos<'a>> {
-    let (source, _) = spantag("(")(source)?;
+fn tuplety<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type> {
+    let (source, _) = tag("(")(source)?;
     let (source, mut tys) = many0(map(
-        tuple((span_space0, typee, span_space0, spantag(","))),
+        tuple((space0, typee, space0, tag(","))),
         |(_, e, _, _)| e,
     ))(source)?;
-    let (source, last) = opt(map(tuple((span_space0, typee, span_space0)), |(_, e, _)| e))(source)?;
-    let (source, _) = spantag(")")(source)?;
+    let (source, last) = opt(map(tuple((space0, typee, space0)), |(_, e, _)| e))(source)?;
+    let (source, _) = tag(")")(source)?;
     match last {
         Some(e) => {
             tys.push(e);
@@ -170,47 +112,51 @@ fn isreserved<'a>(s: &'a str) -> bool {
     }
 }
 
-fn identifier<'a>(input: &'a str) -> IResult<&'a str, String, ErrorPos<'a>> {
+fn identifier<'a>(input: SpanStr<'a>) -> IResult<SpanStr<'a>, String> {
     let (input, id1) = take_while_m_n(1, 1, |c: char| c.is_alphabetic() || c == '_')(input)?;
     let (input, id2) = take_while(|c: char| c.is_alphanumeric() || c == '_')(input)?;
     let id = format!("{}{}", id1, id2);
     if isreserved(id.as_str()) {
-        Err(Err::Error(ErrorPos::from_error_kind(input, ErrorKind::Tag)))
+        Err(Err::Error(Error::new(input, ErrorKind::Tag)))
     } else {
         Ok((input, id))
     }
 }
 
-fn parse_escape<'a>(source: &'a str) -> IResult<&'a str, u8, ErrorPos<'a>> {
-    let (source, _) = spantag("\\")(source)?;
+fn parse_escape<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, u8> {
+    let (source, _) = tag("\\")(source)?;
     let (source, esc) = alt((
-        map(spantag("n"), |_| '\n'),
-        map(spantag("r"), |_| '\r'),
-        map(spantag("t"), |_| '\t'),
-        map(spantag("\\"), |_| '\\'),
+        map(tag("n"), |_| '\n'),
+        map(tag("r"), |_| '\r'),
+        map(tag("t"), |_| '\t'),
+        map(tag("\\"), |_| '\\'),
     ))(source)?;
     Ok((source, esc as u8))
 }
 
-fn string<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
-    let start = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("\"")(source)?;
+fn string<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>> {
+    let start = position(source)?;
+    let start = start.0.location_offset();
+    let (source, _) = tag("\"")(source)?;
     let (source, chars) = many0(alt((parse_escape, map(none_of("\""), |c| c as u8))))(source)?;
-    let (source, _) = spantag("\"")(source)?;
-    let end = IDX.load(Ordering::Relaxed);
+    let (source, _) = tag("\"")(source)?;
+    let end = position(source)?;
+    let end = end.1.location_offset();
     Ok((source, (start, Lit::Str(chars), end)))
 }
 
-fn charr<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn charr<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, c) = delimited(
-        spantag("'"),
+        tag("'"),
         take_while_m_n(1, 2, |c: char| c != '\''),
-        spantag("'"),
+        tag("'"),
     )(source)?;
     if c.as_bytes()[0] == '\\' as u8 {
         let (source, c) = parse_escape(c)?;
-        let end_idx = IDX.load(Ordering::Relaxed);
+        let end_idx = position(source)?;
+        let end_idx = end_idx.1.location_offset();
         Ok((source, (start_idx, Lit::Char(c), end_idx)))
     } else {
         Ok((
@@ -220,69 +166,76 @@ fn charr<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
     }
 }
 
-fn natural<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn natural<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, nat) = take_while_m_n(1, 19, |c: char| c.is_digit(10))(source)?;
     if source.len() > 0 && source.as_bytes()[0] == '.' as u8 {
-        return Err(Err::Error(ErrorPos::from_error_kind(
-            source,
-            ErrorKind::Tag,
-        )));
+        return Err(Err::Error(Error::new(source, ErrorKind::Tag)));
     }
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Lit::Int(nat.parse::<i64>().unwrap()), end_idx),
     ))
 }
 
-fn floatt<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn floatt<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, f) = float(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Lit::Double(f as f64), end_idx)))
 }
 
-fn boolean<'a>(source: &'a str) -> IResult<&'a str, Spanned<Lit>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, lit) = map(alt((spantag("true"), spantag("false"))), |s: &'a str| {
-        Lit::Bool(s == "true")
+fn boolean<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, lit) = map(alt((tag("true"), tag("false"))), |s: SpanStr| {
+        Lit::Bool(s.len() == 4 && s.ends_with("true"))
     })(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, lit, end_idx)))
 }
 
-fn tuplee<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("(")(source)?;
+fn tuplee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = tag("(")(source)?;
     let (source, mut exprs) = many0(map(
-        tuple((span_space0, expression, span_space0, spantag(","))),
+        tuple((space0, expression, space0, tag(","))),
         |(_, e, _, _)| e,
     ))(source)?;
     let (source, last) = opt(map(
-        tuple((span_space0, expression, span_space0)),
+        tuple((space0, expression, space0)),
         |(_, e, _)| e,
     ))(source)?;
-    let (source, _) = spantag(")")(source)?;
+    let (source, _) = tag(")")(source)?;
     match last {
         Some(e) => {
             exprs.push(e);
         }
         None => {}
     };
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     let ex = Expr::Tuple { exprs, ty: None };
     Ok((source, (start_idx, ex, end_idx)))
 }
 
-fn subscript<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn subscript<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, name) = context("identifier", identifier)(source)?;
     let (source, subscrs) = many0(map(
-        tuple((spantag("["), expression, spantag("]"))),
+        tuple((tag("["), expression, tag("]"))),
         |(_, expr, _)| expr,
     ))(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     let mut res = Expr::Variable { name, ty: None };
     for subscr in subscrs {
         res = Expr::Subscr {
@@ -294,22 +247,24 @@ fn subscript<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a
     Ok((source, (start_idx, res, end_idx)))
 }
 
-fn call<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn call<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = spantag("(")(source)?;
+    let (source, _) = tag("(")(source)?;
     let (source, arg) = opt(expression)(source)?;
     let (source, args2) = many0(map(
         tuple((
-            spantag(","),
-            span_space0,
+            tag(","),
+            space0,
             context("argument for function call", expression),
-            span_space0,
+            space0,
         )),
         |(_, _, e, _)| e,
     ))(source)?;
-    let (source, _) = spantag(")")(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let (source, _) = tag(")")(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     if let Some(arg) = arg {
         let mut args = vec![arg];
         args.extend(args2);
@@ -341,26 +296,26 @@ fn call<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     }
 }
 
-fn variable<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn variable<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, name) = context("identifier", identifier)(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Expr::Variable { name, ty: None }, end_idx),
     ))
 }
 
-fn barcexpr<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let (source, _) = spantag("(")(source)?;
-    let (source, expr) = delimited(span_space0, expression, span_space0)(source)?;
-    let (source, _) = spantag(")")(source)?;
+fn barcexpr<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let (source, _) = tag("(")(source)?;
+    let (source, expr) = delimited(space0, expression, space0)(source)?;
+    let (source, _) = tag(")")(source)?;
     Ok((source, expr))
 }
 
-fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, unop) = opt(alt((spantag("-"), spantag("!"))))(source)?;
+fn prim<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = alt((
         map(alt((string, charr, natural, floatt, boolean)), |lit| {
             let l = match lit.1 {
@@ -393,44 +348,26 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
         variable,
         barcexpr,
     ))(source)?;
-    let first_idx = IDX.load(Ordering::Relaxed);
+    Ok((source, t1))
+}
+
+fn factor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
+    let (source, t1) = prim(source)?;
+    let first_idx  = t1.0;
     let (source, exs) = many0(tuple((
         delimited(
-            span_space0,
-            alt((spantag("*"), spantag("/"), spantag("%"))),
-            span_space0,
+            space0,
+            alt((tag("*"), tag("/"), tag("%"))),
+            space0,
         ),
-        alt((
-            cast,
-            call,
-            subscript,
-            variable,
-            map(natural, |n| {
-                (
-                    n.0,
-                    Expr::Literal {
-                        lit: n.1,
-                        ty: Type::Int,
-                    },
-                    n.2,
-                )
-            }),
-            map(floatt, |n| {
-                (
-                    n.0,
-                    Expr::Literal {
-                        lit: n.1,
-                        ty: Type::Double,
-                    },
-                    n.2,
-                )
-            }),
-            barcexpr,
-        )),
+        factor,
     )))(source)?;
     let res = match unop {
         Some(u) => {
-            let res = match u {
+            let res = match &u[..1] {
                 "-" => Expr::Neg {
                     expr: Box::new(t1),
                     ty: None,
@@ -448,7 +385,7 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
     let mut res = (start_idx, res, first_idx);
     for (op, lit) in exs {
         let curr_end = lit.2;
-        let r = match op {
+        let r = match &op[..1] {
             "*" => Expr::Arith {
                 op: ArithOp::Mul,
                 left: Box::new(res.clone()),
@@ -474,15 +411,15 @@ fn factor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
     Ok((source, res))
 }
 
-fn term<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn term<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = context("expecting * or / or %", factor)(source)?;
     let (source, exs) = many0(tuple((
-        delimited(span_space0, alt((spantag("+"), spantag("-"))), span_space0),
-        factor,
+        delimited(space0, alt((tag("+"), tag("-"))), space0),
+        term,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
-        let r = match op {
+        let r = match &op[..1] {
             "+" => Expr::Arith {
                 op: ArithOp::Add,
                 left: Box::new(res.clone()),
@@ -502,19 +439,19 @@ fn term<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     Ok((source, res))
 }
 
-pub fn shift<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+pub fn shift<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = term(source)?;
     let (source, exs) = many0(tuple((
         delimited(
-            span_space0,
-            alt((spantag("<<"), spantag(">>"))),
-            span_space0,
+            space0,
+            alt((tag("<<"), tag(">>"))),
+            space0,
         ),
         term,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
-        let r = match op {
+        let r = match &op[..1] {
             "<<" => Expr::BitOp {
                 op: BitOp::Shl,
                 left: Box::new(res.clone()),
@@ -534,26 +471,26 @@ pub fn shift<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a
     Ok((source, res))
 }
 
-fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn comparision<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = shift(source)?;
     let (source, exs) = many0(tuple((
         delimited(
-            span_space0,
+            space0,
             alt((
-                spantag("<="),
-                spantag(">="),
-                spantag("<"),
-                spantag(">"),
-                spantag("=="),
-                spantag("!="),
+                tag("<="),
+                tag(">="),
+                tag("<"),
+                tag(">"),
+                tag("=="),
+                tag("!="),
             )),
-            span_space0,
+            space0,
         ),
         shift,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
-        let r = match op {
+        let r = match &op[..] {
             "<" => Expr::CmpOp {
                 op: CmpOp::Lt,
                 left: Box::new(res.clone()),
@@ -597,10 +534,10 @@ fn comparision<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<
     Ok((source, res))
 }
 
-fn bitand<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn bitand<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = comparision(source)?;
     let (source, exs) = many0(tuple((
-        delimited(span_space0, spantag("&"), span_space0),
+        delimited(space0, tag("&"), space0),
         comparision,
     )))(source)?;
     let mut res = t1;
@@ -616,10 +553,10 @@ fn bitand<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
     Ok((source, res))
 }
 
-fn bitxor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn bitxor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = bitand(source)?;
     let (source, exs) = many0(tuple((
-        delimited(span_space0, spantag("^"), span_space0),
+        delimited(space0, tag("^"), space0),
         bitand,
     )))(source)?;
     let mut res = t1;
@@ -635,10 +572,10 @@ fn bitxor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> 
     Ok((source, res))
 }
 
-fn bitor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+fn bitor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = bitxor(source)?;
     let (source, exs) = many0(tuple((
-        delimited(span_space0, spantag("|"), span_space0),
+        delimited(space0, tag("|"), space0),
         bitxor,
     )))(source)?;
     let mut res = t1;
@@ -654,19 +591,19 @@ fn bitor<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     Ok((source, res))
 }
 
-pub fn aexp<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+pub fn aexp<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     let (source, t1) = bitor(source)?;
     let (source, exs) = many0(tuple((
         delimited(
-            span_space0,
-            alt((spantag("&&"), spantag("||"))),
-            span_space0,
+            space0,
+            alt((tag("&&"), tag("||"))),
+            space0,
         ),
         bitor,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
-        let r = match op {
+        let r = match &op[..] {
             "&&" => Expr::BoolOp {
                 op: BoolOp::And,
                 left: Box::new(res.clone()),
@@ -686,23 +623,27 @@ pub fn aexp<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>
     Ok((source, res))
 }
 
-fn chanread<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("<-")(source)?;
+fn chanread<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = tag("<-")(source)?;
     let (source, id) = context("identifier", identifier)(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Expr::ChanRead { name: id, ty: None }, end_idx),
     ))
 }
 
-fn assignment<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn assignment<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, lhs) = alt((subscript, variable))(source)?;
-    let (source, _) = delimited(span_space0, spantag("="), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag("="), space0)(source)?;
     let (source, expr) = alt((chanread, aexp, make))(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (
@@ -716,60 +657,68 @@ fn assignment<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'
     ))
 }
 
-fn make<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("make")(source)?;
-    let (source, _) = spantag("(")(source)?;
-    let (source, ty) = delimited(span_space0, alt((listty, chanty, mapty)), span_space0)(source)?;
+fn make<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = tag("make")(source)?;
+    let (source, _) = tag("(")(source)?;
+    let (source, ty) = delimited(space0, alt((listty, chanty, mapty)), space0)(source)?;
     let (source, len) = opt(map(
-        tuple((spantag(","), delimited(span_space0, aexp, span_space0))),
+        tuple((tag(","), delimited(space0, aexp, space0))),
         |(_, l)| Box::new(l),
     ))(source)?;
-    let (source, _) = spantag(")")(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let (source, _) = tag(")")(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Expr::Make { ty, expr: len }, end_idx)))
 }
 
-fn cast<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("cast")(source)?;
-    let (source, _) = spantag("(")(source)?;
-    let (source, expr) = delimited(span_space0, expression, span_space0)(source)?;
-    let (source, _) = spantag(",")(source)?;
-    let (source, ty) = delimited(span_space0, typee, span_space0)(source)?;
-    let (source, _) = spantag(")")(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+fn cast<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = tag("cast")(source)?;
+    let (source, _) = tag("(")(source)?;
+    let (source, expr) = delimited(space0, expression, space0)(source)?;
+    let (source, _) = tag(",")(source)?;
+    let (source, ty) = delimited(space0, typee, space0)(source)?;
+    let (source, _) = tag(")")(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Expr::Cast { expr: Box::new(expr), ty }, end_idx)))
 }
 
-pub fn expression<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
+pub fn expression<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
     alt((chanread, assignment, range, make, cast, list, tuplee))(source)
 }
 
-fn list<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = spantag("[")(source)?;
+fn list<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = tag("[")(source)?;
     let (source, exprs) = many1(map(
         tuple((
             expression,
-            delimited(span_space0, spantag(","), span_space0),
+            delimited(space0, tag(","), space0),
         )),
         |(e, _)| e,
     ))(source)?;
-    let (source, _) = spantag("]")(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let (source, _) = tag("]")(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Expr::List { exprs, ty: None }, end_idx)))
 }
 
-fn range<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn range<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, start) = aexp(source)?;
     let (source, rest) = opt(tuple((
-        spantag(".."),
-        opt(spantag("=")),
-        delimited(span_space0, aexp, span_space0),
+        tag(".."),
+        opt(tag("=")),
+        delimited(space0, aexp, space0),
     )))(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     if let Some((_, equal, end)) = rest {
         Ok((
             source,
@@ -788,48 +737,54 @@ fn range<'a>(source: &'a str) -> IResult<&'a str, Spanned<Expr>, ErrorPos<'a>> {
     }
 }
 
-fn declaration<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("let"), span_space0)(source)?;
+fn declaration<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("let"), space0)(source)?;
     let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(span_space0, spantag("="), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag("="), space0)(source)?;
     let (source, value) = expression(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Stmt::Decl(name, Box::new(value)), end_idx),
     ))
 }
 
-fn forin<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("for"), span_space0)(source)?;
+fn forin<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("for"), space0)(source)?;
     let (source, id) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(span_space0, spantag("in"), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag("in"), space0)(source)?;
     let (source, ex2) = expression(source)?;
     let (source, stmts) = block(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Stmt::For(id, Box::new(ex2), stmts), end_idx),
     ))
 }
 
-fn block<'a>(source: &'a str) -> IResult<&'a str, Vec<Spanned<Stmt>>, ErrorPos<'a>> {
-    let (source, _) = delimited(faaaltu, spantag("{"), faaaltu)(source)?;
+fn block<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Vec<Spanned<Stmt>>> {
+    let (source, _) = delimited(faaaltu, tag("{"), faaaltu)(source)?;
     let (source, stmts) = many0(delimited(faaaltu, statement, faaaltu))(source)?;
-    let (source, _) = delimited(faaaltu, spantag("}"), faaaltu)(source)?;
+    let (source, _) = delimited(faaaltu, tag("}"), faaaltu)(source)?;
     Ok((source, stmts))
 }
 
-fn ifelse<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("if"), span_space0)(source)?;
+fn ifelse<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("if"), space0)(source)?;
     let (source, ex1) = expression(source)?;
     let (source, thenst) = block(source)?;
-    let (source, _) = opt(delimited(span_space0, spantag("else"), span_space0))(source)?;
+    let (source, _) = opt(delimited(space0, tag("else"), space0))(source)?;
     let (source, elseif) = opt(ifelse)(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     match elseif {
         Some(elseif) => Ok((
             source,
@@ -853,61 +808,73 @@ fn ifelse<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> 
     }
 }
 
-fn whileloop<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("while"), span_space0)(source)?;
-    let (source, ex1) = delimited(span_space0, expression, span_space0)(source)?;
+fn whileloop<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("while"), space0)(source)?;
+    let (source, ex1) = delimited(space0, expression, space0)(source)?;
     let (source, stmts) = block(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Stmt::While(Box::new(ex1), stmts), end_idx),
     ))
 }
 
-fn breakst<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("break"), span_space0)(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+fn breakst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("break"), space0)(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Stmt::Break, end_idx)))
 }
 
-fn continuest<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("continue"), span_space0)(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+fn continuest<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("continue"), space0)(source)?;
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Stmt::Continue, end_idx)))
 }
 
-fn returnst<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("return"), span_space0)(source)?;
+fn returnst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("return"), space0)(source)?;
     let (source, ex) = expression(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Stmt::Return(Box::new(ex)), end_idx)))
 }
 
-fn coroutine<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
-    let (source, _) = delimited(span_space0, spantag("sahl"), span_space0)(source)?;
+fn coroutine<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
+    let (source, _) = delimited(space0, tag("sahl"), space0)(source)?;
     let (source, fncall) = call(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((source, (start_idx, Stmt::Coroutine(fncall), end_idx)))
 }
 
-fn chanwrite<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
-    let start_idx = IDX.load(Ordering::Relaxed);
+fn chanwrite<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
+    let start_idx = position(source)?;
+    let start_idx = start_idx.0.location_offset();
     let (source, id) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(span_space0, spantag("<-"), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag("<-"), space0)(source)?;
     let (source, ex) = expression(source)?;
-    let end_idx = IDX.load(Ordering::Relaxed);
+    let end_idx = position(source)?;
+    let end_idx = end_idx.1.location_offset();
     Ok((
         source,
         (start_idx, Stmt::ChanWrite(id, Box::new(ex)), end_idx),
     ))
 }
 
-fn statement<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a>> {
+fn statement<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>> {
     let (source, stmt) = alt((
         context("chanwrite", chanwrite),
         context("coroutine", coroutine),
@@ -925,33 +892,33 @@ fn statement<'a>(source: &'a str) -> IResult<&'a str, Spanned<Stmt>, ErrorPos<'a
     Ok((source, stmt))
 }
 
-fn parameter<'a>(source: &'a str) -> IResult<&'a str, Param, ErrorPos<'a>> {
+fn parameter<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Param> {
     let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(span_space0, spantag(":"), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag(":"), space0)(source)?;
     let (source, ty) = alt((listty, typee))(source)?;
     Ok((source, Param { name, ty }))
 }
 
-fn function<'a>(source: &'a str) -> IResult<&'a str, Func, ErrorPos<'a>> {
-    let (source, _) = delimited(span_space0, spantag("fun"), span_space0)(source)?;
+fn function<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Func> {
+    let (source, _) = delimited(space0, tag("fun"), space0)(source)?;
     let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(span_space0, spantag("("), span_space0)(source)?;
+    let (source, _) = delimited(space0, tag("("), space0)(source)?;
     let (source, arg) = opt(parameter)(source)?;
     let mut args = vec![];
     let source = if arg.is_some() {
         let (source, args2) = many0(map(
-            tuple((delimited(span_space0, spantag(","), span_space0), parameter)),
+            tuple((delimited(space0, tag(","), space0), parameter)),
             |(_, p)| p,
         ))(source)?;
-        let (source, _) = delimited(span_space0, spantag(")"), span_space0)(source)?;
+        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
         args = vec![arg.unwrap()].into_iter().chain(args2).collect();
         source
     } else {
-        let (source, _) = delimited(span_space0, spantag(")"), span_space0)(source)?;
+        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
         source
     };
     let (source, retty) = opt(map(
-        tuple((delimited(span_space0, spantag("->"), span_space0), typee)),
+        tuple((delimited(space0, tag("->"), space0), typee)),
         |(_, ty)| ty,
     ))(source)?;
     let (source, body) = block(source)?;
@@ -966,12 +933,13 @@ fn function<'a>(source: &'a str) -> IResult<&'a str, Func, ErrorPos<'a>> {
     ))
 }
 
-pub fn program<'a>(source: &'a str) -> IResult<&'a str, Program, ErrorPos<'a>> {
+pub fn program<'a>(source: &'a str) -> IResult<SpanStr<'a>, Program> {
+    let source = SpanStr::new(source);
     let (source, funcs) = many1(delimited(faaaltu, function, faaaltu))(source)?;
     if source.len() > 0 {
-        return Err(Err::Error(ErrorPos::from_error_kind(
+        return Err(nom::Err::Error(nom::error::Error::new(
             source,
-            ErrorKind::Eof,
+            nom::error::ErrorKind::Eof,
         )));
     }
     Ok((source, Program { funcs }))
