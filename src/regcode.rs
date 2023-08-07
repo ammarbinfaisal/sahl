@@ -605,7 +605,6 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Make(ty.clone(), reg, size));
                 self.stack_push(reg);
                 self.free_reg(size);
-                self.free_reg(reg);
             }
             Expr::Cast { expr, ty } => {
                 self.compile_expr(&expr);
