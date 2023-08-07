@@ -6,12 +6,12 @@ mod regcode;
 mod semant;
 mod syntax;
 
+use ariadne::{Color, Label, Report, ReportKind, Source};
 use parser::*;
 use regcode::RegCodeGen;
 use semant::*;
 use std::fs::*;
 use std::io::{Read, Write};
-use std::process::exit;
 
 use crate::bytes::{consts_vec, emit_bytes};
 use crate::cfg::*;
@@ -30,6 +30,7 @@ fn main() {
     let opt = std::env::args().nth(2);
     let opt2 = std::env::args().nth(3);
     if filename.is_some() && opt.is_some() {
+        let f = filename.clone().unwrap();
         let to_go = opt.clone().unwrap() == "-g";
         let to_compile = opt.clone().unwrap() == "-c";
         let native = opt.unwrap() == "-n";
@@ -49,39 +50,6 @@ fn main() {
                 return;
             }
         }
-
-        // vbankulkm <error>
-        //           ^^^^^^
-        let show_error_line = |idx: usize, source: &str| {
-            if idx == 0 {
-                return;
-            }
-            let mut line = 1;
-            let mut col = 1;
-            let mut idx2 = 0;
-            for c in source.chars() {
-                if c == '\n' {
-                    line += 1;
-                    col = 1;
-                } else {
-                    col += 1;
-                }
-                idx2 += 1;
-                if idx2 == idx {
-                    break;
-                }
-            }
-            let mut col2 = col;
-            for c in source.chars().skip(idx2) {
-                if c == '\n' {
-                    break;
-                }
-                col2 += 1;
-            }
-            println!("{}:{}", line, col);
-            println!("{}", source.lines().nth(line - 1).unwrap());
-            println!("{}^{}", " ".repeat(col - 1), "^".repeat(col2 - col));
-        };
 
         let res = program(&source);
         match res {
@@ -134,21 +102,49 @@ fn main() {
                         }
                     }
                     Err(e) => {
-                        show_error_line(e.0, &source);
-                        println!("{}", e.1);
-                        exit(1)
+                        // seman error
+                        // (usize, Error, usize)
+                        let out = Color::Fixed(81);
+                        Report::build(ReportKind::Error, f.clone(), e.0)
+                            .with_code(3)
+                            .with_message(format!("Semantic Check"))
+                            .with_label(
+                                Label::new((f.clone(), e.0..e.2))
+                                    .with_message(e.1)
+                                    .with_color(out),
+                            )
+                            .finish()
+                            .print((f, Source::from(source.as_str())))
+                            .unwrap();
                     }
                 }
             }
             Err(e) => {
-                e.map(|errr| {
-                    show_error_line(errr.idx, &source);
-                    if let ErrorParse::Unconsumed(s) = errr.error {
-                        println!("Failed to parse the below code:");
-                        println!("{}", s);
+                let out = Color::Fixed(81);
+                let e = match e {
+                    nom::Err::Incomplete(e) => {
+                        println!("Incomplete: {:?}", e);
+                        return;
                     }
-                });
-                exit(1)
+                    nom::Err::Error(e) => e,
+                    nom::Err::Failure(e) => e,
+                };
+                let e = match e {
+                    nom::error::Error { input, code } => (input, code),
+                };
+                let loc = e.0.location_offset();
+                let errstr = e.1.description();
+                Report::build(ReportKind::Error, f.clone(), loc)
+                    .with_code(3)
+                    .with_message(format!("Parsing error"))
+                    .with_label(
+                        Label::new((f.clone(), loc..loc + 10))
+                            .with_message(errstr)
+                            .with_color(out),
+                    )
+                    .finish()
+                    .print((f, Source::from(source.as_str())))
+                    .unwrap();
             }
         }
     } else {
