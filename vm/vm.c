@@ -63,6 +63,9 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->stack = malloc(sizeof(Value) * 1024);
     vm->regs = malloc(sizeof(Value) * 256);
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
+    vm->call_frame->locals_count = 0;
+    vm->call_frame->locals_capacity = 8;
+    vm->call_frame->locals = malloc(sizeof(Value) * 8);    
 
     // garbage collection
     vm->objects = NULL;
@@ -103,6 +106,9 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->stack = malloc(sizeof(Value) * 1024);
     vm->regs = malloc(sizeof(Value) * 256);
     vm->call_frame = new_call_frame(curr->funcs + start_func, NULL);
+    vm->call_frame->locals_count = 0;
+    vm->call_frame->locals_capacity = 8;
+    vm->call_frame->locals = malloc(sizeof(Value) * 8); 
 
     // garbage collection
     vm->objects = NULL;
