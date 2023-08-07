@@ -430,7 +430,7 @@ void handle_ineg(VM *vm) {
     vm->regs[r1].i = result;
 }
 
-void make_map(VM *vm, int reg, int len) {
+void make_map(VM *vm, int reg, int _) {
     Obj *obj = new_obj(vm, OBJ_MAP);
     obj->map.map = new_rb_node(0);
     vm->regs[reg].i = (uint64_t)obj;
@@ -442,12 +442,9 @@ void make_map(VM *vm, int reg, int len) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = malloc(sizeof(Value) * cap);
+    obj->list.items = calloc(cap, sizeof(Value));
     obj->list.length = len;
     obj->list.capacity = cap;
-    for (int i = 0; i < len; ++i) {
-        obj->list.items[i] = 0;
-    }
     vm->regs[reg].i = (uint64_t)obj;
 #ifdef DEBUG
     printf("make list %p - reg %d\n", obj, reg);
@@ -763,6 +760,12 @@ void handle_store(VM *vm) {
     }
     if (index >= vm->call_frame->locals_count) {
         vm->call_frame->locals_count = index + 1;
+        if (vm->call_frame->locals_count == vm->call_frame->locals_capacity) {
+            vm->call_frame->locals_capacity = GROW_CAPACITY(index + 1);
+            vm->call_frame->locals =
+                realloc(vm->call_frame->locals,
+                        sizeof(Value) * vm->call_frame->locals_capacity);
+        }
     }
     vm->call_frame->locals[index] = vm->regs[reg].i;
 #ifdef DEBUG
