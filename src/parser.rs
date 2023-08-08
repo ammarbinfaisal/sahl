@@ -930,3 +930,128 @@ pub fn program<'a>(source: &'a str) -> Result<Program, VerboseError<SpanStr<'a>>
     final_parser(cut(many1::<_, _, VerboseError<SpanStr>, _>(delimited(faaaltu, function, faaaltu))))(sourcee)
         .map(|funcs| Program { funcs })
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check_is_range(expr: Expr, start: Expr, end: Expr, inc: bool) {
+        match expr {
+            Expr::Range {
+                start: s,
+                end: e,
+                inclusive,
+            } => {
+                assert_eq!((*s).1, start);
+                assert_eq!((*e).1, end);
+                assert_eq!(inc, inclusive);
+            }
+            _ => {
+                println!("{:?}", expr);
+                assert!(false);
+            }
+        }
+    }
+
+    #[test]
+    fn test_range() {
+        let res = range(SpanStr::new("1..=2"));
+        match res {
+            Ok((_, (_, ex, _))) => match ex {
+                Expr::Range {
+                    start,
+                    end,
+                    inclusive,
+                } => {
+                    assert_eq!(
+                        (*start).1,
+                        Expr::Literal {
+                            lit: Lit::Int(1),
+                            ty: Type::Int
+                        }
+                    );
+                    assert_eq!(
+                        (*end).1,
+                        Expr::Literal {
+                            lit: Lit::Int(2),
+                            ty: Type::Int
+                        }
+                    );
+                    assert_eq!(inclusive, true);
+                }
+                _ => {
+                    println!("{:?}", ex);
+                    assert!(false);
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+    }
+
+    // for in loop
+    #[test]
+    fn test_for_in() {
+        let res = forin(SpanStr::new("for i in 1..=10 { }"));
+        let res2 = forin(SpanStr::new("for i in start..end { }"));
+        match res {
+            Ok((_, (_, ex, _))) => match ex {
+                Stmt::For(v, range, end) => {
+                    assert_eq!(v, "i");
+                    check_is_range(
+                        (*range).1,
+                        Expr::Literal {
+                            lit: Lit::Int(1),
+                            ty: Type::Int,
+                        },
+                        Expr::Literal {
+                            lit: Lit::Int(10),
+                            ty: Type::Int,
+                        },
+                        true,
+                    );
+                    assert_eq!(end.len(), 0);
+                }
+                _ => {
+                    println!("{:?}", ex);
+                    assert!(false);
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        match res2 {
+            Ok((_, (_, ex, _))) => match ex {
+                Stmt::For(v, range, end) => {
+                    assert_eq!(v, "i");
+                    check_is_range(
+                        (*range).1,
+                        Expr::Variable {
+                            name: "start".to_string(),
+                            ty: None,
+                        },
+                        Expr::Variable {
+                            name: "end".to_string(),
+                            ty: None,
+                        },
+                        false,
+                    );
+                    assert_eq!(end.len(), 0);
+                }
+                _ => {
+                    println!("{:?}", ex);
+                    assert!(false);
+                }
+            },
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+    }
+}
