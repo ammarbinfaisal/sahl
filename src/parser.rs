@@ -443,7 +443,7 @@ pub fn shift<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Ver
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
-        let r = match &op[..1] {
+        let r = match &op[..2] {
             "<<" => Expr::BitOp {
                 op: BitOp::Shl,
                 left: Box::new(res.clone()),
