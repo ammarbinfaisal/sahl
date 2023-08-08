@@ -7,6 +7,8 @@ mod semant;
 mod syntax;
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
+use nom::error::{convert_error, VerboseError};
+use nom_locate::{position, LocatedSpan};
 use parser::*;
 use regcode::RegCodeGen;
 use semant::*;
@@ -53,7 +55,7 @@ fn main() {
 
         let res = program(&source);
         match res {
-            Ok((_, mut p)) => {
+            Ok(mut p) => {
                 let res = check_program(&mut p);
 
                 match res {
@@ -105,7 +107,7 @@ fn main() {
                         // seman error
                         // (usize, Error, usize)
                         let out = Color::Fixed(81);
-                        Report::build(ReportKind::Error, f.clone(), e.0)
+                        Report::build(ReportKind::Error, f.as_str(), e.0)
                             .with_code(3)
                             .with_message(format!("Semantic Check"))
                             .with_label(
@@ -120,31 +122,15 @@ fn main() {
                 }
             }
             Err(e) => {
-                let out = Color::Fixed(81);
-                let e = match e {
-                    nom::Err::Incomplete(e) => {
-                        println!("Incomplete: {:?}", e);
-                        return;
-                    }
-                    nom::Err::Error(e) => e,
-                    nom::Err::Failure(e) => e,
-                };
-                let e = match e {
-                    nom::error::Error { input, code } => (input, code),
-                };
-                let loc = e.0.location_offset();
-                let errstr = e.1.description();
-                Report::build(ReportKind::Error, f.clone(), loc)
-                    .with_code(3)
-                    .with_message(format!("Parsing error"))
-                    .with_label(
-                        Label::new((f.clone(), loc..loc + 10))
-                            .with_message(errstr)
-                            .with_color(out),
-                    )
-                    .finish()
-                    .print((f, Source::from(source.as_str())))
-                    .unwrap();
+                let e = e.to_owned();
+                let errors = e
+                    .errors
+                    .into_iter()
+                    .map(|(input, error)| (*input.fragment(), error))
+                    .collect();
+
+                let e = convert_error(source.as_str(), VerboseError { errors });
+                println!("{}", e);
             }
         }
     } else {
