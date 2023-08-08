@@ -75,9 +75,68 @@ pub enum RegCode {
     Pop(u8)
 }
 
+#[derive(Debug, Clone)]
+struct NestedEnv {
+    prev_local: usize,
+    prev_env: Option<Box<NestedEnv>>,
+    locals: HashMap<String, usize>,
+}
+
+impl NestedEnv {
+    fn new() -> Self {
+        NestedEnv {
+            prev_local: 0,
+            prev_env: None,
+            locals: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, name: &str) -> usize {
+        let idx = self.prev_local;
+        self.prev_local += 1;
+        self.locals.insert(name.to_owned(), idx);
+        idx
+    }
+
+    fn get(&self, name: &str) -> Option<&usize> {
+        let mut env = self;
+        while env.prev_env.is_some() {
+            if let Some(idx) = env.locals.get(name) {
+                return Some(idx);
+            }
+            env = env.prev_env.as_ref().unwrap();
+        }
+        env.locals.get(name)
+    }
+
+    fn push(&mut self) {
+        let mut new_env = NestedEnv::new();
+        new_env.prev_local = self.prev_local;
+        new_env.prev_env = Some(Box::new(self.clone()));
+        self.prev_local = 0;
+        self.prev_env = Some(Box::new(new_env));
+    }
+
+    fn pop(&mut self) {
+        let prev_env = self.prev_env.take();
+        if prev_env.is_some() {
+            let prev_env = prev_env.unwrap();
+            self.prev_local = prev_env.prev_local;
+            self.prev_env = prev_env.prev_env;
+        }
+    }
+
+    fn clear(&mut self) {
+        self.locals.clear();
+        while self.prev_env.is_some() {
+            self.pop();
+        }
+    }
+}
+
 pub struct RegCodeGen<'a> {
     code: Vec<RegCode>,
-    locals: HashMap<&'a str, usize>,
+    locals: NestedEnv,
     func_idx: HashMap<&'a str, usize>,
     func_args_len: Vec<u32>,
     pub func_code: Vec<Vec<RegCode>>,
@@ -98,7 +157,7 @@ impl<'a> RegCodeGen<'a> {
     pub fn new(source_name: String) -> Self {
         RegCodeGen {
             code: Vec::new(),
-            locals: HashMap::new(),
+            locals: NestedEnv::new(),
             func_idx: HashMap::new(),
             func_code: Vec::new(),
             func_args_len: Vec::new(),
@@ -117,9 +176,7 @@ impl<'a> RegCodeGen<'a> {
     }
 
     fn add_local(&mut self, name: &'a str) -> usize {
-        let idx = self.locals.len();
-        self.locals.insert(name, idx);
-        idx
+        self.locals.insert(name)
     }
 
     fn get_local(&self, name: &str) -> Option<&usize> {
@@ -684,9 +741,9 @@ impl<'a> RegCodeGen<'a> {
             Stmt::For(var, expr, body) => {
                 // if expr is Range then set var to range.start and loop until range.end
                 // ele introduce new variable and loop until expr.len
-                let var_ix = self.locals.len();
+                self.locals.push();
+                let var_ix = self.locals.insert(var.as_str());
                 self.breaks.push(vec![]);
-                self.locals.insert(var.as_str(), var_ix);
                 if let Expr::Range {
                     start,
                     end,
@@ -696,12 +753,17 @@ impl<'a> RegCodeGen<'a> {
                     self.compile_expr(&start);
                     let start = self.stack_unfree_pop();
                     self.code.push(RegCode::Store(var_ix, start));
-
-                    let start_ix = self.code.len();
                     self.compile_expr(&end);
                     let end = self.stack_unfree_pop();
                     let cond_reg = self.get_reg();
                     let iter = self.get_reg();
+                    let const_reg = self.get_reg();
+                    let const_ix_1 = self.consts.len();
+                    self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
+                    self.code.push(RegCode::Const(const_ix_1, const_reg));
+                    self.code.push(RegCode::Store(var_ix, start));
+                    let jmp_ix = self.code.len();
+                    self.code.push(RegCode::Load(var_ix, iter));
                     let jmp_ix = self.code.len();
                     if *inclusive {
                         self.code.push(RegCode::ILe(iter, end, cond_reg));
@@ -709,17 +771,16 @@ impl<'a> RegCodeGen<'a> {
                         self.code.push(RegCode::ILt(iter, end, cond_reg));
                     };
                     let jmp_ix2 = self.code.len();
-                    self.code.push(RegCode::JmpIfNot(cond_reg, jmp_ix2 + 1));
-                    let jmp_ix3 = self.code.len();
                     self.code.push(RegCode::Nop);
-                    self.loop_starts.push(start_ix);
+                    self.loop_starts.push(jmp_ix);
                     for stmt in body {
                         self.compile_stmt(&stmt);
                     }
-                    self.code.push(RegCode::IAdd(iter, 1, iter));
+                    self.code.push(RegCode::IAdd(iter, const_reg, iter));
+                    self.code.push(RegCode::Store(var_ix, iter));
                     self.code.push(RegCode::Jmp(jmp_ix));
                     let jmp_ix4 = self.code.len();
-                    self.code[jmp_ix3] = RegCode::JmpIfNot(cond_reg, jmp_ix4);
+                    self.code[jmp_ix2] = RegCode::JmpIfNot(cond_reg, jmp_ix4);
                     self.free_reg(iter);
                     self.free_reg(cond_reg);
                     let loop_ix: usize = self.breaks.len() - 1;
@@ -771,9 +832,10 @@ impl<'a> RegCodeGen<'a> {
                     self.free_reg(arg);
                 }
                 self.breaks.pop();
-                self.locals.remove(var.as_str());
+                self.locals.pop();
             }
             Stmt::While(cond, body) => {
+                self.locals.push();
                 let jmp_ix = self.code.len();
                 self.compile_expr(&cond);
                 self.breaks.push(vec![]);
@@ -793,6 +855,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code[*ix] = RegCode::Jmp(jmp_ix4);
                 }
                 self.breaks.pop();
+                self.locals.pop();
                 self.free_reg(arg);
             }
             Stmt::Return(expr) => {
@@ -835,8 +898,7 @@ impl<'a> RegCodeGen<'a> {
 
     fn compile_func(&mut self, func: &'a Func) {
         for arg in &func.args {
-            let lcl = self.locals.len();
-            self.locals.insert(arg.name.as_str(), lcl);
+            let lcl = self.locals.insert(arg.name.as_str());
         }
         self.curr_func = self.func_idx[&func.name.as_str()];
         for stmt in &func.body {
@@ -869,7 +931,6 @@ impl<'a> RegCodeGen<'a> {
             self.compile_func(func);
             func_code.push(self.code.clone());
             self.code.clear();
-            self.local_counts.push(self.locals.len());
             idx += 1;
         }
         self.func_code = func_code;
