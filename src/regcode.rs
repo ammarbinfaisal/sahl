@@ -72,13 +72,12 @@ pub enum RegCode {
     Nop,
     Phi(usize),
     FreeRegs,
-    Pop(u8)
+    Pop(u8),
 }
 
 #[derive(Debug, Clone)]
 struct NestedEnv {
     prev_local: usize,
-    prev_env: Option<Box<NestedEnv>>,
     locals: HashMap<String, usize>,
 }
 
@@ -86,51 +85,23 @@ impl NestedEnv {
     fn new() -> Self {
         NestedEnv {
             prev_local: 0,
-            prev_env: None,
             locals: HashMap::new(),
         }
     }
 
     fn insert(&mut self, name: &str) -> usize {
         let idx = self.prev_local;
-        self.prev_local += 1;
         self.locals.insert(name.to_owned(), idx);
+        self.prev_local += 1;
         idx
     }
 
     fn get(&self, name: &str) -> Option<&usize> {
-        let mut env = self;
-        while env.prev_env.is_some() {
-            if let Some(idx) = env.locals.get(name) {
-                return Some(idx);
-            }
-            env = env.prev_env.as_ref().unwrap();
-        }
-        env.locals.get(name)
-    }
-
-    fn push(&mut self) {
-        let mut new_env = NestedEnv::new();
-        new_env.prev_local = self.prev_local;
-        new_env.prev_env = Some(Box::new(self.clone()));
-        self.prev_local = 0;
-        self.prev_env = Some(Box::new(new_env));
-    }
-
-    fn pop(&mut self) {
-        let prev_env = self.prev_env.take();
-        if prev_env.is_some() {
-            let prev_env = prev_env.unwrap();
-            self.prev_local = prev_env.prev_local;
-            self.prev_env = prev_env.prev_env;
-        }
+        self.locals.get(name)
     }
 
     fn clear(&mut self) {
         self.locals.clear();
-        while self.prev_env.is_some() {
-            self.pop();
-        }
     }
 }
 
@@ -261,7 +232,7 @@ impl<'a> RegCodeGen<'a> {
                 self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                 let _1_reg = self.get_reg();
                 self.code.push(RegCode::Const(const_ix_1, _1_reg));
-                // , 
+                // ,
                 let comma_reg = self.get_reg();
                 let const_comma = self.consts.len();
                 self.consts.push((Type::Str, b", ".to_vec()));
@@ -294,8 +265,10 @@ impl<'a> RegCodeGen<'a> {
                 // print , if not last
                 let is_last_cond_reg = self.get_reg();
                 let len_minus_1_reg = self.get_reg();
-                self.code.push(RegCode::ISub(len_reg, _1_reg, len_minus_1_reg));
-                self.code.push(RegCode::INe(ix_reg, len_minus_1_reg, is_last_cond_reg));
+                self.code
+                    .push(RegCode::ISub(len_reg, _1_reg, len_minus_1_reg));
+                self.code
+                    .push(RegCode::INe(ix_reg, len_minus_1_reg, is_last_cond_reg));
                 let jump_ix2 = self.code.len();
                 self.code.push(RegCode::Nop);
                 self.code.push(RegCode::NCall(4, vec![comma_reg]));
@@ -329,7 +302,7 @@ impl<'a> RegCodeGen<'a> {
                 self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                 let _1_reg = self.get_reg();
                 self.code.push(RegCode::Const(const_ix_1, _1_reg));
-                // , 
+                // ,
                 let comma_reg = self.get_reg();
                 let const_comma = self.consts.len();
                 self.consts.push((Type::Str, b", ".to_vec()));
@@ -359,7 +332,7 @@ impl<'a> RegCodeGen<'a> {
                     if i != tys.len() - 1 {
                         self.code.push(RegCode::NCall(4, vec![comma_reg]));
                     }
-                    self.free_reg(el_reg);                    
+                    self.free_reg(el_reg);
                 }
                 // print )
                 self.code.push(RegCode::NCall(2, vec![close_reg]));
@@ -653,7 +626,7 @@ impl<'a> RegCodeGen<'a> {
                     }
                     None => {
                         let const_0_reg = self.get_reg();
-                        let  const_0 = self.consts.len();
+                        let const_0 = self.consts.len();
                         self.consts.push((Type::Int, 0u64.to_le_bytes().to_vec()));
                         self.code.push(RegCode::Const(const_0, const_0_reg));
                         const_0_reg
@@ -741,7 +714,6 @@ impl<'a> RegCodeGen<'a> {
             Stmt::For(var, expr, body) => {
                 // if expr is Range then set var to range.start and loop until range.end
                 // ele introduce new variable and loop until expr.len
-                self.locals.push();
                 let var_ix = self.locals.insert(var.as_str());
                 self.breaks.push(vec![]);
                 if let Expr::Range {
@@ -762,9 +734,14 @@ impl<'a> RegCodeGen<'a> {
                     self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_ix_1, const_reg));
                     self.code.push(RegCode::Store(var_ix, start));
-                    let jmp_ix = self.code.len();
                     self.code.push(RegCode::Load(var_ix, iter));
-                    let jmp_ix = self.code.len();
+                    let jmp_over_icr = self.code.len();
+                    self.code.push(RegCode::Nop);
+                    let incr_jmp_ix = self.code.len();
+                    self.code.push(RegCode::IAdd(iter, const_reg, iter));
+                    self.code.push(RegCode::Store(var_ix, iter));
+                    self.code.push(RegCode::Load(var_ix, iter));
+                    self.code[jmp_over_icr] = RegCode::Jmp(self.code.len());
                     if *inclusive {
                         self.code.push(RegCode::ILe(iter, end, cond_reg));
                     } else {
@@ -772,13 +749,11 @@ impl<'a> RegCodeGen<'a> {
                     };
                     let jmp_ix2 = self.code.len();
                     self.code.push(RegCode::Nop);
-                    self.loop_starts.push(jmp_ix);
+                    self.loop_starts.push(incr_jmp_ix);
                     for stmt in body {
                         self.compile_stmt(&stmt);
                     }
-                    self.code.push(RegCode::IAdd(iter, const_reg, iter));
-                    self.code.push(RegCode::Store(var_ix, iter));
-                    self.code.push(RegCode::Jmp(jmp_ix));
+                    self.code.push(RegCode::Jmp(incr_jmp_ix));
                     let jmp_ix4 = self.code.len();
                     self.code[jmp_ix2] = RegCode::JmpIfNot(cond_reg, jmp_ix4);
                     self.free_reg(iter);
@@ -798,12 +773,14 @@ impl<'a> RegCodeGen<'a> {
                     let len_reg = self.get_reg();
                     self.code.push(RegCode::NCall(6, vec![arg]));
                     self.code.push(RegCode::Move(len_reg, 0));
-                    let const_neg_ix  = self.consts.len();
-                    self.consts.push((Type::Int, (-1 as i64).to_le_bytes().to_vec()));
+                    let const_neg_ix = self.consts.len();
+                    self.consts
+                        .push((Type::Int, (-1 as i64).to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_neg_ix, iter));
-                    let const_one_ix  = self.consts.len();
+                    let const_one_ix = self.consts.len();
                     let const_one_reg = self.get_reg();
-                    self.consts.push((Type::Int, (1 as i64).to_le_bytes().to_vec()));
+                    self.consts
+                        .push((Type::Int, (1 as i64).to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_one_ix, const_one_reg));
                     let jmp_ix = self.code.len();
                     self.code.push(RegCode::IAdd(iter, const_one_reg, iter));
@@ -832,10 +809,8 @@ impl<'a> RegCodeGen<'a> {
                     self.free_reg(arg);
                 }
                 self.breaks.pop();
-                self.locals.pop();
             }
             Stmt::While(cond, body) => {
-                self.locals.push();
                 let jmp_ix = self.code.len();
                 self.compile_expr(&cond);
                 self.breaks.push(vec![]);
@@ -855,7 +830,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code[*ix] = RegCode::Jmp(jmp_ix4);
                 }
                 self.breaks.pop();
-                self.locals.pop();
+
                 self.free_reg(arg);
             }
             Stmt::Return(expr) => {
