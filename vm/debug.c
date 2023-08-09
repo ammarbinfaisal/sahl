@@ -190,7 +190,11 @@ int print_opcode(uint8_t *code, int i) {
     case OP_NCALL: {
         uint8_t ix = code[i + 1];
         uint64_t args_count = read_u64(code, i + 2);
-        printf("ncall %d - args_count %ld\n", ix, args_count);
+        printf("ncall %d - args_count %ld -", ix, args_count);
+        for (int j = 0; j < args_count; j++) {
+            printf(" %d", code[i + 10 + j]);
+        }
+        printf("\n");
         return i + 10 + args_count;
     }
     case OP_CONST: {
