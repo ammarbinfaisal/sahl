@@ -4,38 +4,43 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while_m_n},
     character::complete::{none_of, space0},
-    combinator::{map, opt, cut, fail},
+    combinator::{cut, fail, map, opt},
     error::{context, VerboseError},
     multi::{many0, many1},
     number::complete::float,
     sequence::{delimited, tuple},
     IResult,
 };
+use nom_locate::{position, LocatedSpan};
 use nom_supreme::final_parser::final_parser;
 use std::str;
-use nom_locate::{LocatedSpan, position};
 
 type SpanStr<'a> = LocatedSpan<&'a str>;
 
-fn whitespace<'a>(input: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
+fn whitespace<'a>(
+    input: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
     let (source, consumed) =
         take_while(|c: char| c.is_whitespace() || c == '\n' || c == '\r')(input)?;
     Ok((source, consumed))
 }
 
-fn comment<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
+fn comment<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
     let (source, _) = whitespace(source)?;
     let (source, _) = tag("//")(source)?;
     let (source, s) = take_while(|c: char| c != '\n')(source)?;
     Ok((source, s))
 }
 
-fn faaaltu<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
+fn faaaltu<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
     let (source, _) = many0(comment)(source)?;
     let (source, consumeed) = whitespace(source)?;
     Ok((source, consumeed))
 }
-
 
 fn typee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
     let (source, ty) = alt::<_, _, _, _>((
@@ -100,9 +105,8 @@ fn tuplety<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<S
 
 fn isreserved<'a>(s: &'a str) -> bool {
     match s {
-        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make" | "cast" => {
-            true
-        }
+        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make"
+        | "cast" => true,
         _ => false,
     }
 }
@@ -129,7 +133,9 @@ fn parse_escape<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, u8, VerboseErro
     Ok((source, esc as u8))
 }
 
-fn string<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
+fn string<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
     let start = position(source)?;
     let start = start.0.location_offset();
     let (source, _) = tag("\"")(source)?;
@@ -161,7 +167,9 @@ fn charr<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseE
     }
 }
 
-fn natural<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
+fn natural<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, nat) = take_while_m_n(1, 19, |c: char| c.is_digit(10))(source)?;
@@ -173,7 +181,9 @@ fn natural<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, Verbos
     ))
 }
 
-fn floatt<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
+fn floatt<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, f) = float(source)?;
@@ -182,7 +192,9 @@ fn floatt<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, Verbose
     Ok((source, (start_idx, Lit::Double(f as f64), end_idx)))
 }
 
-fn boolean<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
+fn boolean<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, lit) = map(alt((tag("true"), tag("false"))), |s: SpanStr| {
@@ -193,7 +205,9 @@ fn boolean<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, Verbos
     Ok((source, (start_idx, lit, end_idx)))
 }
 
-fn tuplee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn tuplee<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = tag("(")(source)?;
@@ -201,10 +215,7 @@ fn tuplee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbos
         tuple((space0, expression, space0, tag(","))),
         |(_, e, _, _)| e,
     ))(source)?;
-    let (source, last) = opt(map(
-        tuple((space0, expression, space0)),
-        |(_, e, _)| e,
-    ))(source)?;
+    let (source, last) = opt(map(tuple((space0, expression, space0)), |(_, e, _)| e))(source)?;
     let (source, _) = tag(")")(source)?;
     match last {
         Some(e) => {
@@ -218,7 +229,9 @@ fn tuplee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbos
     Ok((source, (start_idx, ex, end_idx)))
 }
 
-fn subscript<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn subscript<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, name) = context("identifier", identifier)(source)?;
@@ -288,7 +301,9 @@ fn call<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     }
 }
 
-fn variable<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn variable<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, name) = context("identifier", identifier)(source)?;
@@ -300,7 +315,9 @@ fn variable<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verb
     ))
 }
 
-fn barcexpr<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn barcexpr<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, _) = tag("(")(source)?;
     let (source, expr) = delimited(space0, expression, space0)(source)?;
     let (source, _) = tag(")")(source)?;
@@ -343,19 +360,17 @@ fn prim<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     Ok((source, t1))
 }
 
-fn factor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn factor<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
     let (source, t1) = prim(source)?;
-    let first_idx  = t1.0;
+    let first_idx = t1.0;
     let (source, exs) = many0(tuple((
-        delimited(
-            space0,
-            alt((tag("*"), tag("/"), tag("%"))),
-            space0,
-        ),
-        factor,
+        delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
+        prim,
     )))(source)?;
     let res = match unop {
         Some(u) => {
@@ -407,7 +422,7 @@ fn term<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     let (source, t1) = context("expecting * or / or %", factor)(source)?;
     let (source, exs) = many0(tuple((
         delimited(space0, alt((tag("+"), tag("-"))), space0),
-        term,
+        factor,
     )))(source)?;
     let mut res = t1;
     for (op, lit) in exs {
@@ -431,14 +446,12 @@ fn term<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     Ok((source, res))
 }
 
-pub fn shift<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+pub fn shift<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = term(source)?;
     let (source, exs) = many0(tuple((
-        delimited(
-            space0,
-            alt((tag("<<"), tag(">>"))),
-            space0,
-        ),
+        delimited(space0, alt((tag("<<"), tag(">>"))), space0),
         term,
     )))(source)?;
     let mut res = t1;
@@ -463,7 +476,9 @@ pub fn shift<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Ver
     Ok((source, res))
 }
 
-fn comparision<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn comparision<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = shift(source)?;
     let (source, exs) = many0(tuple((
         delimited(
@@ -526,12 +541,11 @@ fn comparision<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, V
     Ok((source, res))
 }
 
-fn bitand<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn bitand<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = comparision(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, tag("&"), space0),
-        comparision,
-    )))(source)?;
+    let (source, exs) = many0(tuple((delimited(space0, tag("&"), space0), comparision)))(source)?;
     let mut res = t1;
     for (_op, lit) in exs {
         let r = Expr::BitOp {
@@ -545,12 +559,11 @@ fn bitand<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbos
     Ok((source, res))
 }
 
-fn bitxor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn bitxor<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = bitand(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, tag("^"), space0),
-        bitand,
-    )))(source)?;
+    let (source, exs) = many0(tuple((delimited(space0, tag("^"), space0), bitand)))(source)?;
     let mut res = t1;
     for (_op, lit) in exs {
         let r = Expr::BitOp {
@@ -564,12 +577,11 @@ fn bitxor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbos
     Ok((source, res))
 }
 
-fn bitor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn bitor<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = bitxor(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, tag("|"), space0),
-        bitxor,
-    )))(source)?;
+    let (source, exs) = many0(tuple((delimited(space0, tag("|"), space0), bitxor)))(source)?;
     let mut res = t1;
     for (_op, lit) in exs {
         let r = Expr::BitOp {
@@ -583,14 +595,12 @@ fn bitor<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbose
     Ok((source, res))
 }
 
-pub fn aexp<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+pub fn aexp<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let (source, t1) = bitor(source)?;
     let (source, exs) = many0(tuple((
-        delimited(
-            space0,
-            alt((tag("&&"), tag("||"))),
-            space0,
-        ),
+        delimited(space0, alt((tag("&&"), tag("||"))), space0),
         bitor,
     )))(source)?;
     let mut res = t1;
@@ -615,7 +625,9 @@ pub fn aexp<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verb
     Ok((source, res))
 }
 
-fn chanread<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn chanread<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = tag("<-")(source)?;
@@ -628,7 +640,9 @@ fn chanread<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verb
     ))
 }
 
-fn assignment<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn assignment<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, lhs) = alt((subscript, variable))(source)?;
@@ -676,10 +690,22 @@ fn cast<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     let (source, _) = tag(")")(source)?;
     let end_idx = position(source)?;
     let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Expr::Cast { expr: Box::new(expr), ty }, end_idx)))
+    Ok((
+        source,
+        (
+            start_idx,
+            Expr::Cast {
+                expr: Box::new(expr),
+                ty,
+            },
+            end_idx,
+        ),
+    ))
 }
 
-pub fn expression<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+pub fn expression<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     alt((chanread, assignment, range, make, cast, list, tuplee))(source)
 }
 
@@ -688,10 +714,7 @@ fn list<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     let start_idx = start_idx.0.location_offset();
     let (source, _) = tag("[")(source)?;
     let (source, exprs) = many1(map(
-        tuple((
-            expression,
-            delimited(space0, tag(","), space0),
-        )),
+        tuple((expression, delimited(space0, tag(","), space0))),
         |(e, _)| e,
     ))(source)?;
     let (source, _) = tag("]")(source)?;
@@ -700,7 +723,9 @@ fn list<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseE
     Ok((source, (start_idx, Expr::List { exprs, ty: None }, end_idx)))
 }
 
-fn range<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
+fn range<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, start) = aexp(source)?;
@@ -729,7 +754,9 @@ fn range<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, Verbose
     }
 }
 
-fn declaration<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn declaration<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("let"), space0)(source)?;
@@ -744,7 +771,9 @@ fn declaration<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, V
     ))
 }
 
-fn forin<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn forin<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("for"), space0)(source)?;
@@ -760,14 +789,18 @@ fn forin<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Verbose
     ))
 }
 
-fn block<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Vec<Spanned<Stmt>>, VerboseError<SpanStr<'a>>> {
+fn block<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Vec<Spanned<Stmt>>, VerboseError<SpanStr<'a>>> {
     let (source, _) = delimited(faaaltu, tag("{"), faaaltu)(source)?;
     let (source, stmts) = many0(delimited(faaaltu, statement, faaaltu))(source)?;
     let (source, _) = delimited(faaaltu, tag("}"), faaaltu)(source)?;
     Ok((source, stmts))
 }
 
-fn ifelse<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn ifelse<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("if"), space0)(source)?;
@@ -800,7 +833,9 @@ fn ifelse<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Verbos
     }
 }
 
-fn whileloop<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn whileloop<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("while"), space0)(source)?;
@@ -814,7 +849,9 @@ fn whileloop<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Ver
     ))
 }
 
-fn breakst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn breakst<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("break"), space0)(source)?;
@@ -823,7 +860,9 @@ fn breakst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Verbo
     Ok((source, (start_idx, Stmt::Break, end_idx)))
 }
 
-fn continuest<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn continuest<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("continue"), space0)(source)?;
@@ -832,7 +871,9 @@ fn continuest<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Ve
     Ok((source, (start_idx, Stmt::Continue, end_idx)))
 }
 
-fn returnst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn returnst<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("return"), space0)(source)?;
@@ -842,7 +883,9 @@ fn returnst<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Verb
     Ok((source, (start_idx, Stmt::Return(Box::new(ex)), end_idx)))
 }
 
-fn coroutine<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn coroutine<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, _) = delimited(space0, tag("sahl"), space0)(source)?;
@@ -852,7 +895,9 @@ fn coroutine<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Ver
     Ok((source, (start_idx, Stmt::Coroutine(fncall), end_idx)))
 }
 
-fn chanwrite<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn chanwrite<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let start_idx = position(source)?;
     let start_idx = start_idx.0.location_offset();
     let (source, id) = context("identifier", identifier)(source)?;
@@ -866,7 +911,9 @@ fn chanwrite<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, Ver
     ))
 }
 
-fn statement<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
+fn statement<'a>(
+    source: SpanStr<'a>,
+) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
     let (source, stmt) = alt((
         context("chanwrite", chanwrite),
         context("coroutine", coroutine),
@@ -927,10 +974,11 @@ fn function<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Func, VerboseError<
 
 pub fn program<'a>(source: &'a str) -> Result<Program, VerboseError<SpanStr<'a>>> {
     let sourcee = SpanStr::new(source);
-    final_parser(cut(many1::<_, _, VerboseError<SpanStr>, _>(delimited(faaaltu, function, faaaltu))))(sourcee)
-        .map(|funcs| Program { funcs })
+    final_parser(cut(many1::<_, _, VerboseError<SpanStr>, _>(delimited(
+        faaaltu, function, faaaltu,
+    ))))(sourcee)
+    .map(|funcs| Program { funcs })
 }
-
 
 #[cfg(test)]
 mod tests {
