@@ -1,9 +1,8 @@
-fun mul_by_2 (x : int) -> int {
+fun mul_by_2(x : int) -> int {
     return x * 2
 }
 
 fun map_mul_by_2 (xs : [int], len : int) -> [int] {
-    print("m, "\n ap_mul_by_2", "\n")
     let i = 0
     while i < len {
         xs[i] = xs[i] * 2
@@ -13,17 +12,15 @@ fun map_mul_by_2 (xs : [int], len : int) -> [int] {
 }
 
 fun range (start : int, end : int) -> [int] {
-    let i = start
     let xs = make([int])
-    while i < end {
+    for i in start..end {
         append(xs, i)
-        i = i + 1
     }
     return xs
 }
 
 fun main () {
-    let xs = range(0, 10000)
-    map_mul_by_2(xs, 10000)
+    let xs = range(0, 100)
+    map_mul_by_2(xs, 100)
     print(xs, "\n")
 }
