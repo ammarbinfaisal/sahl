@@ -1,5 +1,5 @@
 fun fn(i: int) -> (int, int) {
-    return (i*i*i, i*i)
+    return (i*i, i*i*i)
 }
 
 fun main() {
