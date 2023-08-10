@@ -102,6 +102,7 @@ impl NestedEnv {
 
     fn clear(&mut self) {
         self.locals.clear();
+        self.prev_local = 0;
     }
 }
 
