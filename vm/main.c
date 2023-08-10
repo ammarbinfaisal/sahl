@@ -419,15 +419,17 @@ void handle_bshr(VM *vm) {
 void handle_fneg(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
     double result = -vm->regs[r1].f;
-    vm->regs[r1].f = *(int *)&result;
+    vm->regs[r2].f = *(int *)&result;
 }
 
 void handle_ineg(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
+    int r2 = code[++vm->call_frame->ip];
     int64_t result = -vm->regs[r1].i;
-    vm->regs[r1].i = result;
+    vm->regs[r2].i = result;
 }
 
 void make_map(VM *vm, int reg, int _) {
