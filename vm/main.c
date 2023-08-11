@@ -19,7 +19,6 @@
 #include "opcodes.h"
 #include "rbtree.h"
 #include "read.h"
-#include "tcp.h"
 #include "vm.h"
 
 #define MAX_STACK 1024
