@@ -32,17 +32,9 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
 - convert to ssa ir and then optimize
 - implement a generational garbage collector for vm as well as native code (llvm/x86_64)
 - sahl vm
-  - change bytecode and vm to reg based
+  - change bytecode and vm to reg based (almost done)
   - add a jit to vm
   - how to do ffi?
-- for jvm backend
-  - figure out how to do ffi
-  - figure out how to do coroutines
-  - use kotlin to convert the bytecode to jvm bytecode
-- for wasm backend
-  - figure out how to do coroutines
-- beam backend
-  - this would be the easiest to implement
 - llvm / x86_64
   - generational GC
   - coroutines
