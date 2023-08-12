@@ -28,7 +28,6 @@ files_all_checks = [
 ]
 files_retcode_check = [
     "chan",
-    "neuralnet",
     "coroutine",
 ]
 
