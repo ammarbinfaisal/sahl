@@ -9,7 +9,7 @@ static inline int is_obj(VM *vm, Value v) {
 }
 
 void mark_value(VM *vm, Value value) {
-    if (!is_obj(vm, value)) return;
+    if (!is_obj(vm, value) || value == 0xffffffffffffffff) return;
     mark_obj(vm, (Obj *)value);
 }
 
