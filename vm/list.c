@@ -5,42 +5,36 @@
 LinkedList *new_list() {
     LinkedList *l = malloc(sizeof(LinkedList));
     l->next = NULL;
+    l->prev = NULL;
+    l->last = l;
     return l;
 }
 
-void list_append(LinkedList **list, void *data) {
-    LinkedList *tmp = *list;
-    while (tmp->next != NULL) {
-        tmp = tmp->next;
-    }
-    tmp->next = malloc(sizeof(LinkedList));
-    tmp->next->data = data;
-    tmp->next->next = NULL;
+void list_append(LinkedList *list, void *data) {
+    LinkedList *tmp = malloc(sizeof(LinkedList));
+    tmp->next = NULL;
+    tmp->prev = list->last;
+    tmp->last = tmp;
+    list->last->data = data;
+    list->last->next = tmp;
+    list->last = tmp;
 }
 
 void list_prepend(LinkedList **list, void *data) {
     LinkedList *tmp = malloc(sizeof(LinkedList));
     tmp->data = data;
     tmp->next = *list;
+    tmp->prev = NULL;
     *list = tmp;
 }
 
-void list_remove(LinkedList **list, void *data) {
-    LinkedList *tmp = *list;
-    if (tmp->data == data) {
-        *list = tmp->next;
-        free(tmp);
-        return;
-    }
-    while (tmp->next != NULL) {
-        if (tmp->next->data == data) {
-            LinkedList *tmp2 = tmp->next;
-            tmp->next = tmp->next->next;
-            free(tmp2);
-            return;
-        }
-        tmp = tmp->next;
-    }
+void* list_pop(LinkedList *list) {
+    LinkedList *tmp = list->last;
+    list->last = tmp->prev;
+    list->last->next = NULL;
+    void *data = tmp->data;
+    free(tmp);
+    return data;
 }
 
 void list_free(LinkedList *list) {

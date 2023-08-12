@@ -58,57 +58,6 @@ void push(VM *vm, Value value) {
     vm->stack[vm->stack_size++] = value;
 }
 
-char *stringify(Value value) {
-    char *str = calloc(1024, sizeof(char));
-    int i = 0, l = 1024;
-    if (IS_BOOL(value)) {
-        sprintf(str, "%s", AS_BOOL(value) ? "true" : "false");
-        return str;
-    } else if (IS_FLOAT(value)) {
-        sprintf(str, "%lf", AS_FLOAT(value));
-        return str;
-    } else if (IS_INT(value)) {
-        sprintf(str, "%ld", AS_INT(value));
-        return str;
-    } else if (IS_OBJ(value)) {
-        Obj *obj = AS_OBJ(value);
-        if (obj->type == OBJ_STRING) {
-            int len = strlen(obj->string.data);
-            str = realloc(str, len + 1);
-            sprintf(str, "%s", obj->string.data);
-            return str;
-        } else if (obj->type == OBJ_LIST) {
-            i += sprintf(str, "[");
-#ifndef MINARR
-            for (int i = 0; i < obj->list.length; i++) {
-                if (i > l / 2) {
-                    l *= 2;
-                    str = realloc(str, l);
-                }
-                i += sprintf(str, "%s%s", str, stringify(obj->list.items[i]));
-                i += sprintf(str, "%s, ", str);
-            }
-#else
-            sprintf(str, "%s %ld items ", str, obj->list.length);
-#endif
-            return str;
-        } else if (obj->type == OBJ_TUPLE) {
-            i += sprintf(str, "(");
-            for (int i = 0; i < obj->tuple.length; i++) {
-                if (i > l / 2) {
-                    l *= 2;
-                    str = realloc(str, l);
-                }
-                i += sprintf(str, "%s%s", str, stringify(obj->tuple.items[i]));
-                if (i != obj->tuple.length - 1) sprintf(str, "%s, ", str);
-            }
-            sprintf(str, "%s)", str);
-            return str;
-        }
-    }
-    return str;
-}
-
 // Define function pointer type for opcodes
 typedef void (*OpcodeHandler)(VM *);
 
@@ -443,7 +392,9 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = calloc(cap, sizeof(Value));
+    obj->list.length = 0; // preventing gc
+    vm->regs[0].i = (uint64_t)obj; // preventing gc
+    obj->list.items = allocate(vm, cap * sizeof(Value));
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
@@ -753,12 +704,6 @@ void handle_store(VM *vm) {
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
     int reg = code[vm->call_frame->ip];
-    if (index >= vm->call_frame->locals_capacity) {
-        vm->call_frame->locals_capacity = index + 1;
-        vm->call_frame->locals =
-            realloc(vm->call_frame->locals,
-                    sizeof(Value) * vm->call_frame->locals_capacity);
-    }
     if (index >= vm->call_frame->locals_count) {
         vm->call_frame->locals_count = index + 1;
         if (vm->call_frame->locals_count == vm->call_frame->locals_capacity) {
@@ -885,8 +830,7 @@ void run(VM *vm) {
 #ifdef PRINT_LOCALS
         printf("Locals: ");
         for (int j = 0; j < vm->call_frame->locals_count; ++j) {
-            print_value(vm->call_frame->locals[j]);
-            printf(" ");
+            printf("%lx ", vm->call_frame->locals[j]);
         }
         printf(" (size: %d)\n", vm->call_frame->locals_count);
 #endif

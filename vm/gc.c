@@ -4,10 +4,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static inline int is_obj(VM *vm, Value v) {
+    return rb_search(vm->objtree, (uint64_t)v) != NULL;
+}
+
+void mark_value(VM *vm, Value value) {
+    if (!is_obj(vm, value)) return;
+    mark_obj(vm, (Obj *)value);
+}
+
 void mark_obj(VM *vm, Obj *obj) {
 #ifdef DEBUG
     printf("marking %p\n", obj);
-    print_value(OBJ_VAL(obj));
 #endif
 
     if (obj->marked) return;
@@ -20,12 +28,6 @@ void mark_obj(VM *vm, Obj *obj) {
     }
 
     vm->grayStack[vm->grayCount++] = obj;
-}
-
-void mark_value(VM *vm, Value value) {
-    if (IS_OBJ(value)) {
-        mark_obj(vm, AS_OBJ(value));
-    }
 }
 
 static void blacken_object(VM *vm, Obj *obj) {
@@ -93,6 +95,10 @@ void mark_roots(VM *vm) {
         mark_value(vm, *slot);
     }
 
+    for (int i = 0; i < 256; i++) {
+        mark_value(vm, vm->regs[i].i);
+    }
+
     // current call frame
     CallFrame *frame = vm->call_frame;
     while (frame != NULL) {
@@ -104,7 +110,7 @@ void mark_roots(VM *vm) {
 }
 
 void collect_garbage(VM *vm) {
-    // printf("Collecting garbage...
+    // printf("Collecting garbage... \n");
     mark_roots(vm);
     trace_references(vm);
     sweep(vm);

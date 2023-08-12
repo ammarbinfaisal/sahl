@@ -17,7 +17,6 @@ VM *new_vm(uint8_t *code, int code_length) {
     offset += 16;
 
     LinkedList* strings = new_list(); // strings to be added to vm->objects
-    LinkedList* strings_tail = strings;
     for (int i = 0; i < vm->consts_count; ++i) {
         uint8_t ty = code[offset];
         offset++;
@@ -39,8 +38,7 @@ VM *new_vm(uint8_t *code, int code_length) {
             obj->string.data = str;
             obj->string.constant = true;
             vm->consts[i] = (uint64_t)obj;
-            list_append(&strings_tail, obj);
-            strings_tail = strings_tail->next;
+            list_append(strings, obj);
             offset += len;
         }
     }
@@ -74,10 +72,11 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
     vm->allocated = 0;
     vm->nextGC = 1024 * 1024;
+    vm->objtree = new_rb_node(0xffffffffffffffffl);
 
     // add strings to vm->objects
     LinkedList *node = strings;
-    while (node != NULL) {
+    while (node->next != NULL) {
         Obj* obj = node->data;
         obj->next = vm->objects;
         vm->objects = obj;
@@ -127,9 +126,6 @@ VM *coro_vm(VM *curr, int start_func) {
 }
 
 void free_vm(VM *vm) {
-    for (int i = 0; i < vm->stack_size; ++i) {
-        free_value(vm->stack[i]);
-    }
     free(vm->stack);
     free(vm->consts);
     free(vm->grayStack);
