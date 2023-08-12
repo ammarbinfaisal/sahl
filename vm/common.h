@@ -12,7 +12,7 @@
 // #define PRINT_LOCALS
 // #define DEBUG
 // #define MINARR
-// #define UNSAFE
+#define UNSAFE
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
