@@ -143,7 +143,6 @@ pub struct RegCodeGen<'a> {
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
     loop_starts: Vec<usize>, // stack of (start, end) of loops
-    pub local_counts: Vec<usize>,
 }
 
 impl<'a> RegCodeGen<'a> {
@@ -164,7 +163,6 @@ impl<'a> RegCodeGen<'a> {
             stack: Vec::new(),
             free_regs: [true; 256],
             breaks: Vec::new(),
-            local_counts: Vec::new(),
         }
     }
 
