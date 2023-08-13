@@ -78,31 +78,52 @@ pub enum RegCode {
 #[derive(Debug, Clone)]
 struct NestedEnv {
     prev_local: usize,
-    locals: HashMap<String, usize>,
+    local_count: Vec<usize>,
+    locals: Vec<HashMap<String, usize>>,
 }
 
 impl NestedEnv {
     fn new() -> Self {
         NestedEnv {
             prev_local: 0,
-            locals: HashMap::new(),
+            local_count: Vec::new(),
+            locals: vec![HashMap::new()]
         }
+    }
+
+    fn push(&mut self) {
+        self.local_count.push(self.prev_local);
+        self.locals.push(HashMap::new());
+    }
+
+    fn pop(&mut self) {
+        self.prev_local = self.local_count.pop().unwrap();
+        self.locals.pop();
     }
 
     fn insert(&mut self, name: &str) -> usize {
         let idx = self.prev_local;
-        self.locals.insert(name.to_owned(), idx);
+        let map = self.locals.last_mut().unwrap();
+        map.insert(name.to_string(), idx);
         self.prev_local += 1;
         idx
     }
 
     fn get(&self, name: &str) -> Option<&usize> {
-        self.locals.get(name)
+        for map in self.locals.iter().rev() {
+            let idx = map.get(name);
+            if idx.is_some() {
+                return idx;
+            }
+        }
+        None
     }
 
     fn clear(&mut self) {
-        self.locals.clear();
         self.prev_local = 0;
+        self.locals.clear();
+        self.local_count.clear();
+        self.locals.push(HashMap::new());
     }
 }
 
@@ -184,7 +205,7 @@ impl<'a> RegCodeGen<'a> {
 
     fn stack_pop(&mut self) -> u8 {
         let reg = self.stack.pop().unwrap();
-        println!("stack pop: {}", reg);
+        // println!("stack pop: {}", reg);
         self.free_reg(reg);
         reg
     }
@@ -196,7 +217,7 @@ impl<'a> RegCodeGen<'a> {
 
     fn stack_unfree_pop(&mut self) -> u8 {
         let reg = self.stack.pop().unwrap();
-        println!("stack unfree pop: {}", reg);
+        // println!("stack unfree pop: {}", reg);
         reg
     }
 
@@ -349,7 +370,7 @@ impl<'a> RegCodeGen<'a> {
     }
 
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
-        println!("compiling expr: {:?}", expr);
+        // println!("compiling expr: {:?}", expr);
         self.span = (expr.0, expr.2);
         match &expr.1 {
             Expr::Literal { lit, ty: _ } => {
@@ -389,7 +410,7 @@ impl<'a> RegCodeGen<'a> {
                     let local = *local.unwrap();
                     let reg = self.get_reg();
                     self.code.push(RegCode::Load(local, reg));
-                    println!("{:?}", self.code);
+                    // println!("{:?}", self.code);
                     self.stack_push(reg);
                 } else {
                     panic!("Unknown variable: {}", name);
@@ -675,7 +696,7 @@ impl<'a> RegCodeGen<'a> {
                 unimplemented!();
             }
         }
-        println!("stack: {:?}", self.stack);
+        // println!("stack: {:?}", self.stack);
     }
 
     fn compile_stmt(&mut self, stmt: &'a Spanned<Stmt>) {
@@ -691,16 +712,20 @@ impl<'a> RegCodeGen<'a> {
                 self.free_regs[arg as usize] = false; // no other instr should use it
                 let jmp_ix = self.code.len();
                 self.code.push(RegCode::Nop);
+                self.locals.push();
                 for stmt in then {
                     self.compile_stmt(&stmt);
                 }
+                self.locals.pop();
                 let jmp_ix2 = self.code.len();
                 self.code.push(RegCode::Nop);
                 self.code[jmp_ix] = RegCode::JmpIfNot(arg, jmp_ix2 + 1);
                 if let Some(else_body) = els {
+                    self.locals.push();
                     for stmt in else_body {
                         self.compile_stmt(&stmt);
                     }
+                    self.locals.pop();
                 }
                 let jmp_ix3 = self.code.len();
                 self.code[jmp_ix2] = RegCode::Jmp(jmp_ix3);
@@ -732,6 +757,7 @@ impl<'a> RegCodeGen<'a> {
                     let iter = self.get_reg();
                     let const_reg = self.get_reg();
                     let const_ix_1 = self.consts.len();
+                    self.locals.push();
                     self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_ix_1, const_reg));
                     self.code.push(RegCode::Store(var_ix, start));
@@ -763,6 +789,7 @@ impl<'a> RegCodeGen<'a> {
                     for ix in self.breaks[loop_ix].iter() {
                         self.code[*ix] = RegCode::Jmp(jmp_ix4);
                     }
+                    self.locals.pop();
                     self.loop_starts.pop();
                 } else {
                     self.compile_expr(&expr);
@@ -772,6 +799,7 @@ impl<'a> RegCodeGen<'a> {
                     // assign var
                     let reg = self.get_reg();
                     let len_reg = self.get_reg();
+                    self.locals.push();
                     self.code.push(RegCode::NCall(6, vec![arg]));
                     self.code.push(RegCode::Move(len_reg, 0));
                     let const_neg_ix = self.consts.len();
@@ -801,6 +829,7 @@ impl<'a> RegCodeGen<'a> {
                     for ix in self.breaks[loop_ix].iter() {
                         self.code[*ix] = RegCode::Jmp(jmp_ix3);
                     }
+                    self.locals.pop();
                     self.loop_starts.pop();
                     // free regs
                     self.free_reg(iter);
@@ -819,6 +848,7 @@ impl<'a> RegCodeGen<'a> {
                 let jmp_ix2 = self.code.len();
                 self.code.push(RegCode::Nop);
                 self.loop_starts.push(jmp_ix);
+                self.locals.push();
                 for stmt in body {
                     self.compile_stmt(&stmt);
                 }
@@ -830,6 +860,7 @@ impl<'a> RegCodeGen<'a> {
                 for ix in self.breaks[loop_ix].iter() {
                     self.code[*ix] = RegCode::Jmp(jmp_ix4);
                 }
+                self.locals.pop();
                 self.breaks.pop();
 
                 self.free_reg(arg);
