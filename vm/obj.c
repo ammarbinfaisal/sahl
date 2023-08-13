@@ -14,9 +14,9 @@ Obj *new_obj(VM *vm, ObjType type) {
     obj->type = type;
     obj->next = vm->objects;
     vm->objects = obj;
-    RBNode *node = new_rb_node((uint64_t)obj);
-    rb_insert(vm->objtree, node);
-    rb_fixup(vm->objtree, node);
+    // RBNode *node = new_rb_node((uint64_t)obj);
+    // rb_insert(vm->objtree, node);
+    // rb_fixup(vm->objtree, node);
     obj->marked = false;
     return obj;
 }

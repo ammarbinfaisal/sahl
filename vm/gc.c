@@ -111,10 +111,10 @@ void mark_roots(VM *vm) {
 
 void collect_garbage(VM *vm) {
     // printf("Collecting garbage... \n");
-    mark_roots(vm);
-    trace_references(vm);
-    sweep(vm);
-    vm->nextGC = vm->allocated * GC_HEAP_GROW_FACTOR;
+    // mark_roots(vm);
+    // trace_references(vm);
+    // sweep(vm);
+    // vm->nextGC = vm->allocated * GC_HEAP_GROW_FACTOR;
 }
 
 void *allocate(VM *vm, size_t size) {
