@@ -7,10 +7,12 @@
 
 #define print_bits(x)                                                          \
     do {                                                                       \
-        int _i;                                                                \
-        for (_i = (sizeof(x) * 8) - 1; _i >= 0; _i--) {                        \
-            putchar(x & (1 << _i) ? '1' : '0');                                \
-        }                                                                      \
+        unsigned long long a__ = (x);                                          \
+        size_t bits__ = sizeof(x) * 8;                                         \
+        printf(#x ": ");                                                       \
+        while (bits__--)                                                       \
+            putchar(a__ & (1ULL << bits__) ? '1' : '0');                       \
+        putchar('\n');                                                         \
     } while (0)
 
 int print_opcode(uint8_t *code, int i) {
