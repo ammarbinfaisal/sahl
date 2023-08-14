@@ -6,9 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static inline void mark_value(VM *vm, Value value) {
-    mark_obj(vm, (Obj *)value);
-}
+#define mark_value(vm, value) mark_obj(vm, (Obj *)value);
 
 static void mark_obj(VM *vm, Obj *obj) {
     if (!obj) return;
