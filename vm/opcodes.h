@@ -61,7 +61,7 @@
 #define OP_SPAWN 56
 #define OP_NOP 57
 #define OP_RET 58
-#define STACKMAP 59
+#define OP_STACKMAP 59
 
 #define NUM_OPCODES 60
 
