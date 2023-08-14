@@ -1,8 +1,8 @@
 #include "vm.h"
 #include "common.h"
+#include "list.h"
 #include "obj.h"
 #include "rbtree.h"
-#include "list.h"
 #include "read.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->consts = malloc(sizeof(char *) * vm->consts_count);
     offset += 16;
 
-    LinkedList* strings = new_list(); // strings to be added to vm->objects
+    LinkedList *strings = new_list(); // strings to be added to vm->objects
     for (int i = 0; i < vm->consts_count; ++i) {
         uint8_t ty = code[offset];
         offset++;
@@ -63,7 +63,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
     vm->call_frame->locals_count = 0;
     vm->call_frame->locals_capacity = 8;
-    vm->call_frame->locals = malloc(sizeof(Value) * 8);    
+    vm->call_frame->locals = malloc(sizeof(Value) * 8);
 
     // garbage collection
     vm->objects = NULL;
@@ -72,12 +72,12 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->grayStack = malloc(sizeof(Obj *) * 1024);
     vm->allocated = 0;
     vm->nextGC = 1024 * 1024;
-    vm->objtree = new_rb_node(0xffffffffffffffffl);
+    vm->call_frame->stackmap = NULL;
 
     // add strings to vm->objects
     LinkedList *node = strings;
     while (node->next != NULL) {
-        Obj* obj = node->data;
+        Obj *obj = node->data;
         obj->next = vm->objects;
         vm->objects = obj;
         node = node->next;
@@ -107,7 +107,7 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->call_frame = new_call_frame(curr->funcs + start_func, NULL);
     vm->call_frame->locals_count = 0;
     vm->call_frame->locals_capacity = 8;
-    vm->call_frame->locals = malloc(sizeof(Value) * 8); 
+    vm->call_frame->locals = malloc(sizeof(Value) * 8);
 
     // garbage collection
     vm->objects = NULL;

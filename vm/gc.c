@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 static inline int is_obj(VM *vm, Value v) {
-    return rb_search(vm->objtree, (uint64_t)v) != NULL;
+    return 1;
 }
 
 void mark_value(VM *vm, Value value) {

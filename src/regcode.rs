@@ -1,5 +1,5 @@
 use crate::syntax::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // highlevel enum for 3/4 address code
 #[derive(Debug, Clone)]
@@ -73,6 +73,7 @@ pub enum RegCode {
     Phi(usize),
     FreeRegs,
     Pop(u8),
+    StackMap(Vec<u64>), // set of locals that are live
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +81,7 @@ struct NestedEnv {
     prev_local: usize,
     local_count: Vec<usize>,
     locals: Vec<HashMap<String, usize>>,
+    live_vars: Vec<bool>,
 }
 
 impl NestedEnv {
@@ -87,7 +89,8 @@ impl NestedEnv {
         NestedEnv {
             prev_local: 0,
             local_count: Vec::new(),
-            locals: vec![HashMap::new()]
+            locals: vec![HashMap::new()],
+            live_vars: vec![],
         }
     }
 
@@ -97,7 +100,12 @@ impl NestedEnv {
     }
 
     fn pop(&mut self) {
-        self.prev_local = self.local_count.pop().unwrap();
+        self.local_count.pop();
+        self.prev_local = if let Some(l) = self.local_count.last() {
+            *l
+        } else {
+            0
+        };
         self.locals.pop();
     }
 
@@ -105,6 +113,7 @@ impl NestedEnv {
         let idx = self.prev_local;
         let map = self.locals.last_mut().unwrap();
         map.insert(name.to_string(), idx);
+        self.live_vars.push(false);
         self.prev_local += 1;
         idx
     }
@@ -143,6 +152,14 @@ pub struct RegCodeGen<'a> {
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
     loop_starts: Vec<usize>, // stack of (start, end) of loops
+}
+
+#[inline]
+fn is_heap_type(ty: &Type) -> bool {
+    match ty {
+        Type::List(_) | Type::Map(_, _) | Type::Chan(_) | Type::Str => true,
+        _ => false,
+    }
 }
 
 impl<'a> RegCodeGen<'a> {
@@ -365,6 +382,29 @@ impl<'a> RegCodeGen<'a> {
                 self.compile_print(reg, ty);
             }
         }
+    }
+
+    fn emit_stack_map(&mut self) {
+        // emit stack map for GC to know which locals are live
+        // convert live_vars to a bitset
+        let mut stack_map = vec![];
+        let mut bitset = 0u64;
+        let mut bits = 0;
+        for i in 0..self.locals.prev_local {
+            if self.locals.live_vars[i] {
+                bitset |= 1 << bits;
+            }
+            bits += 1;
+            if bits == 64 {
+                stack_map.push(bitset);
+                bitset = 0;
+                bits = 0;
+            }
+        }
+        if bits != 0 {
+            stack_map.push(bitset);
+        }
+        self.code.push(RegCode::StackMap(stack_map));
     }
 
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
@@ -652,6 +692,7 @@ impl<'a> RegCodeGen<'a> {
                         const_0_reg
                     }
                 };
+                self.emit_stack_map();
                 self.code.push(RegCode::Make(ty.clone(), reg, size));
                 self.stack_push(reg);
                 self.free_reg(size);
@@ -671,6 +712,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::Push(reg));
                 }
                 let reg = self.get_reg();
+                self.emit_stack_map();
                 self.code.push(RegCode::Tuple(exprs.len(), reg));
                 self.stack_push(reg);
             }
@@ -681,6 +723,7 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::Push(reg));
                 }
                 let reg = self.get_reg();
+                self.emit_stack_map();
                 self.code.push(RegCode::List(exprs.len(), reg));
                 self.stack_push(reg);
             }
@@ -734,6 +777,10 @@ impl<'a> RegCodeGen<'a> {
                 let lcl = self.add_local(var.as_str());
                 let arg = self.stack_pop();
                 self.code.push(RegCode::Store(lcl, arg));
+                let ty = expr.1.get_type();
+                if is_heap_type(&ty) {
+                    self.locals.live_vars[lcl] = true;
+                }
             }
             Stmt::For(var, expr, body) => {
                 // if expr is Range then set var to range.start and loop until range.end

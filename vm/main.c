@@ -392,7 +392,7 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.length = 0; // preventing gc
+    obj->list.length = 0;          // preventing gc
     vm->regs[0].i = (uint64_t)obj; // preventing gc
     obj->list.items = allocate(vm, cap * sizeof(Value));
     obj->list.length = len;
@@ -789,7 +789,23 @@ void handle_pop(VM *vm) {
 
 void handle_spawn(VM *vm) { ++vm->call_frame->ip; }
 
-void handle_nop(VM *vm) { ++vm->call_frame->ip; }
+void handle_nop(VM *vm) { ; }
+
+void handle_stack_map(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    uint64_t len = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    StackMap *stmap = malloc(sizeof(StackMap));
+    stmap->bits = malloc(len);
+    uint64_t *bitptr = stmap->bits;
+    while (len--) {
+        *bitptr = read_u64(code, vm->call_frame->ip);
+        vm->call_frame->ip += 8;
+        bitptr++;
+    }
+    vm->call_frame->stackmap = stmap;
+    --vm->call_frame->ip;
+}
 
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[] = {
@@ -807,7 +823,7 @@ static OpcodeHandler opcode_handlers[] = {
     handle_jmp,    handle_jmpifnot, handle_call,     handle_ncall,
     handle_const,  handle_load,     handle_store,    handle_cast,
     handle_move,   handle_return,   handle_push,     handle_pop,
-    handle_spawn,  handle_nop,      handle_ret};
+    handle_spawn,  handle_nop,      handle_ret,      handle_stack_map};
 
 void run(VM *vm) {
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {

@@ -61,6 +61,7 @@ const POP: u8 = 55;
 const SPAWN: u8 = 56;
 const NOP: u8 = 57;
 const RET: u8 = 58;
+const STACKMAP: u8 = 59;
 
 fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
     match ty {
@@ -319,6 +320,16 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             }
             RegCode::Spawn => {
                 bytes.extend(vec![SPAWN]);
+            }
+            RegCode::StackMap(bitsets) => {
+                if bitsets.len() > 0 {
+                    let mut opcodes = vec![STACKMAP];
+                    opcodes.extend(bitsets.len().to_le_bytes().iter());
+                    for bs in bitsets {
+                        opcodes.extend(bs.to_le_bytes().iter());
+                    }
+                    bytes.extend(opcodes);
+                }
             }
             RegCode::Nop => {}
             RegCode::Phi(_) => {}

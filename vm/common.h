@@ -59,6 +59,13 @@ struct Func {
 
 typedef struct Func Func;
 
+struct StackMap {
+    int len;
+    uint64_t *bits;
+};
+
+typedef struct StackMap StackMap;
+
 struct CallFrame {
     uint32_t ip;
     Func *func;
@@ -67,6 +74,7 @@ struct CallFrame {
     Value *locals;
     struct CallFrame *prev;
     struct CallFrame *next;
+    StackMap *stackmap;
     int depth;
 };
 
@@ -140,7 +148,6 @@ struct VM {
     int start_func;
 
     // garbage collection
-    RBNode* objtree;
     Obj *objects;
     int grayCount;
     int grayCapacity;
