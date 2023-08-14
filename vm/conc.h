@@ -15,7 +15,6 @@ void rbuf_write(RingBuffer *rb, Value v);
 Value rbuf_read(RingBuffer *rb);
 Chan *new_chan(int capacity);
 void close_chan(Chan *c);
-void mark_chan(VM *vm, Chan *c);
 
 static int chan_write(Chan *chan, Value v) {
     if (chan->closed) {

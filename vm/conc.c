@@ -53,10 +53,3 @@ RingBuffer *new_ring_buffer(int capacity) {
     rb->items = malloc(sizeof(Value) * capacity);
     return rb;
 }
-
-void mark_chan(VM *vm, Chan *c) {
-    Queue *q = c->q;
-    for (int i = 0; i < q->length; i++) {
-        mark_value(vm, q->items[i]);
-    }
-}
