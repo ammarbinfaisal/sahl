@@ -43,10 +43,10 @@ pub enum RegCode {
     // lists
     ListSet(u8, u8, u8),
     ListGet(u8, u8, u8),
-    List(usize, u8), // length, reg
+    List(usize, u8, Type), // length, reg
     // tuples
     TupleGet(u8, u8, u8),
-    Tuple(usize, u8), // length, reg
+    Tuple(usize, u8, Vec<Type>), // length, reg
     // strings
     StrGet(u8, u8, u8),
     // maps
@@ -705,7 +705,8 @@ impl<'a> RegCodeGen<'a> {
                 }
                 let reg = self.get_reg();
                 self.emit_stack_map();
-                self.code.push(RegCode::Tuple(exprs.len(), reg));
+                let tys = exprs.iter().map(|e| e.1.get_type()).collect::<Vec<_>>();
+                self.code.push(RegCode::Tuple(exprs.len(), reg, tys));
                 self.stack_push(reg);
             }
             Expr::List { exprs, .. } => {
@@ -716,7 +717,8 @@ impl<'a> RegCodeGen<'a> {
                 }
                 let reg = self.get_reg();
                 self.emit_stack_map();
-                self.code.push(RegCode::List(exprs.len(), reg));
+                self.code
+                    .push(RegCode::List(exprs.len(), reg, exprs[0].1.get_type()));
                 self.stack_push(reg);
             }
             Expr::ChanRead { name, .. } => {

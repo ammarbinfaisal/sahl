@@ -108,19 +108,24 @@ struct Obj {
             uint64_t capacity;
             uint64_t length;
             Value *items;
+            bool heap_alloced;
         } list;
         struct {
             uint64_t length;
             Value *items;
+            uint64_t* heap_alloced;
         } tuple;
         struct {
             CallFrame *frame;
         } closure;
         struct {
             Chan *chan;
+            bool heap_alloced;
         } channel;
         struct {
             RBNode *map;
+            bool key_heap_alloced;
+            bool value_heap_alloced;
         } map;
     };
 };

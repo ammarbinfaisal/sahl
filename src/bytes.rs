@@ -72,21 +72,51 @@ fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
         Type::Str => vec.push(4),
         Type::List(_ty) => {
             vec.push(5);
-            // rec_vectorise_ty(ty, vec);
+            if _ty.is_heap_type() {
+                vec.push(1);
+            } else {
+                vec.push(0);
+            }
         }
         Type::Map(_ty1, _ty2) => {
             vec.push(6);
-            // rec_vectorise_ty(ty1, vec);
-            // rec_vectorise_ty(ty2, vec);
+            if _ty1.is_heap_type() {
+                vec.push(1);
+            } else {
+                vec.push(0);
+            }
+            if _ty2.is_heap_type() {
+                vec.push(1);
+            } else {
+                vec.push(0);
+            }
         }
         Type::Chan(_ty) => {
             vec.push(7);
+            if _ty.is_heap_type() {
+                vec.push(1);
+            } else {
+                vec.push(0);
+            }
         }
         Type::Tuple(_tys) => {
             vec.push(8);
-            // vec.push(tys.len() as u8);
-            // for ty in tys {
-            //     rec_vectorise_ty(ty, vec);
+            // not needed right now
+            // let len = _tys.len();
+            // let bitsets_count: u64 = (len as u64 + 63) / 64;
+            // vec.extend(bitsets_count.to_le_bytes().iter());
+            // let mut bitset = 0u64;
+            // let mut bits = 0;
+            // for ty in _tys {
+            //     if ty.is_heap_type() {
+            //         bitset |= 1 << bits;
+            //     }
+            //     bits += 1;
+            //     if bits == 64 {
+            //         vec.extend(bitset.to_le_bytes().iter());
+            //         bitset = 0;
+            //         bits = 0;
+            //     }
             // }
         }
         _ => {}
@@ -200,10 +230,10 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::INeg(r1, res) => {
                 bytes.extend(vec![INEG, *r1, *res]);
             }
-            RegCode::Make(ty, res, def) => {
+            RegCode::Make(ty, res, len) => {
                 let mut tyvec = Vec::new();
                 rec_vectorise_ty(ty, &mut tyvec);
-                bytes.extend(vec![MAKE, *res, *def]);
+                bytes.extend(vec![MAKE, *res, *len]);
                 bytes.extend(tyvec);
             }
             RegCode::ListSet(ls_reg, idx_reg, val_reg) => {
@@ -212,18 +242,36 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::ListGet(ls_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![LISTGET, *ls_reg, *idx_reg, *res_reg]);
             }
-            RegCode::List(len, res) => {
+            RegCode::List(len, res, ty) => {
                 let mut opcodes = vec![LIST];
                 opcodes.extend(len.to_le_bytes().iter());
+                let tyy = if ty.is_heap_type() { 1 } else { 0 };
+                opcodes.push(tyy);
                 opcodes.extend(vec![*res]);
                 bytes.extend(opcodes);
             }
             RegCode::TupleGet(tup_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![TUPLEGET, *tup_reg, *idx_reg, *res_reg]);
             }
-            RegCode::Tuple(len, res) => {
+            RegCode::Tuple(len, res, tys) => {
                 let mut opcodes = vec![TUPLE];
                 opcodes.extend(len.to_le_bytes().iter());
+                let mut tys2: Vec<u8> = Vec::new();
+                let mut bitset = 0u64;
+                let mut bits = 0;
+                for ty in tys {
+                    if ty.is_heap_type() {
+                        bitset |= 1 << bits;
+                    }
+                    bits += 1;
+                    if bits == 64 {
+                        tys2.extend(bitset.to_le_bytes().iter());
+                        bitset = 0;
+                        bits = 0;
+                    }
+                }
+                opcodes.extend(tys2.len().to_le_bytes().iter());
+                opcodes.extend(tys2);
                 opcodes.extend(vec![*res]);
                 bytes.extend(opcodes);
             }

@@ -381,9 +381,14 @@ void handle_ineg(VM *vm) {
 }
 
 void make_map(VM *vm, int reg, int _) {
+    uint8_t *code = vm->call_frame->func->code;
     Obj *obj = new_obj(vm, OBJ_MAP);
     obj->map.map = new_rb_node(0);
     vm->regs[reg].i = (uint64_t)obj;
+    uint8_t key_heap_alloced = code[++vm->call_frame->ip];
+    uint8_t value_heap_alloc = code[++vm->call_frame->ip];
+    obj->map.key_heap_alloced = key_heap_alloced;
+    obj->map.value_heap_alloced = value_heap_alloc;
 #ifdef DEBUG
     printf("make map %p - reg %d\n", obj, reg);
 #endif
@@ -398,6 +403,7 @@ void make_list(VM *vm, int reg, int len) {
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
+    obj->list.heap_alloced = vm->call_frame->func->code[++vm->call_frame->ip];
 #ifdef DEBUG
     printf("make list %p - reg %d\n", obj, reg);
 #endif
@@ -407,6 +413,7 @@ void make_chan(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_CHAN);
     obj->channel.chan = new_chan(len);
     vm->regs[reg].i = (uint64_t)obj;
+    obj->list.heap_alloced = vm->call_frame->func->code[++vm->call_frame->ip];
 #ifdef DEBUG
     printf("make chan %p - reg %d\n", obj, reg);
 #endif
@@ -478,12 +485,14 @@ void handle_list(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
-    int res = code[vm->call_frame->ip];
+    uint8_t heap_alloced = code[vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_LIST);
     newobj->list.length = len;
     newobj->list.capacity = len;
     newobj->list.items = malloc(sizeof(Value) * len);
+    newobj->list.heap_alloced = heap_alloced;
     for (int i = 0; i < len; ++i) {
         newobj->list.items[i] = pop(vm);
     }
@@ -494,6 +503,14 @@ void handle_tuple(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
+    uint64_t bitsets_count = read_u64(code, vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    uint64_t *bitsets = malloc(sizeof(uint64_t) * bitsets_count + 1);
+    *bitsets = bitsets_count; // store count in first element
+    for (int i = 0; i < bitsets_count; ++i) {
+        bitsets[i + 1] = read_u64(code, vm->call_frame->ip);
+        vm->call_frame->ip += 8;
+    }
     int res = code[vm->call_frame->ip];
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_TUPLE);
@@ -502,6 +519,7 @@ void handle_tuple(VM *vm) {
     for (int i = 0; i < len; ++i) {
         newobj->tuple.items[i] = pop(vm);
     }
+    newobj->tuple.heap_alloced = bitsets;
     vm->regs[res].i = (uint64_t)newobj;
 }
 
