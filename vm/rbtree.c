@@ -192,16 +192,6 @@ LinkedListRB *rb_to_ll(RBNode *root) {
     return head;
 }
 
-void rb_mark(VM *vm, RBNode *root) {
-    if (root == NULL) {
-        return;
-    }
-    mark_value(vm, root->key);
-    mark_value(vm, root->value);
-    rb_mark(vm, root->left);
-    rb_mark(vm, root->right);
-}
-
 void rb_free(RBNode *root) {
     if (root == NULL) {
         return;

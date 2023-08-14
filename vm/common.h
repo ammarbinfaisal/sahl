@@ -11,6 +11,7 @@
 // #define PRINT_STACK
 // #define PRINT_LOCALS
 // #define DEBUG
+// #define DEBUGGC
 // #define MINARR
 #define UNSAFE
 

@@ -23,6 +23,5 @@ void rb_fixup(RBNode *root, RBNode *pt);
 RBNode *rb_search(RBNode *root, Value key);
 LinkedListRB *rb_to_ll(RBNode *root);
 void rb_free(RBNode *root);
-void rb_mark(VM *vm, RBNode *root);
 
 #endif

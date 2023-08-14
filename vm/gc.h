@@ -7,8 +7,8 @@
 
 #define GC_HEAP_GROW_FACTOR 1.4
 
-void mark_obj(VM *vm, Obj *obj);
-void mark_value(VM *vm, Value value);
+static void mark_obj(VM *vm, Obj *obj);
+static inline void mark_value(VM *vm, Value value);
 static void blacken_object(VM *vm, Obj *obj);
 static void trace_references(VM *vm);
 static void sweep(VM *vm);
