@@ -81,7 +81,7 @@ struct NestedEnv {
     prev_local: usize,
     local_count: Vec<usize>,
     locals: Vec<HashMap<String, usize>>,
-    live_vars: Vec<bool>,
+    live_vars: Vec<HashMap<usize, bool>>,
 }
 
 impl NestedEnv {
@@ -90,27 +90,39 @@ impl NestedEnv {
             prev_local: 0,
             local_count: Vec::new(),
             locals: vec![HashMap::new()],
-            live_vars: vec![],
+            live_vars: vec![HashMap::new()],
         }
     }
 
     fn push(&mut self) {
         self.local_count.push(self.prev_local);
         self.locals.push(HashMap::new());
+        self.live_vars.push(HashMap::new());
     }
 
     fn pop(&mut self) {
         self.prev_local = self.local_count.pop().unwrap();
         self.locals.pop();
+        self.live_vars.pop();
     }
 
     fn insert(&mut self, name: &str) -> usize {
         let idx = self.prev_local;
         let map = self.locals.last_mut().unwrap();
         map.insert(name.to_string(), idx);
-        self.live_vars.push(false);
+        self.live_vars.last_mut().unwrap().insert(idx, false);
         self.prev_local += 1;
         idx
+    }
+
+    fn is_live(&self, idx: usize) -> bool {
+        for map in self.live_vars.iter().rev() {
+            let live = map.get(&idx);
+            if live.is_some() {
+                return *live.unwrap();
+            }
+        }
+        false
     }
 
     fn get(&self, name: &str) -> Option<&usize> {
@@ -371,14 +383,14 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
-    fn emit_stack_map(&mut self) {
+    fn emit_stack_map(&self) -> Vec<u64> {
         // emit stack map for GC to know which locals are live
         // convert live_vars to a bitset
         let mut stack_map = vec![];
         let mut bitset = 0u64;
         let mut bits = 0;
         for i in 0..self.locals.prev_local {
-            if self.locals.live_vars[i] {
+            if self.locals.is_live(i) {
                 bitset |= 1 << bits;
             }
             bits += 1;
@@ -391,7 +403,7 @@ impl<'a> RegCodeGen<'a> {
         if bits != 0 {
             stack_map.push(bitset);
         }
-        self.code.push(RegCode::StackMap(stack_map));
+        return stack_map;
     }
 
     fn compile_expr(&mut self, expr: &Spanned<Expr>) {
@@ -593,6 +605,10 @@ impl<'a> RegCodeGen<'a> {
                 }
                 let reg = self.get_reg();
                 let func = self.func_idx.get(name.as_str());
+                if ty.clone().unwrap().is_heap_type() {
+                    let stackmap = self.emit_stack_map();
+                    self.code.push(RegCode::StackMap(stackmap));
+                }
                 if func.is_some() {
                     let func = *func.unwrap();
                     // save registers
@@ -679,7 +695,8 @@ impl<'a> RegCodeGen<'a> {
                         const_0_reg
                     }
                 };
-                self.emit_stack_map();
+                let stackmap = self.emit_stack_map();
+                self.code.push(RegCode::StackMap(stackmap));
                 self.code.push(RegCode::Make(ty.clone(), reg, size));
                 self.stack_push(reg);
                 self.free_reg(size);
@@ -699,7 +716,8 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::Push(reg));
                 }
                 let reg = self.get_reg();
-                self.emit_stack_map();
+                let stackmap = self.emit_stack_map();
+                self.code.push(RegCode::StackMap(stackmap));
                 let tys = exprs.iter().map(|e| e.1.get_type()).collect::<Vec<_>>();
                 self.code.push(RegCode::Tuple(exprs.len(), reg, tys));
                 self.stack_push(reg);
@@ -711,7 +729,8 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::Push(reg));
                 }
                 let reg = self.get_reg();
-                self.emit_stack_map();
+                let stackmap = self.emit_stack_map();
+                self.code.push(RegCode::StackMap(stackmap));
                 self.code
                     .push(RegCode::List(exprs.len(), reg, exprs[0].1.get_type()));
                 self.stack_push(reg);
@@ -768,7 +787,7 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Store(lcl, arg));
                 let ty = expr.1.get_type();
                 if ty.is_heap_type() {
-                    self.locals.live_vars[lcl] = true;
+                    self.locals.live_vars.last_mut().unwrap().insert(lcl, true);
                 }
             }
             Stmt::For(var, expr, body) => {
