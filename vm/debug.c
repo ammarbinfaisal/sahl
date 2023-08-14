@@ -268,7 +268,6 @@ int print_opcode(uint8_t *code, int i) {
             *bitptr = read_u64(code, i);
             i += 8;
             print_bits(*bitptr);
-            putchar('\n');
             bitptr++;
         }
         return i;
