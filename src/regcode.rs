@@ -81,7 +81,7 @@ struct NestedEnv {
     prev_local: usize,
     local_count: Vec<usize>,
     locals: Vec<HashMap<String, usize>>,
-    live_vars: Vec<HashMap<usize, bool>>,
+    live_vars: HashMap<usize, bool>,
 }
 
 impl NestedEnv {
@@ -90,37 +90,36 @@ impl NestedEnv {
             prev_local: 0,
             local_count: Vec::new(),
             locals: vec![HashMap::new()],
-            live_vars: vec![HashMap::new()],
+            live_vars: HashMap::new(),
         }
     }
 
     fn push(&mut self) {
         self.local_count.push(self.prev_local);
         self.locals.push(HashMap::new());
-        self.live_vars.push(HashMap::new());
     }
 
     fn pop(&mut self) {
         self.prev_local = self.local_count.pop().unwrap();
-        self.locals.pop();
-        self.live_vars.pop();
+        let lcls = self.locals.pop();
+        for i in lcls.unwrap().into_iter() {
+            self.live_vars.remove(&i.1);
+        }
     }
 
     fn insert(&mut self, name: &str) -> usize {
         let idx = self.prev_local;
         let map = self.locals.last_mut().unwrap();
         map.insert(name.to_string(), idx);
-        self.live_vars.last_mut().unwrap().insert(idx, false);
+        self.live_vars.insert(idx, false);
         self.prev_local += 1;
         idx
     }
 
     fn is_live(&self, idx: usize) -> bool {
-        for map in self.live_vars.iter().rev() {
-            let live = map.get(&idx);
-            if live.is_some() {
-                return *live.unwrap();
-            }
+        let live = self.live_vars.get(&idx);
+        if live.is_some() {
+            return *live.unwrap();
         }
         false
     }
@@ -136,12 +135,10 @@ impl NestedEnv {
     }
 
     fn set_live_var(&mut self, lcl: usize) {
-        for (_, map) in self.live_vars.iter_mut().enumerate() {
-            let idx = map.get_mut(&lcl);
-            if idx.is_some() {
-                *idx.unwrap() = true;
-                return;
-            }
+        let idx = self.live_vars.get_mut(&lcl);
+        if idx.is_some() {
+            *idx.unwrap() = true;
+            return;
         }
     }
 
@@ -964,6 +961,9 @@ impl<'a> RegCodeGen<'a> {
     fn compile_func(&mut self, func: &'a Func) {
         for arg in &func.args {
             let lcl = self.locals.insert(arg.name.as_str());
+            if arg.ty.is_heap_type() {
+                self.locals.set_live_var(lcl);
+            }
         }
         self.curr_func = self.func_idx[&func.name.as_str()];
         for stmt in &func.body {
