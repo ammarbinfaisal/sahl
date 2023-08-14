@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define print_bits(x)                                                          \
+    do {                                                                       \
+        int _i;                                                                \
+        for (_i = (sizeof(x) * 8) - 1; _i >= 0; _i--) {                        \
+            putchar(x & (1 << _i) ? '1' : '0');                                \
+        }                                                                      \
+    } while (0)
+
 int print_opcode(uint8_t *code, int i) {
     switch (code[i]) {
     case OP_IADD:
@@ -234,7 +242,7 @@ int print_opcode(uint8_t *code, int i) {
         uint8_t r1 = code[i + 1];
         printf("return %d\n", r1);
         return i + 2;
-    } 
+    }
     case OP_POP: {
         uint8_t r1 = code[i + 1];
         printf("pop %d\n", r1);
@@ -248,6 +256,20 @@ int print_opcode(uint8_t *code, int i) {
     case OP_SPAWN: {
         printf("spawn\n");
         return i + 1;
+    }
+    case OP_STACKMAP: {
+        uint64_t len = read_u64(code, i + 1);
+        i += 9;
+        printf("stackmap %ld\n", len);
+        uint64_t *bitptr = malloc(sizeof(uint64_t) * len);
+        while (len--) {
+            *bitptr = read_u64(code, i);
+            i += 8;
+            print_bits(*bitptr);
+            putchar('\n');
+            bitptr++;
+        }
+        return i;
     }
     default:
         printf("Unknown opcode %d\n", code[i]);
