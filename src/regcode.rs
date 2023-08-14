@@ -126,13 +126,23 @@ impl NestedEnv {
     }
 
     fn get(&self, name: &str) -> Option<&usize> {
-        for map in self.locals.iter().rev() {
+        for map in self.locals.iter() {
             let idx = map.get(name);
             if idx.is_some() {
                 return idx;
             }
         }
         None
+    }
+
+    fn set_live_var(&mut self, lcl: usize) {
+        for (_, map) in self.live_vars.iter_mut().enumerate() {
+            let idx = map.get_mut(&lcl);
+            if idx.is_some() {
+                *idx.unwrap() = true;
+                return;
+            }
+        }
     }
 
     fn clear(&mut self) {
@@ -388,19 +398,16 @@ impl<'a> RegCodeGen<'a> {
         // convert live_vars to a bitset
         let mut stack_map = vec![];
         let mut bitset = 0u64;
-        let mut bits = 0;
         for i in 0..self.locals.prev_local {
-            if self.locals.is_live(i) {
-                bitset |= 1 << bits;
-            }
-            bits += 1;
-            if bits == 64 {
+            if i > 0 && i % 64 == 0 {
                 stack_map.push(bitset);
                 bitset = 0;
-                bits = 0;
+            }
+            if self.locals.is_live(i) {
+                bitset |= 1 << i % 64;
             }
         }
-        if bits != 0 {
+        if bitset > 0 {
             stack_map.push(bitset);
         }
         return stack_map;
@@ -605,10 +612,6 @@ impl<'a> RegCodeGen<'a> {
                 }
                 let reg = self.get_reg();
                 let func = self.func_idx.get(name.as_str());
-                if ty.clone().unwrap().is_heap_type() {
-                    let stackmap = self.emit_stack_map();
-                    self.code.push(RegCode::StackMap(stackmap));
-                }
                 if func.is_some() {
                     let func = *func.unwrap();
                     // save registers
@@ -654,7 +657,9 @@ impl<'a> RegCodeGen<'a> {
                         let var = self.get_local(name);
                         match var {
                             Some(var) => {
-                                self.code.push(RegCode::Store(*var, arg));
+                                let v = *var;
+                                self.code.push(RegCode::Store(v, arg));
+                                self.locals.set_live_var(v);
                             }
                             None => {
                                 unreachable!("Unknown variable: {}", name);
@@ -787,7 +792,7 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Store(lcl, arg));
                 let ty = expr.1.get_type();
                 if ty.is_heap_type() {
-                    self.locals.live_vars.last_mut().unwrap().insert(lcl, true);
+                    self.locals.set_live_var(lcl);
                 }
             }
             Stmt::For(var, expr, body) => {

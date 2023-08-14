@@ -9,6 +9,9 @@
 #define mark_value(vm, value) mark_obj(vm, (Obj *)value);
 
 static void mark_obj(VM *vm, Obj *obj) {
+#ifdef DEBUGGC
+    printf("marking %p\n", obj);
+#endif
     if (!obj) return;
     if (obj->marked) return;
     obj->marked = true;
@@ -119,13 +122,14 @@ void mark_roots(VM *vm) {
             for (int i = 0; i < map->len; i++) {
                 for (int j = 0; j < 64; j++) {
                     int pos = i * 64 + j;
-                    if (pos >= frame->locals_count) break;
+                    if (pos >= frame->locals_count) goto nextframe;
                     if (map->bits[i] & (1 << j)) {
                         mark_value(vm, frame->locals[pos]);
                     }
                 }
             }
         }
+    nextframe:
         frame = frame->prev;
     }
 }

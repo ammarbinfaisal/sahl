@@ -11,5 +11,6 @@ double value_to_float(Value value);
 Value float_to_value(double f);
 void free_obj(Obj *obj);
 Obj *new_obj(VM *vm, ObjType type);
+void track_obj(VM *vm, Obj *obj);
 
 #endif

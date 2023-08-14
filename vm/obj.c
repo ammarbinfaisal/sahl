@@ -12,10 +12,13 @@ Value float_to_value(double f) { return *(Value *)&f; }
 Obj *new_obj(VM *vm, ObjType type) {
     Obj *obj = allocate(vm, sizeof(Obj));
     obj->type = type;
-    obj->next = vm->objects;
-    vm->objects = obj;
     obj->marked = false;
     return obj;
+}
+
+void track_obj(VM *vm, Obj *obj) {
+    obj->next = vm->objects;
+    vm->objects = obj;
 }
 
 void free_obj(Obj *obj) {
@@ -48,7 +51,7 @@ void free_obj(Obj *obj) {
 #ifdef DEBUGGC
         printf("freeing %p\n\n", obj);
 #endif
-        
+
         free(obj);
     }
 }
