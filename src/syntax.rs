@@ -14,6 +14,16 @@ pub enum Type {
     Range,
 }
 
+impl Type {
+    #[inline]
+    pub fn is_heap_type(&self) -> bool {
+        match self {
+            Type::List(_) | Type::Map(_, _) | Type::Chan(_) | Type::Str => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
     Int(i64),

@@ -154,14 +154,6 @@ pub struct RegCodeGen<'a> {
     loop_starts: Vec<usize>, // stack of (start, end) of loops
 }
 
-#[inline]
-fn is_heap_type(ty: &Type) -> bool {
-    match ty {
-        Type::List(_) | Type::Map(_, _) | Type::Chan(_) | Type::Str => true,
-        _ => false,
-    }
-}
-
 impl<'a> RegCodeGen<'a> {
     pub fn new(source_name: String) -> Self {
         RegCodeGen {
@@ -778,7 +770,7 @@ impl<'a> RegCodeGen<'a> {
                 let arg = self.stack_pop();
                 self.code.push(RegCode::Store(lcl, arg));
                 let ty = expr.1.get_type();
-                if is_heap_type(&ty) {
+                if ty.is_heap_type() {
                     self.locals.live_vars[lcl] = true;
                 }
             }
