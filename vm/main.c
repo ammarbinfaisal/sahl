@@ -818,7 +818,7 @@ void handle_stack_map(VM *vm) {
     vm->call_frame->ip += 8;
     StackMap *stmap = malloc(sizeof(StackMap));
     stmap->len = len;
-    stmap->bits = malloc(len);
+    stmap->bits = malloc(len * sizeof(uint64_t));
     uint64_t *bitptr = stmap->bits;
     while (len--) {
         *bitptr = read_u64(code, vm->call_frame->ip);
