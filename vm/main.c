@@ -385,10 +385,10 @@ void make_map(VM *vm, int reg, int _) {
     Obj *obj = new_obj(vm, OBJ_MAP);
     obj->map.map = new_rb_node(0);
     vm->regs[reg].i = (uint64_t)obj;
-    uint8_t key_heap_alloced = code[++vm->call_frame->ip];
+    uint8_t key_boxed = code[++vm->call_frame->ip];
     uint8_t value_heap_alloc = code[++vm->call_frame->ip];
-    obj->map.key_heap_alloced = key_heap_alloced;
-    obj->map.value_heap_alloced = value_heap_alloc;
+    obj->map.key_boxed = key_boxed;
+    obj->map.value_boxed = value_heap_alloc;
 #ifdef DEBUG
     printf("make map %p - reg %d\n", obj, reg);
 #endif
@@ -403,7 +403,7 @@ void make_list(VM *vm, int reg, int len) {
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
-    obj->list.heap_alloced = vm->call_frame->func->code[++vm->call_frame->ip];
+    obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
 #ifdef DEBUG
     printf("make list %p - reg %d\n", obj, reg);
 #endif
@@ -413,7 +413,7 @@ void make_chan(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_CHAN);
     obj->channel.chan = new_chan(len);
     vm->regs[reg].i = (uint64_t)obj;
-    obj->list.heap_alloced = vm->call_frame->func->code[++vm->call_frame->ip];
+    obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
 #ifdef DEBUG
     printf("make chan %p - reg %d\n", obj, reg);
 #endif
@@ -492,7 +492,7 @@ void handle_list(VM *vm) {
     newobj->list.length = len;
     newobj->list.capacity = len;
     newobj->list.items = malloc(sizeof(Value) * len);
-    newobj->list.heap_alloced = heap_alloced;
+    newobj->list.boxed_items = heap_alloced;
     for (int i = 0; i < len; ++i) {
         newobj->list.items[i] = pop(vm);
     }
@@ -519,7 +519,7 @@ void handle_tuple(VM *vm) {
     for (int i = 0; i < len; ++i) {
         newobj->tuple.items[i] = pop(vm);
     }
-    newobj->tuple.heap_alloced = bitsets;
+    newobj->tuple.boxed_items = bitsets;
     vm->regs[res].i = (uint64_t)newobj;
 }
 
