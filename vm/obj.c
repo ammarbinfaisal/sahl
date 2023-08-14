@@ -38,7 +38,6 @@ void free_obj(Obj *obj) {
 #ifdef DEBUGGC
             printf("freeing string chars %p\n", obj->string.data);
 #endif
-            free_it = 0;
             free(obj->string.data);
         }
     } else if (obj->type == OBJ_MAP) {
