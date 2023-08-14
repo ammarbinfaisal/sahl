@@ -100,12 +100,7 @@ impl NestedEnv {
     }
 
     fn pop(&mut self) {
-        self.local_count.pop();
-        self.prev_local = if let Some(l) = self.local_count.last() {
-            *l
-        } else {
-            0
-        };
+        self.prev_local = self.local_count.pop().unwrap();
         self.locals.pop();
     }
 
