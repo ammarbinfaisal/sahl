@@ -28,13 +28,13 @@ void list_prepend(LinkedList **list, void *data) {
     *list = tmp;
 }
 
-void* list_pop(LinkedList *list) {
+void *list_pop(LinkedList *list) {
     LinkedList *tmp = list->last;
     list->last = tmp->prev;
     list->last->next = NULL;
-    void *data = tmp->data;
+    void *d = list->last->data;
     free(tmp);
-    return data;
+    return d;
 }
 
 void list_free(LinkedList *list) {
