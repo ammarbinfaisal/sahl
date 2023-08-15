@@ -2,6 +2,7 @@
 #include "common.h"
 #include "conc.h"
 #include "rbtree.h"
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,13 +17,15 @@ static void mark_obj(VM *vm, Obj *obj) {
     if (obj->marked) return;
     obj->marked = true;
 
-    if (vm->grayCapacity < vm->grayCount + 1) {
-        vm->grayCapacity = GROW_CAPACITY(vm->grayCapacity);
-        vm->grayStack =
-            (Obj **)realloc(vm->grayStack, sizeof(Obj *) * vm->grayCapacity);
+    GCState *gc_state = vm->gc_state;
+
+    if (gc_state->grayCapacity < gc_state->grayCount + 1) {
+        gc_state->grayCapacity = GROW_CAPACITY(gc_state->grayCapacity);
+        gc_state->grayStack = (Obj **)realloc(
+            gc_state->grayStack, sizeof(Obj *) * gc_state->grayCapacity);
     }
 
-    vm->grayStack[vm->grayCount++] = obj;
+    gc_state->grayStack[gc_state->grayCount++] = obj;
 }
 
 static void blacken_object(VM *vm, Obj *obj) {
@@ -82,15 +85,16 @@ static void blacken_object(VM *vm, Obj *obj) {
 }
 
 static void trace_references(VM *vm) {
-    while (vm->grayCount > 0) {
-        Obj *object = vm->grayStack[--vm->grayCount];
+    while (vm->gc_state->grayCount > 0) {
+        Obj *object = vm->gc_state->grayStack[--vm->gc_state->grayCount];
         blacken_object(vm, object);
     }
 }
 
 static void sweep(VM *vm) {
     Obj *previous = NULL;
-    Obj *object = vm->objects;
+    GCState *gc_state = vm->gc_state;
+    Obj *object = gc_state->objects;
     while (object != NULL) {
         if (object->marked) {
             object->marked = false;
@@ -105,7 +109,7 @@ static void sweep(VM *vm) {
             if (previous != NULL) {
                 previous->next = object;
             } else {
-                vm->objects = object;
+                gc_state->objects = object;
             }
 
             free_obj(unreached);
@@ -139,33 +143,39 @@ void collect_garbage(VM *vm) {
     mark_roots(vm);
     trace_references(vm);
     sweep(vm);
-    vm->nextGC = vm->allocated * GC_HEAP_GROW_FACTOR;
+    vm->gc_state->nextGC = vm->gc_state->allocated * GC_HEAP_GROW_FACTOR;
 }
 
 void *allocate(VM *vm, size_t size) {
-    vm->allocated += size;
     void *ptr = malloc(size);
 
 #ifdef DEBUG
     printf("allocated %p of size %ld\n", ptr, size);
 #endif
 
-    if (vm->allocated > vm->nextGC) {
+    pthread_mutex_lock(&vm->gc_state->lock);
+    vm->gc_state->allocated += size;
+
+    if (vm->gc_state->allocated > vm->gc_state->nextGC) {
         collect_garbage(vm);
     }
+    pthread_mutex_unlock(&vm->gc_state->lock);
 
     return ptr;
 }
 
 void *reallocate(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
-    vm->allocated += newSize - oldSize;
+    pthread_mutex_lock(&vm->gc_state->lock);
+    vm->gc_state->allocated += newSize - oldSize;
+
+    if (vm->gc_state->allocated > vm->gc_state->nextGC) {
+        collect_garbage(vm);
+    }
+    pthread_mutex_unlock(&vm->gc_state->lock);
 
 #ifdef DEBUG
     printf("reallocating %p from %ld to %ld\n", ptr, oldSize, newSize);
 #endif
-    if (vm->allocated > vm->nextGC) {
-        collect_garbage(vm);
-    }
 
     void *new_ptr = realloc(ptr, newSize);
 

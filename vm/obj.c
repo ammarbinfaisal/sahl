@@ -2,6 +2,7 @@
 #include "common.h"
 #include "gc.h"
 #include "rbtree.h"
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,8 +18,10 @@ Obj *new_obj(VM *vm, ObjType type) {
 }
 
 void track_obj(VM *vm, Obj *obj) {
-    obj->next = vm->objects;
-    vm->objects = obj;
+    pthread_mutex_lock(&vm->gc_state->lock);
+    obj->next = vm->gc_state->objects;
+    vm->gc_state->objects = obj;
+    pthread_mutex_unlock(&vm->gc_state->lock);
 }
 
 void free_obj(Obj *obj) {

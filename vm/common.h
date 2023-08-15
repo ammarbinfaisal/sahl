@@ -141,6 +141,18 @@ struct Reg {
 
 typedef struct Reg Reg;
 
+struct GCState {
+    Obj *objects;
+    int grayCount;
+    int grayCapacity;
+    Obj **grayStack;
+    uint64_t allocated;
+    uint64_t nextGC;
+    pthread_mutex_t lock;
+};
+
+typedef struct GCState GCState;
+
 struct VM {
     Value *stack;
     int stack_size;
@@ -154,12 +166,7 @@ struct VM {
     int start_func;
 
     // garbage collection
-    Obj *objects;
-    int grayCount;
-    int grayCapacity;
-    Obj **grayStack;
-    uint64_t allocated;
-    uint64_t nextGC;
+    GCState *gc_state;
 
     // thread
     bool coro_to_be_spawned;
