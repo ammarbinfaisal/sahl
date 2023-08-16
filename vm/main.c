@@ -1018,8 +1018,8 @@ int main(int argc, char **argv) {
         pthread_cancel(threads[i]);
     }
     pthread_join(mainn, NULL);
-
-    // free(code->bytes);
+    free(threads);
+    free(code->bytes);
     free(code);
-    // free_vm(vm);
+    free_vm(vm);
 }
