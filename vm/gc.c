@@ -1,6 +1,7 @@
 #include "gc.h"
 #include "common.h"
 #include "conc.h"
+#include "list.h"
 #include "rbtree.h"
 #include <pthread.h>
 #include <stdint.h>
@@ -74,9 +75,10 @@ static void blacken_object(VM *vm, Obj *obj) {
     }
     case OBJ_CHAN: {
         if (obj->channel.boxed_items) {
-            Queue *q = obj->channel.chan->q;
-            for (int i = 0; i < q->length; i++) {
-                mark_value(vm, q->items[i]);
+            LinkedList *q = obj->channel.chan->q;
+            Node* n = q->head;
+            while (n->next != NULL) {
+                mark_value(vm, n->value);
             }
         }
         break;

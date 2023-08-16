@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "common.h"
+#include "list.h"
 
 enum ChanOpResult { CHAN_OK, CHAN_CLOSED, CHAN_FULL };
 
@@ -21,12 +22,8 @@ static int chan_write(Chan *chan, Value v) {
         return CHAN_CLOSED;
     }
     pthread_mutex_lock(&chan->m_mu);
-    while (chan->q->length == chan->q->capacity) {
-        chan->w_waiting++;
-        pthread_cond_wait(&chan->w_cond, &chan->m_mu);
-        chan->w_waiting--;
-    }
-    chan->q->items[chan->q->length++] = v;
+    enqueue(chan->q, (void*)v);
+    chan->len++;
     if (chan->r_waiting > 0) {
         pthread_cond_signal(&chan->r_cond);
     }
@@ -39,7 +36,7 @@ static int chan_read(Chan *chan, Value *v) {
         return CHAN_CLOSED;
     }
     pthread_mutex_lock(&chan->m_mu);
-    while (chan->q->length == 0) {
+    while (chan->len == 0) {
         if (chan->closed) {
             pthread_mutex_unlock(&chan->m_mu);
             return CHAN_CLOSED;
@@ -48,10 +45,7 @@ static int chan_read(Chan *chan, Value *v) {
         pthread_cond_wait(&chan->r_cond, &chan->m_mu);
         chan->r_waiting--;
     }
-    *v = chan->q->items[--chan->q->length];
-    if (chan->w_waiting > 0) {
-        pthread_cond_broadcast(&chan->w_cond);
-    }
+    *v = (Value)dequeue(chan->q);
     pthread_mutex_unlock(&chan->m_mu);
     return CHAN_OK;
 }

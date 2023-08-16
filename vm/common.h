@@ -3,6 +3,7 @@
 
 #define TYPES_H
 
+#include "list.h"
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -42,14 +43,14 @@ struct RingBuffer {
 typedef struct RingBuffer RingBuffer;
 
 struct Chan {
-    Queue *q;
+    LinkedList *q;
+    int len;
     // channel properties
     pthread_mutex_t m_mu;
     pthread_cond_t r_cond;
     pthread_cond_t w_cond;
     int closed;
     int r_waiting;
-    int w_waiting;
 };
 
 typedef struct Chan Chan;
