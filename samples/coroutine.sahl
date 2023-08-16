@@ -1,21 +1,11 @@
-fun printn(n: int) -> int {
-    let i = 0
-    while i < 100 {
-        print(n, "\n")
-        i = i + 1
+fun printn(n: int) {
+    for i in 0..10 {
+    print(n, "\n")  
     }
-    return 0
 }
 
 fun main() {
-    sahl printn(1)
-    sahl printn(2)
-    sahl printn(3)
-    sahl printn(4)
-    sahl printn(5)
-    sahl printn(6)
-    sahl printn(7)
-    sahl printn(8)
-    sahl printn(9)
-    sahl printn(10)
+    for i in 0..100 {
+        sahl printn(i)
+    }
 }
