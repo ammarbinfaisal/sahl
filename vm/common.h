@@ -14,6 +14,8 @@
 // #define DEBUGGC
 // #define MINARR
 #define UNSAFE
+#define MAX_THREADS 16
+#define CORO_PTHREAD 1
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
@@ -171,10 +173,7 @@ struct VM {
     // thread
     bool coro_to_be_spawned;
     bool is_coro;
-    int thread_count;
     int coro_id;
-    pthread_t *threads;
-    bool *coro_done;
 
     char *filename;
 };

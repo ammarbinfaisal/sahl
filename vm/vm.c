@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 VM *new_vm(uint8_t *code, int code_length) {
     VM *vm = malloc(sizeof(struct VM));
@@ -16,7 +17,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->consts = malloc(sizeof(char *) * vm->consts_count);
     offset += 16;
 
-    GCState* gc_state = malloc(sizeof(GCState));
+    GCState *gc_state = malloc(sizeof(GCState));
     gc_state->objects = NULL;
     gc_state->grayCount = 0;
     gc_state->grayCapacity = 1024;
@@ -26,7 +27,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     pthread_mutex_init(&gc_state->lock, NULL);
     vm->gc_state = gc_state;
 
-    LinkedList *strings = new_list(); // strings to be added to vm->objects
+    LinkedList *strings = new_list(256); // strings to be added to vm->objects
     for (int i = 0; i < vm->consts_count; ++i) {
         uint8_t ty = code[offset];
         offset++;
@@ -47,7 +48,7 @@ VM *new_vm(uint8_t *code, int code_length) {
             obj->string.data = str;
             obj->string.constant = true;
             vm->consts[i] = (uint64_t)obj;
-            list_append(strings, obj);
+            enqueue(strings, obj);
             offset += len;
         }
     }
@@ -78,21 +79,52 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->call_frame->stackmap = NULL;
 
     // add strings to vm->objects
-    LinkedList *node = strings;
-    while (node->next != NULL) {
-        Obj *obj = node->data;
+    void *p;
+    while ((p = dequeue(strings))) {
+        Obj *obj = p;
         obj->next = gc_state->objects;
         gc_state->objects = obj;
-        node = node->next;
     }
-    list_free(strings);
+    free_linkedlist(strings);
 
     // threads
     vm->is_coro = false;
-    vm->thread_count = 0;
-    vm->threads = NULL;
     vm->coro_to_be_spawned = false;
-    vm->coro_id = 0;
+
+    return vm;
+}
+
+VM *coro_vm(VM *curr, int start_func) {
+    VM *vm = malloc(sizeof(struct VM));
+    vm->start_func = start_func;
+    vm->string_count = curr->string_count;
+    vm->consts = curr->consts;
+    vm->consts_count = curr->consts_count;
+    vm->funcs = curr->funcs;
+    vm->funcs_count = curr->funcs_count;
+    vm->stack_size = 0;
+    vm->stack = malloc(sizeof(Value) * 1024);
+    vm->regs = malloc(sizeof(Value) * 256);
+
+    // callframe
+    vm->call_frame = NULL;
+
+    // stackmap
+    if (curr->call_frame->stackmap) {
+        vm->call_frame->stackmap = malloc(sizeof(StackMap));
+        vm->call_frame->stackmap->len = curr->call_frame->stackmap->len;
+        vm->call_frame->stackmap->bits =
+            malloc(sizeof(uint8_t) * vm->call_frame->stackmap->len);
+        memcpy(vm->call_frame->stackmap->bits, curr->call_frame->stackmap->bits,
+               sizeof(uint8_t) * vm->call_frame->stackmap->len);
+    }
+
+    // garbage collection
+    vm->gc_state = curr->gc_state;
+
+    // threads
+    vm->is_coro = true;
+    vm->coro_to_be_spawned = false;
 
     return vm;
 }

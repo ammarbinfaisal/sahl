@@ -2,19 +2,29 @@
 
 #define LIST_H
 
+
+struct Node {
+    void *value;
+    struct Node *next;
+};
+
+typedef struct Node Node;
+
 struct LinkedList {
-    struct LinkedList *next;
-    struct LinkedList *prev;
-    struct LinkedList *last;
-    void *data;
+    int size;
+    int max_size;
+    struct Node *head;
+    struct Node *tail;
 };
 
 typedef struct LinkedList LinkedList;
 
-LinkedList *new_list();
-void list_append(LinkedList *list, void *data);
-void list_prepend(LinkedList **list, void *data);
-void* list_pop(LinkedList *list);
-void list_free(LinkedList *list);
+LinkedList *new_list(int capacity);
+
+int enqueue(LinkedList *q, void *value);
+
+void *dequeue(LinkedList *q);
+
+void free_linkedlist(LinkedList *q);
 
 #endif

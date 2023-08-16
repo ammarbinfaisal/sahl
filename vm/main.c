@@ -12,24 +12,44 @@
 #include "code.h"
 #include "common.h"
 #include "conc.h"
+#include "coro.h"
 #include "debug.h"
 #include "func.h"
 #include "gc.h"
+#include "list.h"
 #include "obj.h"
 #include "opcodes.h"
 #include "rbtree.h"
 #include "read.h"
+#include "scheduler.h"
 #include "vm.h"
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
-#define MAX_COROS 128
 
-static int coro_count = 0;
+Scheduler *scheduler;
+
+static void push_scheduler(VM *corovm) {
+    printf("pushing vm(%p) to scheduler\n", corovm);
+    pthread_mutex_lock(&scheduler->vmq_mu);
+    enqueue(scheduler->coro_queue, corovm);
+    pthread_cond_signal(&scheduler->vmq_cond);
+    pthread_mutex_unlock(&scheduler->vmq_mu);
+}
+
+static VM *pop_scheduler() {
+    pthread_mutex_lock(&scheduler->vmq_mu);
+    VM *vm;
+    while (!(vm = dequeue(scheduler->coro_queue))) {
+        pthread_cond_wait(&scheduler->vmq_cond, &scheduler->vmq_mu);
+    }
+    pthread_mutex_unlock(&scheduler->vmq_mu);
+    return vm;
+}
 
 void error(VM *vm, char *msg) {
     printf("Error: %s", msg);
-    free_vm(vm);
+    // free_vm(vm);
     exit(1);
 }
 
@@ -585,7 +605,17 @@ void handle_call(VM *vm) {
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
     // read arg registers and put them in local registers of the new call frame
-    CallFrame *cf = new_call_frame(vm->funcs + func, vm->call_frame);
+
+    CallFrame *cf;
+    VM *vmm;
+    if (vm->coro_to_be_spawned) {
+        vmm = coro_vm(vm, func);
+        cf = new_call_frame(vm->funcs + func, NULL);
+        vmm->call_frame = cf;
+    } else {
+        vmm = vm;
+        cf = new_call_frame(vm->funcs + func, vm->call_frame);
+    }
     cf->locals_count = nargs;
     cf->locals_capacity = GROW_CAPACITY(nargs);
     cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
@@ -595,8 +625,18 @@ void handle_call(VM *vm) {
     }
     vm->call_frame->ip +=
         16 + nargs; // 16 instead of 17 because we pre-increment ip again
-    vm->call_frame = cf;
-    vm->call_frame->ip = -1;
+    if (vm->coro_to_be_spawned) {
+        cf->ip = 0;
+        vm->coro_to_be_spawned = false;
+        push_scheduler(vmm);
+        pthread_mutex_lock(&scheduler->coro_mu);
+        ++scheduler->coros_to_spawn;
+        pthread_cond_signal(&scheduler->coro_cond);
+        pthread_mutex_unlock(&scheduler->coro_mu);
+    } else {
+        vm->call_frame = cf;
+        vm->call_frame->ip = -1;
+    }
 }
 
 typedef void (*native_fn_t)(VM *vm);
@@ -783,9 +823,6 @@ void handle_ret(VM *vm) {
         CallFrame *curr = vm->call_frame;
         vm->call_frame = vm->call_frame->prev;
         free_call_frame(curr);
-    } else {
-        free_vm(vm);
-        exit(0);
     }
 }
 
@@ -808,7 +845,7 @@ void handle_pop(VM *vm) {
     vm->regs[r].i = pop(vm);
 }
 
-void handle_spawn(VM *vm) { ++vm->call_frame->ip; }
+void handle_spawn(VM *vm) { vm->coro_to_be_spawned = true; }
 
 void handle_nop(VM *vm) { ; }
 
@@ -852,7 +889,7 @@ void run(VM *vm) {
         uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
 
 #ifdef PRINT_OPCODES
-        printf("%d ", vm->call_frame->ip);
+        printf("%x %d ", vm->coro_id, vm->call_frame->ip);
         print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
 #endif
 
@@ -885,6 +922,70 @@ void run(VM *vm) {
     }
 }
 
+void coro_run(void *coro_arg) {
+    CoroArg *arg = (CoroArg *)coro_arg;
+    VM *vm = arg->vm;
+    run(vm);
+    coro_transfer(arg->coro_ctx, arg->main_ctx);
+}
+
+void *poll_spawn(void *i) {
+    uint64_t ix = (uint64_t)(int *)i;
+    coro_context *ctx, *coroctx;
+    ctx = malloc(sizeof(coro_context));
+    coroctx = malloc(sizeof(coro_context));
+    pthread_mutex_lock(&scheduler->coro_create_mu);
+    coro_create(ctx, NULL, NULL, NULL, 0);
+    pthread_mutex_unlock(&scheduler->coro_create_mu);
+    scheduler->main_ctxes[ix] = ctx;
+    scheduler->coro_ctxes[ix] = NULL;
+    struct coro_stack stack;
+    coro_stack_alloc(&stack, 1 << 20); // 1MB
+    while (1) {
+        VM *vm = pop_scheduler();
+        if (!vm) continue;
+        CoroArg *arg = malloc(sizeof(CoroArg));
+        arg->vm = vm;
+        arg->coro_ctx = coroctx;
+        arg->main_ctx = ctx;
+        pthread_mutex_lock(&scheduler->coro_create_mu);
+        coro_create(coroctx, coro_run, arg, stack.sptr, stack.ssze);
+        pthread_mutex_unlock(&scheduler->coro_create_mu);
+        scheduler->coro_ctxes[ix] = coroctx;
+        pthread_mutex_lock(&scheduler->coro_mu);
+        scheduler->coro_running++;
+        scheduler->coros_to_spawn--;
+        pthread_mutex_unlock(&scheduler->coro_mu);
+        vm->coro_id = ix;
+        coro_transfer(ctx, coroctx);
+        pthread_mutex_lock(&scheduler->coro_mu);
+        scheduler->coro_running--;
+        pthread_mutex_unlock(&scheduler->coro_mu);
+        scheduler->coro_ctxes[ix] = NULL;
+    }
+    coro_stack_free(&stack);
+}
+
+void scheduler_init() {
+    scheduler = malloc(sizeof(Scheduler));
+    scheduler->coro_queue = new_list(1024);
+    scheduler->coros_to_spawn = 0;
+    scheduler->coro_running = 0;
+    scheduler->coro_ctxes = malloc(sizeof(coro_context *) * MAX_THREADS);
+    scheduler->main_ctxes = malloc(sizeof(coro_context *) * MAX_THREADS);
+    memset(scheduler->coro_ctxes, 0, sizeof(coro_context *) * MAX_THREADS);
+    pthread_mutex_init(&scheduler->vmq_mu, NULL);
+    pthread_mutex_init(&scheduler->coro_mu, NULL);
+    pthread_cond_init(&scheduler->vmq_cond, NULL);
+    pthread_cond_init(&scheduler->coro_cond, NULL);
+    pthread_mutex_init(&scheduler->coro_create_mu, NULL);
+}
+
+void *main_run(void *vm) {
+    run((VM *)vm);
+    return NULL;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         return 1;
@@ -895,8 +996,30 @@ int main(int argc, char **argv) {
     // dissassemble(code->bytes, code->length);
     puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
-    run(vm);
+    scheduler_init();
+    pthread_t *threads = malloc(sizeof(pthread_t) * MAX_THREADS);
+    pthread_t mainn;
+    pthread_create(&mainn, NULL, main_run, (void *)vm);
+    for (uint64_t i = 0; i < MAX_THREADS; ++i) {
+        pthread_create(threads + i, NULL, poll_spawn, (int *)i);
+    }
+    vm->coro_id = 0xc001beef;
+    while (true) {
+        pthread_mutex_lock(&scheduler->coro_mu);
+        if (!scheduler->coros_to_spawn && !scheduler->coro_running) {
+            pthread_mutex_unlock(&scheduler->coro_mu);
+            break;
+        }
+        pthread_cond_wait(&scheduler->coro_cond, &scheduler->coro_mu);
+        pthread_mutex_unlock(&scheduler->coro_mu);
+        nanosleep((const struct timespec[]){{0, 10000000L}}, NULL); // 10ms
+    }
+    for (int i = 0; i < MAX_THREADS; ++i) {
+        pthread_cancel(threads[i]);
+    }
+    pthread_join(mainn, NULL);
+
     // free(code->bytes);
     free(code);
-    free_vm(vm);
+    // free_vm(vm);
 }
