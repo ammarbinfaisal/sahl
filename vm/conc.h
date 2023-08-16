@@ -25,7 +25,7 @@ static int chan_write(Chan *chan, Value v) {
     enqueue(chan->q, (void*)v);
     chan->len++;
     if (chan->r_waiting > 0) {
-        pthread_cond_signal(&chan->r_cond);
+        pthread_cond_broadcast(&chan->r_cond);
     }
     pthread_mutex_unlock(&chan->m_mu);
     return CHAN_OK;
