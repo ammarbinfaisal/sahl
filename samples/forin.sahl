@@ -30,5 +30,5 @@ fun brek() {
 
 fun main() {
     forin(1, 100000)
-    forin(100000, 1)
+    forin(100000, 1) // this wont run as start > end
 }
