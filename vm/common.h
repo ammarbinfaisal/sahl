@@ -16,7 +16,6 @@
 // #define MINARR
 #define UNSAFE
 #define MAX_THREADS 16
-#define CORO_PTHREAD 1
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
@@ -152,6 +151,7 @@ struct GCState {
     uint64_t allocated;
     uint64_t nextGC;
     pthread_mutex_t lock;
+    pthread_mutex_t sweeplock;
 };
 
 typedef struct GCState GCState;
