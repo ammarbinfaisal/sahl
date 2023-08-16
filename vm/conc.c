@@ -13,6 +13,7 @@ Queue *new_queue(int capacity) {
 Chan *new_chan(int capacity) {
     Chan *c = malloc(sizeof(Chan));
     c->q = new_list(capacity);
+    c->len = 0;
 
     pthread_mutex_init(&c->m_mu, NULL);
     pthread_cond_init(&c->r_cond, NULL);
