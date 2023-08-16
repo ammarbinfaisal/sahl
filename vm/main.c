@@ -30,7 +30,6 @@
 Scheduler *scheduler;
 
 static void push_scheduler(VM *corovm) {
-    printf("pushing vm(%p) to scheduler\n", corovm);
     pthread_mutex_lock(&scheduler->vmq_mu);
     enqueue(scheduler->coro_queue, corovm);
     pthread_cond_signal(&scheduler->vmq_cond);
