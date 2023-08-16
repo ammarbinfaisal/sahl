@@ -430,7 +430,7 @@ void make_list(VM *vm, int reg, int len) {
 
 void make_chan(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_CHAN);
-    obj->channel.chan = new_chan(len);
+    obj->channel.chan = new_chan(len ? len : 1024);
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
     track_obj(vm, obj);
@@ -556,17 +556,19 @@ void handle_tupleget(VM *vm) {
 
 void handle_chansend(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
-    int chan = code[++vm->call_frame->ip];
-    int value = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[chan].i;
+    uint64_t chan_var = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int value = code[vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->call_frame->locals[chan_var];
     chan_write(obj->channel.chan, vm->regs[value].i);
 }
 
 void handle_chanrecv(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
-    int chan = code[++vm->call_frame->ip];
-    int res = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[chan].i;
+    uint64_t chan_var = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int res = code[vm->call_frame->ip];
+    Obj *obj = (Obj *)vm->call_frame->locals[chan_var];
     chan_read(obj->channel.chan, (Value *)&vm->regs[res].i);
 }
 
