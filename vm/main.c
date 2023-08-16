@@ -1009,7 +1009,6 @@ int main(int argc, char **argv) {
             pthread_mutex_unlock(&scheduler->coro_mu);
             break;
         }
-        pthread_cond_wait(&scheduler->coro_cond, &scheduler->coro_mu);
         pthread_mutex_unlock(&scheduler->coro_mu);
         nanosleep((const struct timespec[]){{0, 10000000L}}, NULL); // 10ms
     }
