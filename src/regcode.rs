@@ -74,6 +74,8 @@ pub enum RegCode {
     FreeRegs,
     Pop(u8),
     StackMap(Vec<u64>), // set of locals that are live
+    PrintLock,
+    PrintUnlock,
 }
 
 #[derive(Debug, Clone)]
@@ -594,9 +596,11 @@ impl<'a> RegCodeGen<'a> {
                 let arg_regs = arg_regs.into_iter().rev().collect::<Vec<_>>();
                 if name == "print" {
                     let argtys = args.iter().map(|e| e.1.get_type());
+                    self.code.push(RegCode::PrintLock);
                     for arg in arg_regs.iter().zip(argtys) {
                         self.compile_complex_print(*arg.0, arg.1);
                     }
+                    self.code.push(RegCode::PrintUnlock);
                     return;
                 } else if let Some((native_ix, _arity, returns)) = self.builtin(name) {
                     self.code.push(RegCode::NCall(native_ix, arg_regs));

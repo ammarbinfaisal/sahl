@@ -272,6 +272,14 @@ int print_opcode(uint8_t *code, int i) {
         }
         return i;
     }
+    case OP_PRINTLOCK: {
+        printf("printlock\n");
+        return i + 1;
+    }
+    case OP_PRINTUNLOCK: {
+        printf("printunlock\n");
+        return i + 1;
+    }
     default:
         printf("Unknown opcode %d\n", code[i]);
         return i + 1;

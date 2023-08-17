@@ -62,7 +62,9 @@
 #define OP_NOP 57
 #define OP_RET 58
 #define OP_STACKMAP 59
+#define OP_PRINTLOCK 60
+#define OP_PRINTUNLOCK 61
 
-#define NUM_OPCODES 60
+#define NUM_OPCODES 62
 
 #endif

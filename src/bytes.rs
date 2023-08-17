@@ -62,6 +62,8 @@ const SPAWN: u8 = 56;
 const NOP: u8 = 57;
 const RET: u8 = 58;
 const STACKMAP: u8 = 59;
+const PRINTLOCK: u8 = 60;
+const PRINTUNLOCK: u8 = 61;
 
 fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
     match ty {
@@ -378,6 +380,12 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     }
                     bytes.extend(opcodes);
                 }
+            }
+            RegCode::PrintLock => {
+                bytes.push(PRINTLOCK);
+            }
+            RegCode::PrintUnlock => {
+                bytes.push(PRINTUNLOCK);
             }
             RegCode::Nop => {}
             RegCode::Phi(_) => {}

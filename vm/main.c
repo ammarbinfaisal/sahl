@@ -28,6 +28,7 @@
 #define MAIN_ID 0xc001beef
 
 Scheduler *scheduler;
+pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void push_scheduler(VM *corovm) {
     pthread_mutex_lock(&scheduler->vmq_mu);
@@ -893,23 +894,28 @@ void handle_stack_map(VM *vm) {
     --vm->call_frame->ip;
 }
 
+void handle_printlock(VM *_) { pthread_mutex_lock(&print_lock); }
+
+void handle_printunlock(VM *_) { pthread_mutex_unlock(&print_lock); }
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[] = {
-    handle_iadd,   handle_isub,     handle_imul,     handle_idiv,
-    handle_irem,   handle_ine,      handle_ieq,      handle_ilt,
-    handle_ile,    handle_igt,      handle_ige,      handle_fadd,
-    handle_fsub,   handle_fmul,     handle_fdiv,     handle_frem,
-    handle_fne,    handle_feq,      handle_flt,      handle_fle,
-    handle_fgt,    handle_fge,      handle_band,     handle_bor,
-    handle_bxor,   handle_bnot,     handle_land,     handle_lor,
-    handle_lnot,   handle_bshl,     handle_bshr,     handle_fneg,
-    handle_ineg,   handle_make,     handle_listset,  handle_listget,
-    handle_list,   handle_tupleget, handle_tuple,    handle_strget,
-    handle_mapget, handle_mapset,   handle_chansend, handle_chanrecv,
-    handle_jmp,    handle_jmpifnot, handle_call,     handle_ncall,
-    handle_const,  handle_load,     handle_store,    handle_cast,
-    handle_move,   handle_return,   handle_push,     handle_pop,
-    handle_spawn,  handle_nop,      handle_ret,      handle_stack_map};
+    handle_iadd,      handle_isub,       handle_imul,     handle_idiv,
+    handle_irem,      handle_ine,        handle_ieq,      handle_ilt,
+    handle_ile,       handle_igt,        handle_ige,      handle_fadd,
+    handle_fsub,      handle_fmul,       handle_fdiv,     handle_frem,
+    handle_fne,       handle_feq,        handle_flt,      handle_fle,
+    handle_fgt,       handle_fge,        handle_band,     handle_bor,
+    handle_bxor,      handle_bnot,       handle_land,     handle_lor,
+    handle_lnot,      handle_bshl,       handle_bshr,     handle_fneg,
+    handle_ineg,      handle_make,       handle_listset,  handle_listget,
+    handle_list,      handle_tupleget,   handle_tuple,    handle_strget,
+    handle_mapget,    handle_mapset,     handle_chansend, handle_chanrecv,
+    handle_jmp,       handle_jmpifnot,   handle_call,     handle_ncall,
+    handle_const,     handle_load,       handle_store,    handle_cast,
+    handle_move,      handle_return,     handle_push,     handle_pop,
+    handle_spawn,     handle_nop,        handle_ret,      handle_stack_map,
+    handle_printlock, handle_printunlock};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {
