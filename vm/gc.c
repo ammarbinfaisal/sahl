@@ -76,7 +76,7 @@ static void blacken_object(VM *vm, Obj *obj) {
     case OBJ_CHAN: {
         if (obj->channel.boxed_items) {
             LinkedList *q = obj->channel.chan->q;
-            Node* n = q->head;
+            Node *n = q->head;
             while (n->next != NULL) {
                 mark_value(vm, n->value);
             }
@@ -142,6 +142,9 @@ void mark_roots(VM *vm) {
 
 void collect_garbage(VM *vm) {
     // printf("Collecting garbage... \n");
+    if (vm->is_coro) {
+        return;
+    }
     mark_roots(vm);
     trace_references(vm);
     sweep(vm);
