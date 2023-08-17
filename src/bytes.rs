@@ -402,10 +402,7 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
         let ix2 = ixmap[&jumpix];
         let bytes2 = ix2.to_le_bytes().to_vec();
         bytes.splice(ix..ix + 8, bytes2.iter().cloned());
-        println!("patching jump at {} from {} to {}", ix, jumpix, ix2);
     }
-
-    println!("bytes {:?}", bytes.clone());
 
     bytes
 }
@@ -422,8 +419,6 @@ pub fn consts_vec(consts: &Vec<(Type, Vec<u8>)>) -> Vec<u8> {
         }
         cnsts.extend(c.1.iter());
     }
-
-    println!("consts {:?}", cnsts.clone());
 
     cnsts
 }
