@@ -4,6 +4,7 @@
 #include "obj.h"
 #include "rbtree.h"
 #include "read.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +28,7 @@ VM *new_vm(uint8_t *code, int code_length) {
     pthread_mutex_init(&gc_state->lock, NULL);
     vm->gc_state = gc_state;
 
-    LinkedList *strings = new_list(256); // strings to be added to vm->objects
+    LinkedList *strings = new_list(); // strings to be added to vm->objects
     for (int i = 0; i < vm->consts_count; ++i) {
         uint8_t ty = code[offset];
         offset++;
@@ -90,6 +91,8 @@ VM *new_vm(uint8_t *code, int code_length) {
     // threads
     vm->is_coro = false;
     vm->coro_to_be_spawned = false;
+    vm->halted = false;
+    vm->should_yield = false;
 
     return vm;
 }
@@ -125,6 +128,7 @@ VM *coro_vm(VM *curr, int start_func) {
     // threads
     vm->is_coro = true;
     vm->coro_to_be_spawned = false;
+    vm->halted = false;
 
     return vm;
 }

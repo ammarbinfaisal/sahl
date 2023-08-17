@@ -18,7 +18,7 @@ struct LinkedList {
 
 typedef struct LinkedList LinkedList;
 
-LinkedList *new_list(int capacity);
+LinkedList *new_list();
 
 int enqueue(LinkedList *q, void *value);
 

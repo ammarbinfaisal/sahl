@@ -12,7 +12,6 @@
 #include "code.h"
 #include "common.h"
 #include "conc.h"
-#include "coro.h"
 #include "debug.h"
 #include "func.h"
 #include "gc.h"
@@ -26,6 +25,7 @@
 
 #define MAX_STACK 1024
 #define MAX_CALL_DEPTH 1024
+#define MAIN_ID 0xc001beef
 
 Scheduler *scheduler;
 
@@ -38,10 +38,10 @@ static void push_scheduler(VM *corovm) {
 
 static VM *pop_scheduler() {
     pthread_mutex_lock(&scheduler->vmq_mu);
-    VM *vm;
-    while (!(vm = dequeue(scheduler->coro_queue))) {
+    while (!scheduler->coro_queue->size) {
         pthread_cond_wait(&scheduler->vmq_cond, &scheduler->vmq_mu);
     }
+    VM *vm = dequeue(scheduler->coro_queue);
     pthread_mutex_unlock(&scheduler->vmq_mu);
     return vm;
 }
@@ -430,7 +430,7 @@ void make_list(VM *vm, int reg, int len) {
 
 void make_chan(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_CHAN);
-    obj->channel.chan = new_chan(len ? len : 1024);
+    obj->channel.chan = new_chan(len ? len : 2);
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
     track_obj(vm, obj);
@@ -560,16 +560,46 @@ void handle_chansend(VM *vm) {
     vm->call_frame->ip += 8;
     int value = code[vm->call_frame->ip];
     Obj *obj = (Obj *)vm->call_frame->locals[chan_var];
-    chan_write(obj->channel.chan, vm->regs[value].i);
+#ifdef DEBUG
+    printf("sending %ld over chan %p\n", vm->regs[value].i, obj);
+#endif
+    Chan *chan = obj->channel.chan;
+    // printf("waiting: %p %x\n", chan, vm->coro_id);
+    pthread_mutex_lock(&chan->m_mu);
+    chan_write(chan, vm->regs[value].i);
+    int len = chan->len;
+    if (chan->r_waiting > 0) {
+        pthread_cond_broadcast(&chan->r_cond);
+    }
+    pthread_mutex_unlock(&chan->m_mu);
+    if (len == chan->cap) {
+        vm->should_yield = true;
+    }
 }
 
 void handle_chanrecv(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
-    uint64_t chan_var = read_u64(code, ++vm->call_frame->ip);
-    vm->call_frame->ip += 8;
-    int res = code[vm->call_frame->ip];
+    int ip = vm->call_frame->ip;
+    uint64_t chan_var = read_u64(code, ++ip);
+    ip += 8;
+    int res = code[ip];
     Obj *obj = (Obj *)vm->call_frame->locals[chan_var];
-    chan_read(obj->channel.chan, (Value *)&vm->regs[res].i);
+    Chan *chan = obj->channel.chan;
+    // printf("waiting: %p %x\n", chan, vm->coro_id);
+    pthread_mutex_lock(&chan->m_mu);
+    if (chan->len == 0 && vm->coro_id != MAIN_ID) {
+        pthread_mutex_unlock(&chan->m_mu);
+        vm->should_yield = true;
+        vm->call_frame->ip--; // as we will yield after the ip increment
+                              // and we want to re-execute this instruction
+        return;
+    }
+    chan->r_waiting++;
+    pthread_cond_wait(&chan->r_cond, &chan->m_mu);
+    chan->r_waiting--;
+    chan_read(chan, (Value *)&vm->regs[res].i);
+    pthread_mutex_unlock(&chan->m_mu);
+    vm->call_frame->ip = ip;
 }
 
 void handle_strget(VM *vm) {
@@ -630,10 +660,6 @@ void handle_call(VM *vm) {
         cf->ip = 0;
         vm->coro_to_be_spawned = false;
         push_scheduler(vmm);
-        pthread_mutex_lock(&scheduler->coro_mu);
-        ++scheduler->coros_to_spawn;
-        pthread_cond_signal(&scheduler->coro_cond);
-        pthread_mutex_unlock(&scheduler->coro_mu);
     } else {
         vm->call_frame = cf;
         vm->call_frame->ip = -1;
@@ -886,6 +912,12 @@ static OpcodeHandler opcode_handlers[] = {
     handle_spawn,  handle_nop,      handle_ret,      handle_stack_map};
 
 void run(VM *vm) {
+    if (vm->coro_id != MAIN_ID) {
+        pthread_mutex_lock(&scheduler->vmq_mu);
+        scheduler->coro_running++;
+        pthread_mutex_unlock(&scheduler->vmq_mu);
+    }
+
     while (vm->call_frame->ip < vm->call_frame->func->code_length) {
         uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
 
@@ -920,66 +952,41 @@ void run(VM *vm) {
         opcode_handlers[instruction](vm);
 
         vm->call_frame->ip++;
-    }
-}
 
-void coro_run(void *coro_arg) {
-    CoroArg *arg = (CoroArg *)coro_arg;
-    VM *vm = arg->vm;
-    run(vm);
-    coro_transfer(arg->coro_ctx, arg->main_ctx);
+        if (vm->should_yield) {
+            vm->should_yield = false;
+            return;
+        }
+    }
+
+    vm->halted = true;
 }
 
 void *poll_spawn(void *i) {
     uint64_t ix = (uint64_t)(int *)i;
-    coro_context *ctx, *coroctx;
-    ctx = malloc(sizeof(coro_context));
-    coroctx = malloc(sizeof(coro_context));
-    pthread_mutex_lock(&scheduler->coro_create_mu);
-    coro_create(ctx, NULL, NULL, NULL, 0);
-    pthread_mutex_unlock(&scheduler->coro_create_mu);
-    scheduler->main_ctxes[ix] = ctx;
-    scheduler->coro_ctxes[ix] = NULL;
-    struct coro_stack stack;
-    coro_stack_alloc(&stack, 1 << 20); // 1MB
     while (1) {
+        // printf("polling %lx\n", ix);
         VM *vm = pop_scheduler();
-        if (!vm) continue;
-        CoroArg *arg = malloc(sizeof(CoroArg));
-        arg->vm = vm;
-        arg->coro_ctx = coroctx;
-        arg->main_ctx = ctx;
-        pthread_mutex_lock(&scheduler->coro_create_mu);
-        coro_create(coroctx, coro_run, arg, stack.sptr, stack.ssze);
-        pthread_mutex_unlock(&scheduler->coro_create_mu);
-        scheduler->coro_ctxes[ix] = coroctx;
-        pthread_mutex_lock(&scheduler->coro_mu);
-        scheduler->coro_running++;
-        scheduler->coros_to_spawn--;
-        pthread_mutex_unlock(&scheduler->coro_mu);
+        // printf("got %p\n", vm);
         vm->coro_id = ix;
-        coro_transfer(ctx, coroctx);
-        pthread_mutex_lock(&scheduler->coro_mu);
+        // printf("gonna give control to %p\n", vm);
+        run(vm);
+        if (!vm->halted) {
+            push_scheduler(vm);
+        }
+        pthread_mutex_lock(&scheduler->vmq_mu);
         scheduler->coro_running--;
-        pthread_mutex_unlock(&scheduler->coro_mu);
-        scheduler->coro_ctxes[ix] = NULL;
+        pthread_cond_signal(&scheduler->vmq_cond);
+        pthread_mutex_unlock(&scheduler->vmq_mu);
     }
-    coro_stack_free(&stack);
 }
 
 void scheduler_init() {
     scheduler = malloc(sizeof(Scheduler));
-    scheduler->coro_queue = new_list(1024);
-    scheduler->coros_to_spawn = 0;
+    scheduler->coro_queue = new_list();
     scheduler->coro_running = 0;
-    scheduler->coro_ctxes = malloc(sizeof(coro_context *) * MAX_THREADS);
-    scheduler->main_ctxes = malloc(sizeof(coro_context *) * MAX_THREADS);
-    memset(scheduler->coro_ctxes, 0, sizeof(coro_context *) * MAX_THREADS);
     pthread_mutex_init(&scheduler->vmq_mu, NULL);
-    pthread_mutex_init(&scheduler->coro_mu, NULL);
     pthread_cond_init(&scheduler->vmq_cond, NULL);
-    pthread_cond_init(&scheduler->coro_cond, NULL);
-    pthread_mutex_init(&scheduler->coro_create_mu, NULL);
 }
 
 void *main_run(void *vm) {
@@ -1000,20 +1007,16 @@ int main(int argc, char **argv) {
     scheduler_init();
     pthread_t *threads = malloc(sizeof(pthread_t) * MAX_THREADS);
     pthread_t mainn;
+    vm->coro_id = MAIN_ID;
     pthread_create(&mainn, NULL, main_run, (void *)vm);
     for (uint64_t i = 0; i < MAX_THREADS; ++i) {
         pthread_create(threads + i, NULL, poll_spawn, (int *)i);
     }
-    vm->coro_id = 0xc001beef;
-    while (true) {
-        pthread_mutex_lock(&scheduler->coro_mu);
-        if (!scheduler->coros_to_spawn && !scheduler->coro_running) {
-            pthread_mutex_unlock(&scheduler->coro_mu);
-            break;
-        }
-        pthread_mutex_unlock(&scheduler->coro_mu);
-        nanosleep((const struct timespec[]){{0, 10000000L}}, NULL); // 10ms
+    pthread_mutex_lock(&scheduler->vmq_mu);
+    while (scheduler->coro_queue->size || scheduler->coro_running) {
+        pthread_cond_wait(&scheduler->vmq_cond, &scheduler->vmq_mu);
     }
+    pthread_mutex_unlock(&scheduler->vmq_mu);
     for (int i = 0; i < MAX_THREADS; ++i) {
         pthread_cancel(threads[i]);
     }

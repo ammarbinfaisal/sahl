@@ -1,7 +1,7 @@
 #include "list.h"
 #include <stdlib.h>
 
-LinkedList *new_list(int capacity) {
+LinkedList *new_list() {
     LinkedList *q;
     q = malloc(sizeof(LinkedList));
 

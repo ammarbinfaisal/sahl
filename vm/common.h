@@ -50,6 +50,7 @@ struct Chan {
     pthread_cond_t w_cond;
     int closed;
     int r_waiting;
+    int cap;
 };
 
 typedef struct Chan Chan;
@@ -175,6 +176,8 @@ struct VM {
     bool coro_to_be_spawned;
     bool is_coro;
     int coro_id;
+    bool should_yield;
+    bool halted;
 
     char *filename;
 };

@@ -21,13 +21,8 @@ static int chan_write(Chan *chan, Value v) {
     if (chan->closed) {
         return CHAN_CLOSED;
     }
-    pthread_mutex_lock(&chan->m_mu);
     enqueue(chan->q, (void*)v);
     chan->len++;
-    if (chan->r_waiting > 0) {
-        pthread_cond_broadcast(&chan->r_cond);
-    }
-    pthread_mutex_unlock(&chan->m_mu);
     return CHAN_OK;
 }
 
@@ -35,18 +30,8 @@ static int chan_read(Chan *chan, Value *v) {
     if (chan->closed) {
         return CHAN_CLOSED;
     }
-    pthread_mutex_lock(&chan->m_mu);
-    while (chan->len == 0) {
-        if (chan->closed) {
-            pthread_mutex_unlock(&chan->m_mu);
-            return CHAN_CLOSED;
-        }
-        chan->r_waiting++;
-        pthread_cond_wait(&chan->r_cond, &chan->m_mu);
-        chan->r_waiting--;
-    }
+    --chan->len;
     *v = (Value)dequeue(chan->q);
-    pthread_mutex_unlock(&chan->m_mu);
     return CHAN_OK;
 }
 
