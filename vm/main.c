@@ -33,7 +33,7 @@ pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 static void push_scheduler(VM *corovm) {
     pthread_mutex_lock(&scheduler->vmq_mu);
     enqueue(scheduler->coro_queue, corovm);
-    pthread_cond_signal(&scheduler->vmq_cond);
+    pthread_cond_broadcast(&scheduler->vmq_cond);
     pthread_mutex_unlock(&scheduler->vmq_mu);
 }
 
@@ -982,13 +982,13 @@ void *poll_spawn(void *i) {
         vm->coro_id = ix;
         // printf("gonna give control to %p\n", vm);
         run(vm);
+        pthread_mutex_lock(&scheduler->vmq_mu);
+        scheduler->coro_running--;
+        pthread_cond_broadcast(&scheduler->vmq_cond);
+        pthread_mutex_unlock(&scheduler->vmq_mu);
         if (!vm->halted) {
             push_scheduler(vm);
         }
-        pthread_mutex_lock(&scheduler->vmq_mu);
-        scheduler->coro_running--;
-        pthread_cond_signal(&scheduler->vmq_cond);
-        pthread_mutex_unlock(&scheduler->vmq_mu);
     }
 }
 
