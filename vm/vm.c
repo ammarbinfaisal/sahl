@@ -129,6 +129,7 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->is_coro = true;
     vm->coro_to_be_spawned = false;
     vm->halted = false;
+    vm->should_yield = false;
 
     return vm;
 }
