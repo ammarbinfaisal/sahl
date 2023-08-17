@@ -9,7 +9,7 @@ fun sendvals(c: chan<int>, count: int, id: int) {
 fun recvvals(c: chan<int>, count: int, id: int) {
     let i = 0
     while i < count {
-        print(<-c, " - ", i, "\n")
+        print(<-c, " - ", id, "\n")
         i = i + 1
     }
 }
