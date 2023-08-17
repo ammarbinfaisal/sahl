@@ -565,9 +565,10 @@ void handle_chansend(VM *vm) {
     printf("sending %ld over chan %p\n", vm->regs[value].i, obj);
 #endif
     Chan *chan = obj->channel.chan;
-    // printf("waiting: %p %x\n", chan, vm->coro_id);
+    // printf("waiting send: %p %x\n", chan, vm->coro_id);
     pthread_mutex_lock(&chan->m_mu);
     chan_write(chan, vm->regs[value].i);
+    // printf("waiting send sent: %p %x\n", chan, vm->coro_id);
     int len = chan->len;
     if (chan->r_waiting > 0) {
         pthread_cond_broadcast(&chan->r_cond);
@@ -586,19 +587,23 @@ void handle_chanrecv(VM *vm) {
     int res = code[ip];
     Obj *obj = (Obj *)vm->call_frame->locals[chan_var];
     Chan *chan = obj->channel.chan;
-    // printf("waiting: %p %x\n", chan, vm->coro_id);
+    // printf("waiting recv: %p %x\n", chan, vm->coro_id);
     pthread_mutex_lock(&chan->m_mu);
     if (chan->len == 0 && vm->coro_id != MAIN_ID) {
+        // printf("giving up waiting recv : %p %x\n", chan, vm->coro_id);
         pthread_mutex_unlock(&chan->m_mu);
         vm->should_yield = true;
         vm->call_frame->ip--; // as we will yield after the ip increment
                               // and we want to re-execute this instruction
         return;
     }
-    chan->r_waiting++;
-    pthread_cond_wait(&chan->r_cond, &chan->m_mu);
-    chan->r_waiting--;
+    if (chan->len == 0) {
+        chan->r_waiting++;
+        pthread_cond_wait(&chan->r_cond, &chan->m_mu);
+        chan->r_waiting--;
+    }
     chan_read(chan, (Value *)&vm->regs[res].i);
+    // printf("waiting recv read: %p %x\n", chan, vm->coro_id);
     pthread_mutex_unlock(&chan->m_mu);
     vm->call_frame->ip = ip;
 }
