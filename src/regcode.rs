@@ -127,7 +127,7 @@ impl NestedEnv {
     }
 
     fn get(&self, name: &str) -> Option<&usize> {
-        for map in self.locals.iter() {
+        for map in self.locals.iter().rev() {
             let idx = map.get(name);
             if idx.is_some() {
                 return idx;
