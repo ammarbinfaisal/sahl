@@ -12,7 +12,6 @@ typedef struct Node Node;
 
 struct LinkedList {
     int size;
-    int max_size;
     struct Node *head;
     struct Node *tail;
 };

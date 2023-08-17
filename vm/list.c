@@ -10,7 +10,6 @@ LinkedList *new_list(int capacity) {
     }
 
     q->size = 0;
-    q->max_size = capacity;
     q->head = NULL;
     q->tail = NULL;
 
@@ -18,10 +17,6 @@ LinkedList *new_list(int capacity) {
 }
 
 int enqueue(LinkedList *q, void *value) {
-    if ((q->size + 1) > q->max_size) {
-        return q->size;
-    }
-
     Node *node = malloc(sizeof(Node));
 
     if (node == NULL) {
