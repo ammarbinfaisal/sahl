@@ -68,6 +68,7 @@ const SUPERINST: u8 = 62;
 
 const SUPERINST_LOAD_CONST_OP: u8 = 0;
 const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
+const SUPERINST_JMP_IF_NOT_COND: u8 = 2;
 
 
 fn op_to_byte(r: &RegCode) -> u8 {
@@ -445,6 +446,17 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                         bytes.extend(var_ix.to_le_bytes().iter());
                         bytes.extend(const_ix.to_le_bytes().iter());
                         bytes.push(op_to_byte(op));
+                    }
+                    SuperInstruction::JmpIfNotCond(jmp_ix, reg1, reg2, res_reg, cond_op) => {
+                        bytes.extend(vec![SUPERINST, SUPERINST_JMP_IF_NOT_COND]);
+                        jumps.push((bytes.len(), *jmp_ix));
+                        for _ in 0..8 {
+                            bytes.push(0);
+                        }
+                        bytes.push(*reg1);
+                        bytes.push(*reg2);
+                        bytes.push(*res_reg);
+                        bytes.push(op_to_byte(cond_op));
                     }
                 }
             }

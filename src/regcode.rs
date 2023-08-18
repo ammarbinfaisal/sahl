@@ -79,6 +79,26 @@ pub enum RegCode {
     Super(SuperInstruction),
 }
 
+fn is_cond_op(c: &RegCode) -> bool {
+    match c {
+        RegCode::INe(_, _, _)
+        | RegCode::IEq(_, _, _)
+        | RegCode::ILt(_, _, _)
+        | RegCode::ILe(_, _, _)
+        | RegCode::IGt(_, _, _)
+        | RegCode::IGe(_, _, _)
+        | RegCode::FNe(_, _, _)
+        | RegCode::FEq(_, _, _)
+        | RegCode::FLt(_, _, _)
+        | RegCode::FLe(_, _, _)
+        | RegCode::FGt(_, _, _)
+        | RegCode::FGe(_, _, _)
+        | RegCode::LAnd(_, _, _)
+        | RegCode::LOr(_, _, _) => true,
+        _ => false,
+    }
+}
+
 fn three_operand_code(c: &RegCode) -> (u8, u8, u8) {
     match c {
         RegCode::IAdd(r1, r2, r3)
@@ -120,6 +140,8 @@ pub enum SuperInstruction {
     LoadConstOp(usize, usize, u8, Box<RegCode>),
     /// var_ix, const_ix
     LoadConstOpStore(usize, usize, Box<RegCode>),
+    /// jmp, reg1, reg2, res_reg, cond_op
+    JmpIfNotCond(usize, u8, u8, u8, Box<RegCode>),
 }
 
 #[derive(Debug, Clone)]
@@ -131,6 +153,8 @@ enum SuperInstParseState {
     LoadConst(usize, usize, u8, u8),
     /// var_ix, const_ix, op_res_reg, op
     LoadConstOp(usize, usize, u8, RegCode),
+    /// jmp_ix, reg
+    Cond(RegCode),
 }
 
 #[derive(Debug, Clone)]
@@ -1021,12 +1045,14 @@ impl<'a> RegCodeGen<'a> {
         let mut i = 0;
         let mut state = SuperInstParseState::None;
         while i < self.code.len() {
-            println!("{} state: {:?}", i, state);
+            // println!("{} state: {:?}", i, state);
             match state.clone() {
                 SuperInstParseState::None => {
                     if let RegCode::Load(var_ix, reg_ix) = self.code[i] {
                         state = SuperInstParseState::Load(var_ix, reg_ix);
-                    }  else {
+                    } else if is_cond_op(&self.code[i]) {
+                        state = SuperInstParseState::Cond(self.code[i].clone());
+                    } else {
                         state = SuperInstParseState::None;
                     }
                 }
@@ -1091,6 +1117,26 @@ impl<'a> RegCodeGen<'a> {
                         i -= 1;
                         state = SuperInstParseState::None;
                     }
+                }
+                SuperInstParseState::Cond(regcode) => {
+                    if let RegCode::JmpIfNot(reg_ix, jmp_ix) = self.code[i] {
+                        match three_operand_code(&regcode) {
+                            (0, 0, 0) => {}
+                            (r1, r2, res) => {
+                                if res == reg_ix {
+                                    self.code[i - 1] = RegCode::Nop;
+                                    self.code[i] = RegCode::Super(SuperInstruction::JmpIfNotCond(
+                                        jmp_ix,
+                                        r1,
+                                        r2,
+                                        res,
+                                        Box::new(regcode.clone()),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    state = SuperInstParseState::None;
                 }
             }
             i += 1;

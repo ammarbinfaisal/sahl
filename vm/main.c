@@ -989,7 +989,7 @@ static Op op_handlers[] = {
     op_iadd,  op_isub, op_imul, op_idiv,  op_irem, op_ine,  op_ieq,  op_ilt,
     op_igt,   op_ige,  op_fadd, op_fsub,  op_fmul, op_fdiv, op_frem, op_fne,
     op_feq,   op_flt,  op_fle,  op_fgt,   op_fge,  op_band, op_bor,  op_bxor,
-    op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr};
+    op_dummy, op_lor,  op_land, op_dummy, op_bshl, op_bshr};
 
 void superinst_load_const_op(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
@@ -1020,8 +1020,26 @@ void superinst_load_const_op_store(VM *vm) {
         op_handlers[code[vm->call_frame->ip]](var_val, const_val);
 }
 
+void superinst_jmp_ifnot_cond_op(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    uint64_t jmp_ix = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7;
+#ifdef DEBUG
+#endif
+    uint8_t reg1 = code[++vm->call_frame->ip];
+    uint8_t reg2 = code[++vm->call_frame->ip];
+    uint8_t res_reg = code[++vm->call_frame->ip];
+    uint8_t condop = code[++vm->call_frame->ip];
+    vm->regs[res_reg].i =
+        op_handlers[condop](vm->regs[reg1].i, vm->regs[reg2].i);
+    if (!vm->regs[res_reg].i) {
+        vm->call_frame->ip = jmp_ix - 1;
+    }
+}
+
 static OpcodeHandler superinst_handlers[] = {superinst_load_const_op,
-                                             superinst_load_const_op_store};
+                                             superinst_load_const_op_store,
+                                             superinst_jmp_ifnot_cond_op};
 
 void handle_superinstruction(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
