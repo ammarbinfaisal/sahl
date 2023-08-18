@@ -76,6 +76,61 @@ pub enum RegCode {
     StackMap(Vec<u64>), // set of locals that are live
     PrintLock,
     PrintUnlock,
+    Super(SuperInstruction),
+}
+
+fn three_operand_code(c: &RegCode) -> (u8, u8, u8) {
+    match c {
+        RegCode::IAdd(r1, r2, r3)
+        | RegCode::ISub(r1, r2, r3)
+        | RegCode::IMul(r1, r2, r3)
+        | RegCode::IDiv(r1, r2, r3)
+        | RegCode::IRem(r1, r2, r3)
+        | RegCode::INe(r1, r2, r3)
+        | RegCode::IEq(r1, r2, r3)
+        | RegCode::ILt(r1, r2, r3)
+        | RegCode::ILe(r1, r2, r3)
+        | RegCode::IGt(r1, r2, r3)
+        | RegCode::IGe(r1, r2, r3)
+        | RegCode::FAdd(r1, r2, r3)
+        | RegCode::FSub(r1, r2, r3)
+        | RegCode::FMul(r1, r2, r3)
+        | RegCode::FDiv(r1, r2, r3)
+        | RegCode::FRem(r1, r2, r3)
+        | RegCode::FNe(r1, r2, r3)
+        | RegCode::FEq(r1, r2, r3)
+        | RegCode::FLt(r1, r2, r3)
+        | RegCode::FLe(r1, r2, r3)
+        | RegCode::FGt(r1, r2, r3)
+        | RegCode::FGe(r1, r2, r3)
+        | RegCode::BAnd(r1, r2, r3)
+        | RegCode::BOr(r1, r2, r3)
+        | RegCode::BXor(r1, r2, r3)
+        | RegCode::LAnd(r1, r2, r3)
+        | RegCode::LOr(r1, r2, r3)
+        | RegCode::BShl(r1, r2, r3)
+        | RegCode::BShr(r1, r2, r3) => (*r1, *r2, *r3),
+        _ => (0, 0, 0),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SuperInstruction {
+    /// var_ix, const_ix, op_res_reg
+    LoadConstOp(usize, usize, u8, Box<RegCode>),
+    /// var_ix, const_ix
+    LoadConstOpStore(usize, usize, Box<RegCode>),
+}
+
+#[derive(Debug, Clone)]
+enum SuperInstParseState {
+    None,
+    /// var_ix, reg
+    Load(usize, u8),
+    /// var_ix, const_ix, load_reg, const_reg
+    LoadConst(usize, usize, u8, u8),
+    /// var_ix, const_ix, op_res_reg, op
+    LoadConstOp(usize, usize, u8, RegCode),
 }
 
 #[derive(Debug, Clone)]
@@ -962,6 +1017,86 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
+    fn parse_super_inst(&mut self) {
+        let mut i = 0;
+        let mut state = SuperInstParseState::None;
+        while i < self.code.len() {
+            println!("{} state: {:?}", i, state);
+            match state.clone() {
+                SuperInstParseState::None => {
+                    if let RegCode::Load(var_ix, reg_ix) = self.code[i] {
+                        state = SuperInstParseState::Load(var_ix, reg_ix);
+                    }  else {
+                        state = SuperInstParseState::None;
+                    }
+                }
+                SuperInstParseState::Load(var_ix, reg_ix) => {
+                    if let RegCode::Const(const_ix, reg_ix2) = self.code[i] {
+                        state = SuperInstParseState::LoadConst(var_ix, const_ix, reg_ix, reg_ix2);
+                    } else {
+                        state = SuperInstParseState::None;
+                    }
+                }
+                SuperInstParseState::LoadConst(var_ix, const_ix, reg_ix, reg_ix2) => {
+                    println!("code {:?}", self.code[i]);
+                    match three_operand_code(&self.code[i]) {
+                        (0, 0, 0) => {
+                            state = SuperInstParseState::None;
+                        }
+                        (r1, r2, res) => {
+                            if r1 == reg_ix && r2 == reg_ix2 {
+                                state = SuperInstParseState::LoadConstOp(
+                                    var_ix,
+                                    const_ix,
+                                    res,
+                                    self.code[i].clone(),
+                                );
+                            } else {
+                                state = SuperInstParseState::None;
+                            }
+                        }
+                    }
+                }
+                SuperInstParseState::LoadConstOp(var_ix, const_ix, r, op) => {
+                    let mut insert_load_const_op = false;
+                    if let RegCode::Store(var_ix2, reg_ix2) = self.code[i] {
+                        if var_ix == var_ix2 && r == reg_ix2 {
+                            // remove the load, const, op, store
+                            self.code[i - 3] = RegCode::Nop;
+                            self.code[i - 2] = RegCode::Nop;
+                            self.code[i - 1] = RegCode::Nop;
+                            // insert a Super(LoadConstOpStore)
+                            self.code[i] = RegCode::Super(SuperInstruction::LoadConstOpStore(
+                                var_ix,
+                                const_ix,
+                                Box::new(op.clone()),
+                            ));
+                            state = SuperInstParseState::None;
+                        } else {
+                            insert_load_const_op = true;
+                        }
+                    } else {
+                        insert_load_const_op = true;
+                    }
+
+                    if insert_load_const_op {
+                        self.code[i - 3] = RegCode::Nop; // op
+                        self.code[i - 2] = RegCode::Nop; // const
+                        self.code[i - 1] = RegCode::Super(SuperInstruction::LoadConstOp(
+                            var_ix,
+                            const_ix,
+                            r,
+                            Box::new(op.clone()),
+                        ));
+                        i -= 1;
+                        state = SuperInstParseState::None;
+                    }
+                }
+            }
+            i += 1;
+        }
+    }
+
     fn compile_func(&mut self, func: &'a Func) {
         for arg in &func.args {
             let lcl = self.locals.insert(arg.name.as_str());
@@ -998,6 +1133,7 @@ impl<'a> RegCodeGen<'a> {
                 self.start_func_idx = idx;
             }
             self.compile_func(func);
+            self.parse_super_inst();
             func_code.push(self.code.clone());
             self.code.clear();
             idx += 1;

@@ -64,6 +64,47 @@ const RET: u8 = 58;
 const STACKMAP: u8 = 59;
 const PRINTLOCK: u8 = 60;
 const PRINTUNLOCK: u8 = 61;
+const SUPERINST: u8 = 62;
+
+const SUPERINST_LOAD_CONST_OP: u8 = 0;
+const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
+
+
+fn op_to_byte(r: &RegCode) -> u8 {
+        // only instructions with three u8 
+        match r {
+            RegCode::IAdd(_, _, _) => IADD,
+            RegCode::ISub(_, _, _) => ISUB,
+            RegCode::IMul(_, _, _) => IMUL,
+            RegCode::IDiv(_, _, _) => IDIV,
+            RegCode::IRem(_, _, _) => IREM,
+            RegCode::INe(_, _, _) => INE,
+            RegCode::IEq(_, _, _) => IEQ,
+            RegCode::ILt(_, _, _) => ILT,
+            RegCode::ILe(_, _, _) => ILE,
+            RegCode::IGt(_, _, _) => IGT,
+            RegCode::IGe(_, _, _) => IGE,
+            RegCode::FAdd(_, _, _) => FADD,
+            RegCode::FSub(_, _, _) => FSUB,
+            RegCode::FMul(_, _, _) => FMUL,
+            RegCode::FDiv(_, _, _) => FDIV,
+            RegCode::FRem(_, _, _) => FREM,
+            RegCode::FNe(_, _, _) => FNE,
+            RegCode::FEq(_, _, _) => FEQ,
+            RegCode::FLt(_, _, _) => FLT,
+            RegCode::FLe(_, _, _) => FLE,
+            RegCode::FGt(_, _, _) => FGT,
+            RegCode::FGe(_, _, _) => FGE,
+            RegCode::BAnd(_, _, _) => BAND,
+            RegCode::BOr(_, _, _) => BOR,
+            RegCode::BXor(_, _, _) => BXOR,
+            RegCode::LAnd(_, _, _) => LAND,
+            RegCode::LOr(_, _, _) => LOR,
+            RegCode::BShl(_, _, _) => BSHL,
+            RegCode::BShr(_, _, _) => BSHR,
+            _ => 255
+        }
+}
 
 fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
     match ty {
@@ -390,6 +431,23 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::Nop => {}
             RegCode::Phi(_) => {}
             RegCode::FreeRegs => {}
+            RegCode::Super(s) => {
+                match s {
+                    SuperInstruction::LoadConstOp(var_ix, const_ix, res_reg, op) => {
+                        bytes.extend(vec![SUPERINST, SUPERINST_LOAD_CONST_OP]);
+                        bytes.extend(var_ix.to_le_bytes().iter());
+                        bytes.extend(const_ix.to_le_bytes().iter());
+                        bytes.push(*res_reg);
+                        bytes.push(op_to_byte(op));
+                    }
+                    SuperInstruction::LoadConstOpStore(var_ix, const_ix, op) => {
+                        bytes.extend(vec![SUPERINST, SUPERINST_LOAD_CONST_OP_STORE]);
+                        bytes.extend(var_ix.to_le_bytes().iter());
+                        bytes.extend(const_ix.to_le_bytes().iter());
+                        bytes.push(op_to_byte(op));
+                    }
+                }
+            }
         }
     }
 

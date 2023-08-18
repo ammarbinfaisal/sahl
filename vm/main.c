@@ -903,24 +903,155 @@ void handle_printlock(VM *_) { pthread_mutex_lock(&print_lock); }
 
 void handle_printunlock(VM *_) { pthread_mutex_unlock(&print_lock); }
 
+// super instructions
+Value op_iadd(Value v1, Value v2) { return v1 + v2; }
+
+Value op_isub(Value v1, Value v2) { return v1 - v2; }
+
+Value op_imul(Value v1, Value v2) { return v1 * v2; }
+
+Value op_idiv(Value v1, Value v2) { return v1 / v2; }
+
+Value op_irem(Value v1, Value v2) { return v1 % v2; }
+
+Value op_ine(Value v1, Value v2) { return v1 != v2; }
+
+Value op_ieq(Value v1, Value v2) { return v1 == v2; }
+
+Value op_ilt(Value v1, Value v2) { return v1 < v2; }
+
+Value op_ile(Value v1, Value v2) { return v1 <= v2; }
+
+Value op_igt(Value v1, Value v2) { return v1 > v2; }
+
+Value op_ige(Value v1, Value v2) { return v1 >= v2; }
+
+Value op_fadd(Value v1, Value v2) {
+    double res = (AS_DOUBLE(v1) + AS_DOUBLE(v2));
+    return *(uint64_t *)&res;
+}
+
+Value op_fsub(Value v1, Value v2) {
+    double res = (AS_DOUBLE(v1) - AS_DOUBLE(v2));
+    return *(uint64_t *)&res;
+}
+
+Value op_fmul(Value v1, Value v2) {
+    double res = (AS_DOUBLE(v1) * AS_DOUBLE(v2));
+    return *(uint64_t *)&res;
+}
+
+Value op_fdiv(Value v1, Value v2) {
+    double res = (AS_DOUBLE(v1) / AS_DOUBLE(v2));
+    return *(uint64_t *)&res;
+}
+
+Value op_frem(Value v1, Value v2) {
+    double res = fmod(AS_DOUBLE(v1), AS_DOUBLE(v2));
+    return *(uint64_t *)&res;
+}
+
+Value op_feq(Value v1, Value v2) { return AS_DOUBLE(v1) == AS_DOUBLE(v2); }
+
+Value op_flt(Value v1, Value v2) { return AS_DOUBLE(v1) < AS_DOUBLE(v2); }
+
+Value op_fle(Value v1, Value v2) { return AS_DOUBLE(v1) <= AS_DOUBLE(v2); }
+
+Value op_fgt(Value v1, Value v2) { return AS_DOUBLE(v1) > AS_DOUBLE(v2); }
+
+Value op_fge(Value v1, Value v2) { return AS_DOUBLE(v1) >= AS_DOUBLE(v2); }
+
+Value op_fne(Value v1, Value v2) { return AS_DOUBLE(v1) != AS_DOUBLE(v2); }
+
+Value op_band(Value v1, Value v2) { return v1 & v2; }
+
+Value op_bor(Value v1, Value v2) { return v1 | v2; }
+
+Value op_bxor(Value v1, Value v2) { return v1 ^ v2; }
+
+Value op_land(Value v1, Value v2) { return v1 && v2; }
+
+Value op_lor(Value v1, Value v2) { return v1 || v2; }
+
+Value op_bshl(Value v1, Value v2) { return v1 << v2; }
+
+Value op_bshr(Value v1, Value v2) { return v1 >> v2; }
+
+Value op_dummy(Value _1, Value _2) {
+    printf("sigill\n");
+    exit(1);
+    return 0;
+}
+
+typedef Value (*Op)(Value, Value);
+
+static Op op_handlers[] = {
+    op_iadd,  op_isub, op_imul, op_idiv,  op_irem, op_ine,  op_ieq,  op_ilt,
+    op_igt,   op_ige,  op_fadd, op_fsub,  op_fmul, op_fdiv, op_frem, op_fne,
+    op_feq,   op_flt,  op_fle,  op_fgt,   op_fge,  op_band, op_bor,  op_bxor,
+    op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr};
+
+void superinst_load_const_op(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    uint64_t const_ix = read_u64(code, vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    uint8_t res_reg = code[vm->call_frame->ip];
+    uint64_t var_val = vm->call_frame->locals[var_ix];
+    uint64_t const_val = vm->consts[const_ix];
+    vm->regs[res_reg].i =
+        op_handlers[code[++vm->call_frame->ip]](var_val, const_val);
+#ifdef DEBUG
+    printf("var (%ld) - const (%ld) - res: (%ld)\n", var_val, const_val,
+           vm->regs[res_reg].i);
+#endif
+}
+
+void superinst_load_const_op_store(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    uint64_t const_ix = read_u64(code, vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    uint64_t var_val = vm->call_frame->locals[var_ix];
+    uint64_t const_val = vm->consts[const_ix];
+    vm->call_frame->locals[var_ix] =
+        op_handlers[code[vm->call_frame->ip]](var_val, const_val);
+}
+
+static OpcodeHandler superinst_handlers[] = {superinst_load_const_op,
+                                             superinst_load_const_op_store};
+
+void handle_superinstruction(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int inst = code[++vm->call_frame->ip];
+    superinst_handlers[inst](vm);
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[] = {
-    handle_iadd,      handle_isub,       handle_imul,     handle_idiv,
-    handle_irem,      handle_ine,        handle_ieq,      handle_ilt,
-    handle_ile,       handle_igt,        handle_ige,      handle_fadd,
-    handle_fsub,      handle_fmul,       handle_fdiv,     handle_frem,
-    handle_fne,       handle_feq,        handle_flt,      handle_fle,
-    handle_fgt,       handle_fge,        handle_band,     handle_bor,
-    handle_bxor,      handle_bnot,       handle_land,     handle_lor,
-    handle_lnot,      handle_bshl,       handle_bshr,     handle_fneg,
-    handle_ineg,      handle_make,       handle_listset,  handle_listget,
-    handle_list,      handle_tupleget,   handle_tuple,    handle_strget,
-    handle_mapget,    handle_mapset,     handle_chansend, handle_chanrecv,
-    handle_jmp,       handle_jmpifnot,   handle_call,     handle_ncall,
-    handle_const,     handle_load,       handle_store,    handle_cast,
-    handle_move,      handle_return,     handle_push,     handle_pop,
-    handle_spawn,     handle_nop,        handle_ret,      handle_stack_map,
-    handle_printlock, handle_printunlock};
+    handle_iadd,      handle_isub,        handle_imul,
+    handle_idiv,      handle_irem,        handle_ine,
+    handle_ieq,       handle_ilt,         handle_ile,
+    handle_igt,       handle_ige,         handle_fadd,
+    handle_fsub,      handle_fmul,        handle_fdiv,
+    handle_frem,      handle_fne,         handle_feq,
+    handle_flt,       handle_fle,         handle_fgt,
+    handle_fge,       handle_band,        handle_bor,
+    handle_bxor,      handle_bnot,        handle_land,
+    handle_lor,       handle_lnot,        handle_bshl,
+    handle_bshr,      handle_fneg,        handle_ineg,
+    handle_make,      handle_listset,     handle_listget,
+    handle_list,      handle_tupleget,    handle_tuple,
+    handle_strget,    handle_mapget,      handle_mapset,
+    handle_chansend,  handle_chanrecv,    handle_jmp,
+    handle_jmpifnot,  handle_call,        handle_ncall,
+    handle_const,     handle_load,        handle_store,
+    handle_cast,      handle_move,        handle_return,
+    handle_push,      handle_pop,         handle_spawn,
+    handle_nop,       handle_ret,         handle_stack_map,
+    handle_printlock, handle_printunlock, handle_superinstruction};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {
