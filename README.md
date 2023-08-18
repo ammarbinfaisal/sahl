@@ -4,7 +4,7 @@
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/aot.json)
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/go.json)
 
-a statically typed programming language
+a programming language with channels and coroutines
 
 ## meaning
 
