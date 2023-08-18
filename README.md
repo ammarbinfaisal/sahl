@@ -29,7 +29,7 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 ## history
 
-Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I started writing `sahl_aot.go` to convert the bytecode to assembly but stopped. Right now there is a virtual machine, x86_64 native code generation and transpilation to go.
+Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I started writing `sahl_aot.go` to convert the bytecode to assembly but stopped. Right now there is a virtual machine, <s>x86_64 native code generation</s> and transpilation to go.
 
 
 ### future plans
@@ -37,7 +37,6 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
 - convert to ssa ir and then optimize
 - implement a generational garbage collector for vm as well as native code (llvm/x86_64)
 - sahl vm
-  - change bytecode and vm to reg based (almost done)
   - add a jit to vm
   - how to do ffi?
 - llvm / x86_64
