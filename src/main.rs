@@ -32,7 +32,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
     let res = program(source);
     match res {
         Some(mut p) => {
-            println!("{:#?}", p);
+            // println!("{:#?}", p);
 
             let res2 = check_program(&mut p);
 
@@ -45,21 +45,21 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                         let res = go::compile_program(&p);
                         println!("{}", res)
                     } else {
-                        println!("CFG:");
-                        let mut gen = RegCodeGen::new(f.to_string());
-                        gen.compile_program(&p);
-                        for funcs in gen.func_code.iter() {
-                            for instr in funcs.iter().enumerate() {
-                                println!("\t{}: {:?}", instr.0, instr.1);
-                            }
-                        }
-                        for funcs in gen.func_code.iter() {
-                            let cfg = construct_cfg(funcs);
-                            let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
-                            for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
-                                println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
-                            }
-                        }
+                        // println!("CFG:");
+                        let gen = RegCodeGen::new(f.to_string());
+                        // gen.compile_program(&p);
+                        // for funcs in gen.func_code.iter() {
+                        //     for instr in funcs.iter().enumerate() {
+                        //         println!("\t{}: {:?}", instr.0, instr.1);
+                        //     }
+                        // }
+                        // for funcs in gen.func_code.iter() {
+                        //     let cfg = construct_cfg(funcs);
+                        //     let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
+                        //     for (idx, cfg) in cfg_nodes.iter().zip(cfg.iter()).enumerate() {
+                        //         println!("\t{}: {:?} {:?}", idx, cfg.0, cfg.1);
+                        //     }
+                        // }
                         if to_compile {
                             let main_idx = gen.start_func_idx;
                             let consts = consts_vec(&gen.consts);
