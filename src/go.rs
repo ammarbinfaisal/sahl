@@ -1,4 +1,4 @@
-use crate::syntax::*;
+use crate::{syntax::*, utils::extract_var_name};
 
 // just recursively emit go code from ast
 
@@ -339,6 +339,11 @@ impl GOCodegen {
             }
             Expr::Call { name, args, ty } => {
                 let mut code = String::new();
+                let name = extract_var_name(name);
+                if name.is_none() {
+                    unimplemented!("Cannot compile call using a complex expression");
+                }
+                let name = name.unwrap();
                 if name == "append" {
                     let arg = self.compile_expr(&args[0].1);
                     code.push_str(&format!(
@@ -518,6 +523,15 @@ impl GOCodegen {
                 code.push_str("go ");
                 code.push_str(&self.compile_expr(&expr.1));
                 code.push_str("\n");
+                code
+            }
+            Stmt::Block(stmts) => {
+                let mut code = String::new();
+                code.push_str("{\n");
+                for stmt in stmts {
+                    code.push_str(&self.compile_stmt(&stmt.1));
+                }
+                code.push_str("}\n");
                 code
             }
         }

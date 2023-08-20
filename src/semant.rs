@@ -1,4 +1,4 @@
-use crate::syntax::*;
+use crate::{syntax::*, utils::extract_var_name};
 use std::{collections::HashMap, vec};
 
 pub enum Error {
@@ -60,7 +60,11 @@ impl std::fmt::Display for Error {
                 write!(f, "Main function must return void")
             }
             Error::TupleIndexOutOfBounds(index, len) => {
-                write!(f, "Tuple index {} out of bounds for tuple of length {}", index, len)
+                write!(
+                    f,
+                    "Tuple index {} out of bounds for tuple of length {}",
+                    index, len
+                )
             }
             Error::CastError(from, to) => {
                 write!(f, "Cannot cast from {:?} to {:?}", from, to)
@@ -255,11 +259,7 @@ impl<'a> Checker<'a> {
                     *t = Some(Type::Double);
                     Ok(Type::Double)
                 } else {
-                    Err((
-                        expr.0,
-                        Error::TypeMismatch(vec![ty1], vec![ty2]),
-                        expr.2,
-                    ))
+                    Err((expr.0, Error::TypeMismatch(vec![ty1], vec![ty2]), expr.2))
                 }
             }
             Expr::BoolOp {
@@ -281,7 +281,12 @@ impl<'a> Checker<'a> {
                     ))
                 }
             }
-            Expr::BitOp { op: _, left, right, ty } => {
+            Expr::BitOp {
+                op: _,
+                left,
+                right,
+                ty,
+            } => {
                 let ty1 = self.check_expr(left)?;
                 let ty2 = self.check_expr(right)?;
                 if ty1 == Type::Int && ty2 == Type::Int {
@@ -315,8 +320,13 @@ impl<'a> Checker<'a> {
                     .iter_mut()
                     .map(|e| self.check_expr(e))
                     .collect::<Result<Vec<_>, _>>()?;
+                let name = extract_var_name(name);
+                if name.is_none() {
+                    unimplemented!("Cannot compile call using a complex expression");
+                }
+                let name = name.unwrap();
                 let res = builtin_fn(
-                    name,
+                    &name,
                     argsty
                         .iter()
                         .map(|ty| ty.clone())
@@ -327,7 +337,7 @@ impl<'a> Checker<'a> {
                 );
 
                 match res {
-                    Err((_, Error::UndefinedFunction(_), _)) => {} 
+                    Err((_, Error::UndefinedFunction(_), _)) => {}
                     Err(e) => return Err(e),
                     Ok(ty) => {
                         *t = Some(ty.clone());
@@ -335,7 +345,7 @@ impl<'a> Checker<'a> {
                     }
                 }
 
-                let (formal_types, ret_type) = self.func_env.get(name).ok_or((
+                let (formal_types, ret_type) = self.func_env.get(&name).ok_or((
                     expr.0,
                     Error::UndefinedFunction(name.clone()),
                     expr.2,
@@ -370,11 +380,7 @@ impl<'a> Checker<'a> {
                 } else if tyex == Type::Int && *ty == Type::Char {
                     Ok(Type::Char)
                 } else {
-                    Err((
-                        expr.0,
-                        Error::CastError(tyex.clone(), ty.clone()),
-                        expr.2,
-                    ))
+                    Err((expr.0, Error::CastError(tyex.clone(), ty.clone()), expr.2))
                 }
             }
             Expr::Subscr { expr, index, ty: t } => {
@@ -694,6 +700,16 @@ impl<'a> Checker<'a> {
                     )),
                 }
             }
+            Stmt::Block(stmts) => {
+                self.scope += 1;
+                self.type_env.push(HashMap::new());
+                for stmt in stmts {
+                    self.check_stmt(stmt)?;
+                }
+                self.type_env.pop();
+                self.scope -= 1;
+                Ok(())
+            }
         }
     }
 }
@@ -732,11 +748,7 @@ fn gen_cfg(stmts: &[Stmt]) -> CFG {
                 .map(|(_, stmt, _)| stmt.clone())
                 .collect::<Vec<Stmt>>();
             let sts = vec![statements.as_slice(), stmts].concat();
-            CFG::Branch(
-                false,
-                Box::new(gen_cfg(sts.as_slice())),
-                Box::new(cfg_alt),
-            )
+            CFG::Branch(false, Box::new(gen_cfg(sts.as_slice())), Box::new(cfg_alt))
         }
         Stmt::While(_, block) | Stmt::For(_, _, block) => {
             let statements = block

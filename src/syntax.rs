@@ -115,7 +115,7 @@ pub enum Expr {
         ty: Option<Type>,
     },
     Call {
-        name: String,
+        name: Box<Expr>,
         args: Vec<Spanned<Expr>>,
         ty: Option<Type>,
     },
@@ -188,6 +188,7 @@ pub enum Stmt {
     Return(Box<Spanned<Expr>>),
     Coroutine(Spanned<Expr>),
     ChanWrite(String, Box<Spanned<Expr>>),
+    Block(Vec<Spanned<Stmt>>),
     Continue,
     Break,
 }
