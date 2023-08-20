@@ -110,11 +110,16 @@ pub fn construct_dominators(cfg: &CFG, cfg_nodes: &Preds) -> Vec<HashSet<usize>>
     doms
 }
 
-pub fn construct_dominance_frontiers(cfg: &CFG, cfg_nodes: &Preds, doms: &Vec<HashSet<usize>>) -> Vec<HashSet<usize>> {
+pub fn construct_dominance_frontiers(
+    cfg: &CFG,
+    cfg_nodes: &Preds,
+    doms: &Vec<HashSet<usize>>,
+) -> Vec<HashSet<usize>> {
     let mut df: Vec<HashSet<usize>> = vec![HashSet::new(); cfg.len()];
-    let edges = cfg_nodes.iter().enumerate().flat_map(|(i, preds)| {
-        preds.iter().map(move |&pred| (pred, i))
-    });
+    let edges = cfg_nodes
+        .iter()
+        .enumerate()
+        .flat_map(|(i, preds)| preds.iter().map(move |&pred| (pred, i)));
     for (u, v) in edges {
         let mut queue = vec![u];
         let mut visited = HashSet::new();
