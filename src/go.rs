@@ -122,10 +122,7 @@ impl GOCodegen {
                             } else {
                                 let _ = self.ty_to_go(&tyy);
                                 let printfn = self.find_print(&tyy).unwrap();
-                                print_code.push_str(&format!(
-                                    "{}(vv)\n",
-                                    printfn
-                                ));
+                                print_code.push_str(&format!("{}(vv)\n", printfn));
                             }
                         }
                     }
