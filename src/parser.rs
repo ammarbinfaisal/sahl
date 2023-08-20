@@ -573,139 +573,101 @@ fn exp<'tokens, 'src: 'tokens>(
                 })
                 .boxed();
 
-            let factor = recursive(
-                |pfac: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    primm
-                        .clone()
-                        .then(
-                            one_of(vec![Token::Star, Token::Slash, Token::Percent])
-                                .then(pfac)
-                                .or_not(),
-                        )
-                        .map(|(l, r)| {
-                            if let Some((op, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                let ex = match op {
-                                    Token::Star => Expr::Arith {
-                                        op: ArithOp::Mul,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    Token::Slash => Expr::Arith {
-                                        op: ArithOp::Div,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    Token::Percent => Expr::Arith {
-                                        op: ArithOp::Mod,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    _ => unreachable!(),
-                                };
-                                (start, ex, end)
-                            } else {
-                                l
-                            }
-                        })
-                        .boxed()
-                },
-            );
+            let factor = primm
+                .clone()
+                .foldl(
+                    one_of(vec![Token::Star, Token::Slash, Token::Percent])
+                        .then(primm.clone())
+                        .repeated(),
+                    |l, r| {
+                        let (op, r) = r;
+                        let start = l.0;
+                        let end = r.2;
+                        let ex = match op {
+                            Token::Star => Expr::Arith {
+                                op: ArithOp::Mul,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            Token::Slash => Expr::Arith {
+                                op: ArithOp::Div,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            Token::Percent => Expr::Arith {
+                                op: ArithOp::Mod,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            _ => unreachable!(),
+                        };
+                        (start, ex, end)
+                    },
+                )
+                .boxed();
 
-            let term = recursive(
-                |pterm: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    factor
-                        .clone()
-                        .then(one_of(vec![Token::Plus, Token::Minus]).then(pterm).or_not())
-                        .map(|(l, r)| {
-                            if let Some((op, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                let ex = match op {
-                                    Token::Plus => Expr::Arith {
-                                        op: ArithOp::Add,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    Token::Minus => Expr::Arith {
-                                        op: ArithOp::Sub,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    _ => unreachable!(),
-                                };
-                                (start, ex, end)
-                            } else {
-                                l
-                            }
-                        })
-                        .boxed()
-                },
-            );
+            let term = factor
+                .clone()
+                .foldl(
+                    one_of(vec![Token::Plus, Token::Minus])
+                        .then(factor.clone())
+                        .repeated(),
+                    |l, r| {
+                        let (op, r) = r;
+                        let start = l.0;
+                        let end = r.2;
+                        let ex = match op {
+                            Token::Plus => Expr::Arith {
+                                op: ArithOp::Add,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            Token::Minus => Expr::Arith {
+                                op: ArithOp::Sub,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            _ => unreachable!(),
+                        };
+                        (start, ex, end)
+                    },
+                )
+                .boxed();
 
-            let shift = recursive(
-                |pshift: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    term.clone()
-                        .then(
-                            just(Token::LeftShift)
-                                .or(just(Token::RightShift))
-                                .then(pshift)
-                                .or_not(),
-                        )
-                        .map(|(l, r)| {
-                            if let Some((op, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                let ex = match op {
-                                    Token::LeftShift => Expr::BitOp {
-                                        op: BitOp::Shl,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    Token::RightShift => Expr::BitOp {
-                                        op: BitOp::Shr,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    _ => unreachable!(),
-                                };
-                                (start, ex, end)
-                            } else {
-                                l
-                            }
-                        })
-                        .boxed()
-                },
-            );
+            let shift = term
+                .clone()
+                .foldl(
+                    one_of(vec![Token::Plus, Token::Minus])
+                        .then(factor.clone())
+                        .repeated(),
+                    |l, r| {
+                        let (op, r) = r;
+                        let start = l.0;
+                        let end = r.2;
+                        let ex = match op {
+                            Token::Plus => Expr::Arith {
+                                op: ArithOp::Add,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            Token::Minus => Expr::Arith {
+                                op: ArithOp::Sub,
+                                left: Box::new(l),
+                                right: Box::new(r),
+                                ty: None,
+                            },
+                            _ => unreachable!(),
+                        };
+                        (start, ex, end)
+                    },
+                )
+                .boxed();
 
             let cmpop = just(Token::Equal)
                 .or(just(Token::NotEqual))
@@ -716,7 +678,7 @@ fn exp<'tokens, 'src: 'tokens>(
 
             let comparision = shift
                 .clone()
-                .foldl(cmpop.then(shift).repeated(), |l, r| {
+                .foldl(cmpop.then(shift.clone()).repeated(), |l, r| {
                     let (op, r) = r;
                     let start = l.0;
                     let end = r.2;
@@ -733,26 +695,26 @@ fn exp<'tokens, 'src: 'tokens>(
                             right: Box::new(r),
                             ty: None,
                         },
-                        Token::LessThanOrEqual => Expr::CmpOp {
-                            op: CmpOp::Le,
-                            left: Box::new(l),
-                            right: Box::new(r),
-                            ty: None,
-                        },
-                        Token::GreaterThanOrEqual => Expr::CmpOp {
-                            op: CmpOp::Ge,
-                            left: Box::new(l),
-                            right: Box::new(r),
-                            ty: None,
-                        },
                         Token::LessThan => Expr::CmpOp {
                             op: CmpOp::Lt,
                             left: Box::new(l),
                             right: Box::new(r),
                             ty: None,
                         },
+                        Token::LessThanOrEqual => Expr::CmpOp {
+                            op: CmpOp::Le,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
                         Token::GreaterThan => Expr::CmpOp {
                             op: CmpOp::Gt,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        Token::GreaterThanOrEqual => Expr::CmpOp {
+                            op: CmpOp::Ge,
                             left: Box::new(l),
                             right: Box::new(r),
                             ty: None,
@@ -797,138 +759,81 @@ fn exp<'tokens, 'src: 'tokens>(
                 },
             );
 
-            let bitor = recursive(
-                |pbitor: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    bitand
-                        .clone()
-                        .then(just(Token::Pipe).then(pbitor).or_not())
-                        .map(|(l, r)| {
-                            if let Some((_, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                (
-                                    start,
-                                    Expr::BitOp {
-                                        op: BitOp::Or,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    end,
-                                )
-                            } else {
-                                l
-                            }
-                        })
-                        .boxed()
-                },
-            );
+            let bitor = bitand
+                .clone()
+                .foldl(just(Token::Pipe).then(bitand.clone()).repeated(), |l, r| {
+                    let (op, r) = r;
+                    let start = l.0;
+                    let end = r.2;
+                    let ex = match op {
+                        Token::Pipe => Expr::BitOp {
+                            op: BitOp::Or,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        _ => unreachable!(),
+                    };
+                    (start, ex, end)
+                })
+                .boxed();
 
-            let bitxor = recursive(
-                |pbitxor: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    bitor
-                        .clone()
-                        .then(just(Token::Caret).then(pbitxor).or_not())
-                        .map(|(l, r)| {
-                            if let Some((_, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                (
-                                    start,
-                                    Expr::BitOp {
-                                        op: BitOp::Xor,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    end,
-                                )
-                            } else {
-                                l
-                            }
-                        })
-                },
-            );
+            let bitxor = bitor
+                .clone()
+                .foldl(just(Token::Caret).then(bitor.clone()).repeated(), |l, r| {
+                    let (op, r) = r;
+                    let start = l.0;
+                    let end = r.2;
+                    let ex = match op {
+                        Token::Caret => Expr::BitOp {
+                            op: BitOp::Xor,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        _ => unreachable!(),
+                    };
+                    (start, ex, end)
+                })
+                .boxed();
 
-            let logicand = recursive(
-                |plogicand: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    bitxor
-                        .clone()
-                        .then(just(Token::And).then(plogicand).or_not())
-                        .map(|(l, r)| {
-                            if let Some((_, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                (
-                                    start,
-                                    Expr::BoolOp {
-                                        op: BoolOp::And,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    end,
-                                )
-                            } else {
-                                l
-                            }
-                        })
-                },
-            );
+            let logicand = bitxor
+                .clone()
+                .foldl(just(Token::And).then(bitxor.clone()).repeated(), |l, r| {
+                    let (op, r) = r;
+                    let start = l.0;
+                    let end = r.2;
+                    let ex = match op {
+                        Token::And => Expr::BoolOp {
+                            op: BoolOp::And,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        _ => unreachable!(),
+                    };
+                    (start, ex, end)
+                })
+                .boxed();
 
-            let logicor = recursive(
-                |plogicor: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    logicand
-                        .clone()
-                        .then(just(Token::Or).then(plogicor).or_not())
-                        .map(|(l, r)| {
-                            if let Some((_, r)) = r {
-                                let start = l.0;
-                                let end = r.2;
-                                (
-                                    start,
-                                    Expr::BoolOp {
-                                        op: BoolOp::Or,
-                                        left: Box::new(l),
-                                        right: Box::new(r),
-                                        ty: None,
-                                    },
-                                    end,
-                                )
-                            } else {
-                                l
-                            }
-                        })
-                },
-            );
+            let logicor = logicand
+                .clone()
+                .foldl(just(Token::Or).then(logicand.clone()).repeated(), |l, r| {
+                    let (op, r) = r;
+                    let start = l.0;
+                    let end = r.2;
+                    let ex = match op {
+                        Token::Or => Expr::BoolOp {
+                            op: BoolOp::Or,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        _ => unreachable!(),
+                    };
+                    (start, ex, end)
+                })
+                .boxed();
 
             let aexp = logicor;
 
