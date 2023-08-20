@@ -673,44 +673,52 @@ impl<'a> RegCodeGen<'a> {
                     arg_regs.push(self.stack.pop().unwrap());
                 }
                 let arg_regs = arg_regs.into_iter().rev().collect::<Vec<_>>();
-                if name == "print" {
-                    let argtys = args.iter().map(|e| e.1.get_type());
-                    // self.code.push(RegCode::PrintLock);
-                    for arg in arg_regs.iter().zip(argtys) {
-                        self.compile_complex_print(*arg.0, arg.1);
+                let name = match *name.clone() {
+                    Expr::Variable { name, .. } => Some(name),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    if name == "print" {
+                        let argtys = args.iter().map(|e| e.1.get_type());
+                        // self.code.push(RegCode::PrintLock);
+                        for arg in arg_regs.iter().zip(argtys) {
+                            self.compile_complex_print(*arg.0, arg.1);
+                        }
+                        // self.code.push(RegCode::PrintUnlock);
+                        return;
+                    } else if let Some((native_ix, _arity, returns)) = self.builtin(&name) {
+                        self.code.push(RegCode::NCall(native_ix, arg_regs));
+                        if returns {
+                            let reg = self.get_reg();
+                            self.code.push(RegCode::Move(reg, 0));
+                            self.stack_push(reg);
+                        }
+                        return;
                     }
-                    // self.code.push(RegCode::PrintUnlock);
-                    return;
-                } else if let Some((native_ix, _arity, returns)) = self.builtin(name) {
-                    self.code.push(RegCode::NCall(native_ix, arg_regs));
-                    if returns {
-                        let reg = self.get_reg();
-                        self.code.push(RegCode::Move(reg, 0));
-                        self.stack_push(reg);
-                    }
-                    return;
-                }
-                let reg = self.get_reg();
-                let func = self.func_idx.get(name.as_str());
-                if func.is_some() {
-                    let func = *func.unwrap();
-                    // save registers
-                    for i in self.stack.iter().rev() {
-                        self.code.push(RegCode::Push(*i));
-                    }
-                    self.code.push(RegCode::Call(func, arg_regs));
-                    // restore registers
-                    for i in self.stack.iter() {
-                        self.code.push(RegCode::Pop(*i));
-                    }
-                    if ty.is_some() {
-                        self.code.push(RegCode::Move(reg, 0));
-                        self.stack_push(reg);
+                    let reg = self.get_reg();
+                    let func = self.func_idx.get(name.as_str());
+                    if func.is_some() {
+                        let func = *func.unwrap();
+                        // save registers
+                        for i in self.stack.iter().rev() {
+                            self.code.push(RegCode::Push(*i));
+                        }
+                        self.code.push(RegCode::Call(func, arg_regs));
+                        // restore registers
+                        for i in self.stack.iter() {
+                            self.code.push(RegCode::Pop(*i));
+                        }
+                        if ty.is_some() {
+                            self.code.push(RegCode::Move(reg, 0));
+                            self.stack_push(reg);
+                        } else {
+                            self.free_reg(reg);
+                        }
                     } else {
-                        self.free_reg(reg);
+                        panic!("Unknown function: {}", name);
                     }
                 } else {
-                    panic!("Unknown function: {}", name);
+                    unimplemented!("Cannot compile call using a complex expression");
                 }
             }
             Expr::Subscr { expr, index, .. } => {
@@ -1037,6 +1045,13 @@ impl<'a> RegCodeGen<'a> {
             Stmt::Coroutine(expr) => {
                 self.code.push(RegCode::Spawn);
                 self.compile_expr(&expr);
+            }
+            Stmt::Block(stmts) => {
+                self.locals.push();
+                for stmt in stmts {
+                    self.compile_stmt(stmt);
+                }
+                self.locals.pop();
             }
         }
     }

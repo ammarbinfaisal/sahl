@@ -38,7 +38,7 @@ fun contnfor(list: [int]) {
 }
 
 fun main() {
-    let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, ]
+    let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
     brk(1, 10)
     contn(1, 10)
     brkfor(list)

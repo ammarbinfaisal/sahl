@@ -3,9 +3,12 @@ name = "sahl"
 version = "0.1.0"
 edition = "2021"
 
+#![recursion_limit = "256"]
+
 [dependencies]
 nom = "7"
 nom_locate = "4.1.0"
 nom-supreme = "0.8.0"
 ariadne = "0.3.0"
 rand = "0.8"
+chumsky = { git = "https://github.com/zesterer/chumsky", rev = "3b1ab316cd322129156eac4a2fda3f5a113a52d9" }

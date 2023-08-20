@@ -1,1105 +1,1291 @@
 use crate::syntax::*;
-extern crate nom;
-use nom::{
-    branch::alt,
-    bytes::complete::{tag, take_while, take_while_m_n},
-    character::complete::{none_of, space0},
-    combinator::{cut, fail, map, opt},
-    error::{context, VerboseError},
-    multi::{many0, many1},
-    number::complete::float,
-    sequence::{delimited, tuple},
-    IResult,
-};
-use nom_locate::{position, LocatedSpan};
-use nom_supreme::final_parser::final_parser;
-use std::str;
+use ariadne::{Color, Label, Report, ReportKind, Source};
+use chumsky::{combinator::Validate, extra::Err, input::SpannedInput, prelude::*, Parser};
 
-type SpanStr<'a> = LocatedSpan<&'a str>;
-
-fn whitespace<'a>(
-    input: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
-    let (source, consumed) =
-        take_while(|c: char| c.is_whitespace() || c == '\n' || c == '\r')(input)?;
-    Ok((source, consumed))
+#[derive(Clone, Debug, PartialEq)]
+enum Token<'src> {
+    Int(i64),
+    Double(f64),
+    Str(Vec<char>),
+    Char(char),
+    Ident(&'src str),
+    Bool(bool),
+    // Keywords
+    Let,
+    In,
+    If,
+    Then,
+    While,
+    For,
+    Else,
+    True,
+    False,
+    Fun,
+    Return,
+    Make,
+    Cast,
+    Sahl,
+    Break,
+    Continue,
+    // Symbols
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Caret,
+    Ampersand,
+    Pipe,
+    Assign,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LeftShift,
+    RightShift,
+    And,
+    Or,
+    Not,
+    Dot,
+    Comma,
+    Colon,
+    Semicolon,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftBrace,
+    RightBrace,
+    LeftArrow,
+    RightArrow,
+    Range,
+    ForwSlashForwSlash,
 }
 
-fn comment<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
-    let (source, _) = whitespace(source)?;
-    let (source, _) = tag("//")(source)?;
-    let (source, s) = take_while(|c: char| c != '\n')(source)?;
-    Ok((source, s))
-}
-
-fn faaaltu<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, SpanStr<'a>, VerboseError<SpanStr<'a>>> {
-    let (source, _) = many0(comment)(source)?;
-    let (source, consumeed) = whitespace(source)?;
-    Ok((source, consumeed))
-}
-
-fn typee<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
-    let (source, ty) = alt::<_, _, _, _>((
-        listty,
-        tuplety,
-        map(tag("int"), |_| Type::Int),
-        map(tag("bool"), |_| Type::Bool),
-        map(tag("string"), |_| Type::Str),
-        map(tag("char"), |_| Type::Char),
-        map(tag("double"), |_| Type::Double),
-        chanty,
-        mapty,
-    ))(source)?;
-    Ok((source, ty))
-}
-
-fn mapty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("map")(source)?;
-    let (source, _) = tag("<")(source)?;
-    let (source, _) = space0(source)?;
-    let (source, key) = typee(source)?;
-    let (source, _) = tag(",")(source)?;
-    let (source, _) = space0(source)?;
-    let (source, val) = typee(source)?;
-    let (source, _) = space0(source)?;
-    let (source, _) = tag(">")(source)?;
-    Ok((source, Type::Map(Box::new(key), Box::new(val))))
-}
-
-fn chanty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("chan<")(source)?;
-    let (source, _) = space0(source)?;
-    let (source, ty) = typee(source)?;
-    let (source, _) = space0(source)?;
-    let (source, _) = tag(">")(source)?;
-    Ok((source, Type::Chan(Box::new(ty))))
-}
-
-fn listty<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("[")(source)?;
-    let (source, ty) = alt((listty, typee))(source)?;
-    let (source, _) = tag("]")(source)?;
-    Ok((source, Type::List(Box::new(ty))))
-}
-
-fn tuplety<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Type, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("(")(source)?;
-    let (source, mut tys) = many0(map(
-        tuple((space0, typee, space0, tag(","))),
-        |(_, e, _, _)| e,
-    ))(source)?;
-    let (source, last) = opt(map(tuple((space0, typee, space0)), |(_, e, _)| e))(source)?;
-    let (source, _) = tag(")")(source)?;
-    match last {
-        Some(e) => {
-            tys.push(e);
+impl std::fmt::Display for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Int(i) => write!(f, "{}", i),
+            Token::Double(d) => write!(f, "{}", d),
+            Token::Str(s) => write!(f, "\"{}\"", s.iter().collect::<String>()),
+            Token::Char(c) => write!(f, "'{}'", c),
+            Token::Ident(s) => write!(f, "{}", s),
+            Token::Bool(b) => write!(f, "{}", b),
+            Token::Let => write!(f, "let"),
+            Token::In => write!(f, "in"),
+            Token::If => write!(f, "if"),
+            Token::Then => write!(f, "then"),
+            Token::While => write!(f, "while"),
+            Token::For => write!(f, "for"),
+            Token::Else => write!(f, "else"),
+            Token::True => write!(f, "true"),
+            Token::False => write!(f, "false"),
+            Token::Fun => write!(f, "fun"),
+            Token::Return => write!(f, "return"),
+            Token::Make => write!(f, "make"),
+            Token::Cast => write!(f, "cast"),
+            Token::Sahl => write!(f, "sahl"),
+            Token::Break => write!(f, "break"),
+            Token::Continue => write!(f, "continue"),
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Star => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            Token::Percent => write!(f, "%"),
+            Token::Caret => write!(f, "^"),
+            Token::Ampersand => write!(f, "&"),
+            Token::Pipe => write!(f, "|"),
+            Token::Assign => write!(f, "="),
+            Token::Equal => write!(f, "=="),
+            Token::NotEqual => write!(f, "!="),
+            Token::LessThan => write!(f, "<"),
+            Token::LessThanOrEqual => write!(f, "<="),
+            Token::GreaterThan => write!(f, ">"),
+            Token::GreaterThanOrEqual => write!(f, ">="),
+            Token::LeftShift => write!(f, "<<"),
+            Token::RightShift => write!(f, ">>"),
+            Token::And => write!(f, "&&"),
+            Token::Or => write!(f, "||"),
+            Token::Not => write!(f, "!"),
+            Token::Dot => write!(f, "."),
+            Token::Comma => write!(f, ","),
+            Token::Colon => write!(f, ":"),
+            Token::Semicolon => write!(f, ";"),
+            Token::LeftParen => write!(f, "("),
+            Token::RightParen => write!(f, ")"),
+            Token::LeftBracket => write!(f, "["),
+            Token::RightBracket => write!(f, "]"),
+            Token::LeftBrace => write!(f, "{{"),
+            Token::RightBrace => write!(f, "}}"),
+            Token::LeftArrow => write!(f, "<-"),
+            Token::RightArrow => write!(f, "->"),
+            Token::Range => write!(f, ".."),
+            Token::ForwSlashForwSlash => write!(f, "//"),
         }
-        None => {}
-    };
-    Ok((source, Type::Tuple(tys)))
-}
-
-fn isreserved<'a>(s: &'a str) -> bool {
-    match s {
-        "let" | "in" | "if" | "then" | "else" | "true" | "false" | "fun" | "return" | "make"
-        | "cast" => true,
-        _ => false,
     }
 }
 
-fn identifier<'a>(input: SpanStr<'a>) -> IResult<SpanStr<'a>, String, VerboseError<SpanStr<'a>>> {
-    let (input, id1) = take_while_m_n(1, 1, |c: char| c.is_alphabetic() || c == '_')(input)?;
-    let (input, id2) = take_while(|c: char| c.is_alphanumeric() || c == '_')(input)?;
-    let id = format!("{}{}", id1, id2);
-    if isreserved(id.as_str()) {
-        context("reserved keyword", fail)(input)
-    } else {
-        Ok((input, id))
-    }
-}
+type Span = SimpleSpan<usize>;
 
-fn parse_escape<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, u8, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("\\")(source)?;
-    let (source, esc) = alt((
-        map(tag("n"), |_| '\n'),
-        map(tag("r"), |_| '\r'),
-        map(tag("t"), |_| '\t'),
-        map(tag("\\"), |_| '\\'),
-    ))(source)?;
-    Ok((source, esc as u8))
-}
+fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, char>>> {
+    let digits = text::int(10);
 
-fn string<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
-    let start = position(source)?;
-    let start = start.0.location_offset();
-    let (source, _) = tag("\"")(source)?;
-    let (source, chars) = many0(alt((parse_escape, map(none_of("\""), |c| c as u8))))(source)?;
-    let (source, _) = tag("\"")(source)?;
-    let end = position(source)?;
-    let end = end.1.location_offset();
-    Ok((source, (start, Lit::Str(chars), end)))
-}
-
-fn charr<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, c) = delimited(
-        tag("'"),
-        take_while_m_n(1, 2, |c: char| c != '\''),
-        tag("'"),
-    )(source)?;
-    if c.as_bytes()[0] == '\\' as u8 {
-        let (source, c) = parse_escape(c)?;
-        let end_idx = position(source)?;
-        let end_idx = end_idx.1.location_offset();
-        Ok((source, (start_idx, Lit::Char(c), end_idx)))
-    } else {
-        Ok((
-            source,
-            (start_idx, Lit::Char(c.as_bytes()[0]), start_idx + 1),
-        ))
-    }
-}
-
-fn natural<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, nat) = take_while_m_n(1, 19, |c: char| c.is_digit(10))(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Lit::Int(nat.parse::<i64>().unwrap()), end_idx),
-    ))
-}
-
-fn floatt<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, f) = float(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Lit::Double(f as f64), end_idx)))
-}
-
-fn boolean<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Lit>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, lit) = map(alt((tag("true"), tag("false"))), |s: SpanStr| {
-        Lit::Bool(s.len() == 4 && s.ends_with("true"))
-    })(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, lit, end_idx)))
-}
-
-fn tuplee<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = tag("(")(source)?;
-    let (source, mut exprs) = many0(map(
-        tuple((space0, expression, space0, tag(","))),
-        |(_, e, _, _)| e,
-    ))(source)?;
-    let (source, last) = opt(map(tuple((space0, expression, space0)), |(_, e, _)| e))(source)?;
-    let (source, _) = tag(")")(source)?;
-    match last {
-        Some(e) => {
-            exprs.push(e);
-        }
-        None => {}
-    };
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    let ex = Expr::Tuple { exprs, ty: None };
-    Ok((source, (start_idx, ex, end_idx)))
-}
-
-fn subscript<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, name) = context("identifier", identifier)(source)?;
-    let (source, subscrs) = many0(map(
-        tuple((tag("["), expression, tag("]"))),
-        |(_, expr, _)| expr,
-    ))(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    let mut res = Expr::Variable { name, ty: None };
-    for subscr in subscrs {
-        res = Expr::Subscr {
-            expr: Box::new((start_idx, res, end_idx)),
-            index: Box::new(subscr),
-            ty: None,
-        };
-    }
-    Ok((source, (start_idx, res, end_idx)))
-}
-
-fn call<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = tag("(")(source)?;
-    let (source, arg) = opt(expression)(source)?;
-    let (source, args2) = many0(map(
-        tuple((
-            tag(","),
-            space0,
-            context("argument for function call", expression),
-            space0,
-        )),
-        |(_, _, e, _)| e,
-    ))(source)?;
-    let (source, _) = tag(")")(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    if let Some(arg) = arg {
-        let mut args = vec![arg];
-        args.extend(args2);
-        Ok((
-            source,
-            (
-                start_idx,
-                Expr::Call {
-                    name,
-                    args,
-                    ty: None,
-                },
-                end_idx,
-            ),
-        ))
-    } else {
-        Ok((
-            source,
-            (
-                start_idx,
-                Expr::Call {
-                    name,
-                    args: vec![],
-                    ty: None,
-                },
-                end_idx,
-            ),
-        ))
-    }
-}
-
-fn variable<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, name) = context("identifier", identifier)(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Expr::Variable { name, ty: None }, end_idx),
-    ))
-}
-
-fn barcexpr<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, _) = tag("(")(source)?;
-    let (source, expr) = delimited(space0, expression, space0)(source)?;
-    let (source, _) = tag(")")(source)?;
-    Ok((source, expr))
-}
-
-fn prim<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = alt((
-        map(alt((string, charr, natural, floatt, boolean)), |lit| {
-            let l = match lit.1 {
-                Lit::Str(s) => Expr::Literal {
-                    lit: Lit::Str(s),
-                    ty: Type::Str,
-                },
-                Lit::Char(c) => Expr::Literal {
-                    lit: Lit::Char(c),
-                    ty: Type::Char,
-                },
-                Lit::Int(i) => Expr::Literal {
-                    lit: Lit::Int(i),
-                    ty: Type::Int,
-                },
-                Lit::Double(f) => Expr::Literal {
-                    lit: Lit::Double(f),
-                    ty: Type::Double,
-                },
-                Lit::Bool(b) => Expr::Literal {
-                    lit: Lit::Bool(b),
-                    ty: Type::Bool,
-                },
-            };
-            (lit.0, l, lit.2)
-        }),
-        cast,
-        call,
-        subscript,
-        variable,
-        barcexpr,
-    ))(source)?;
-    Ok((source, t1))
-}
-
-fn factor<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, unop) = opt(alt((tag("-"), tag("!"))))(source)?;
-    let (source, t1) = prim(source)?;
-    let first_idx = t1.0;
-    let (source, exs) = many0(tuple((
-        delimited(space0, alt((tag("*"), tag("/"), tag("%"))), space0),
-        prim,
-    )))(source)?;
-    let res = match unop {
-        Some(u) => {
-            let res = match &u[..1] {
-                "-" => Expr::Neg {
-                    expr: Box::new(t1),
-                    ty: None,
-                },
-                "!" => Expr::Not {
-                    expr: Box::new(t1),
-                    ty: None,
-                },
-                _ => unreachable!("unexpected unop"),
-            };
+    let int = just::<_, _, _>('-')
+        .or_not()
+        .then(digits.clone())
+        .map(|(sign, s)| {
+            let mut res = String::new();
+            if sign.is_some() {
+                res.push('-');
+            }
+            res.push_str(&s);
             res
-        }
-        None => t1.1,
-    };
-    let mut res = (start_idx, res, first_idx);
-    for (op, lit) in exs {
-        let curr_end = lit.2;
-        let r = match &op[..1] {
-            "*" => Expr::Arith {
-                op: ArithOp::Mul,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "/" => Expr::Arith {
-                op: ArithOp::Div,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "%" => Expr::Arith {
-                op: ArithOp::Mod,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            _ => unreachable!("unexpected operator"),
-        };
-        res = (res.0, r, curr_end);
-    }
-    Ok((source, res))
-}
+        })
+        .from_str::<i64>()
+        .unwrapped();
 
-fn term<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = context("expecting * or / or %", factor)(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, alt((tag("+"), tag("-"))), space0),
-        factor,
-    )))(source)?;
-    let mut res = t1;
-    for (op, lit) in exs {
-        let r = match &op[..1] {
-            "+" => Expr::Arith {
-                op: ArithOp::Add,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "-" => Expr::Arith {
-                op: ArithOp::Sub,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            _ => unreachable!("unexpected operator"),
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let frac = just('.').then(text::int(10)).map(|(_, s)| s);
 
-pub fn shift<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = term(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, alt((tag("<<"), tag(">>"))), space0),
-        term,
-    )))(source)?;
-    let mut res = t1;
-    for (op, lit) in exs {
-        let r = match &op[..2] {
-            "<<" => Expr::BitOp {
-                op: BitOp::Shl,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            ">>" => Expr::BitOp {
-                op: BitOp::Shr,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            _ => unreachable!("unexpected operator"),
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let exp = just('e')
+        .or(just('E'))
+        .then(one_of("+-").or_not())
+        .then(text::int(10));
 
-fn comparision<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = shift(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(
-            space0,
-            alt((
-                tag("<="),
-                tag(">="),
-                tag("<"),
-                tag(">"),
-                tag("=="),
-                tag("!="),
-            )),
-            space0,
-        ),
-        shift,
-    )))(source)?;
-    let mut res = t1;
-    for (op, lit) in exs {
-        let r = match &op[..] {
-            "<" => Expr::CmpOp {
-                op: CmpOp::Lt,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            ">" => Expr::CmpOp {
-                op: CmpOp::Gt,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "<=" => Expr::CmpOp {
-                op: CmpOp::Le,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            ">=" => Expr::CmpOp {
-                op: CmpOp::Ge,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "==" => Expr::CmpOp {
-                op: CmpOp::Eq,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "!=" => Expr::CmpOp {
-                op: CmpOp::Ne,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            _ => unreachable!("unexpected operator"),
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let double = just('-')
+        .or_not()
+        .then(digits)
+        .then(frac)
+        .then(exp.or_not())
+        .map(|(((sign, int), frac), exp)| {
+            let mut s = String::new();
+            if sign.is_some() {
+                s.push('-');
+            }
+            s.push_str(&int);
+            s.push('.');
+            s.push_str(&frac);
+            if let Some(((_, sign), exp)) = exp {
+                s.push('e');
+                if sign.is_some() {
+                    s.push('-');
+                }
+                s.push_str(&exp);
+            }
+            s.parse::<f64>().unwrap()
+        });
 
-fn bitand<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = comparision(source)?;
-    let (source, exs) = many0(tuple((delimited(space0, tag("&"), space0), comparision)))(source)?;
-    let mut res = t1;
-    for (_op, lit) in exs {
-        let r = Expr::BitOp {
-            op: BitOp::And,
-            left: Box::new(res.clone()),
-            right: Box::new(lit.clone()),
-            ty: None,
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let hexint = just('-')
+        .or_not()
+        .then(just('0'))
+        .then(one_of("xX"))
+        .then(text::int(16))
+        .map(|(((sign, _), _), int)| {
+            let mut s = String::new();
+            if sign.is_some() {
+                s.push('-');
+            }
+            s.push_str(&int);
+            s.parse::<i64>().unwrap()
+        });
 
-fn bitxor<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = bitand(source)?;
-    let (source, exs) = many0(tuple((delimited(space0, tag("^"), space0), bitand)))(source)?;
-    let mut res = t1;
-    for (_op, lit) in exs {
-        let r = Expr::BitOp {
-            op: BitOp::Xor,
-            left: Box::new(res.clone()),
-            right: Box::new(lit.clone()),
-            ty: None,
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let octal = just('-')
+        .or_not()
+        .then(just('0'))
+        .then(text::int(8))
+        .map(|((sign, _), int)| {
+            let mut s = String::new();
+            if sign.is_some() {
+                s.push('-');
+            }
+            s.push_str(&int);
+            s.parse::<i64>().unwrap()
+        });
 
-fn bitor<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = bitxor(source)?;
-    let (source, exs) = many0(tuple((delimited(space0, tag("|"), space0), bitxor)))(source)?;
-    let mut res = t1;
-    for (_op, lit) in exs {
-        let r = Expr::BitOp {
-            op: BitOp::Or,
-            left: Box::new(res.clone()),
-            right: Box::new(lit.clone()),
-            ty: None,
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let binary = just('-')
+        .or_not()
+        .then(just('0'))
+        .then(one_of("bB"))
+        .then(text::int(2))
+        .map(|(((sign, _), _), int)| {
+            let mut s = String::new();
+            if sign.is_some() {
+                s.push('-');
+            }
+            s.push_str(&int);
+            s.parse::<i64>().unwrap()
+        });
 
-pub fn aexp<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let (source, t1) = bitor(source)?;
-    let (source, exs) = many0(tuple((
-        delimited(space0, alt((tag("&&"), tag("||"))), space0),
-        bitor,
-    )))(source)?;
-    let mut res = t1;
-    for (op, lit) in exs {
-        let r = match &op[..] {
-            "&&" => Expr::BoolOp {
-                op: BoolOp::And,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            "||" => Expr::BoolOp {
-                op: BoolOp::Or,
-                left: Box::new(res.clone()),
-                right: Box::new(lit.clone()),
-                ty: None,
-            },
-            _ => unreachable!("unexpected operator"),
-        };
-        res = (res.0, r, lit.2);
-    }
-    Ok((source, res))
-}
+    let int = int.or(hexint).or(octal).or(binary);
 
-fn chanread<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = tag("<-")(source)?;
-    let (source, id) = context("identifier", identifier)(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Expr::ChanRead { name: id, ty: None }, end_idx),
-    ))
-}
-
-fn assignment<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, lhs) = alt((subscript, variable))(source)?;
-    let (source, _) = delimited(space0, tag("="), space0)(source)?;
-    let (source, expr) = alt((chanread, aexp, make))(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (
-            start_idx,
-            Expr::Assign {
-                left: Box::new(lhs),
-                right: Box::new(expr),
-            },
-            end_idx,
-        ),
-    ))
-}
-
-fn make<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = tag("make")(source)?;
-    let (source, _) = tag("(")(source)?;
-    let (source, ty) = delimited(space0, alt((listty, chanty, mapty)), space0)(source)?;
-    let (source, len) = opt(map(
-        tuple((tag(","), delimited(space0, aexp, space0))),
-        |(_, l)| Box::new(l),
-    ))(source)?;
-    let (source, _) = tag(")")(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Expr::Make { ty, expr: len }, end_idx)))
-}
-
-fn cast<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = tag("cast")(source)?;
-    let (source, _) = tag("(")(source)?;
-    let (source, expr) = delimited(space0, expression, space0)(source)?;
-    let (source, _) = tag(",")(source)?;
-    let (source, ty) = delimited(space0, typee, space0)(source)?;
-    let (source, _) = tag(")")(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (
-            start_idx,
-            Expr::Cast {
-                expr: Box::new(expr),
-                ty,
-            },
-            end_idx,
-        ),
-    ))
-}
-
-pub fn expression<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    alt((chanread, assignment, range, make, cast, list, tuplee))(source)
-}
-
-fn list<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = tag("[")(source)?;
-    let (source, exprs) = many1(map(
-        tuple((expression, delimited(space0, tag(","), space0))),
-        |(e, _)| e,
-    ))(source)?;
-    let (source, _) = tag("]")(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Expr::List { exprs, ty: None }, end_idx)))
-}
-
-fn range<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Expr>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, start) = aexp(source)?;
-    let (source, rest) = opt(tuple((
-        tag(".."),
-        opt(tag("=")),
-        delimited(space0, aexp, space0),
-    )))(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    if let Some((_, equal, end)) = rest {
-        Ok((
-            source,
-            (
-                start_idx,
-                Expr::Range {
-                    start: Box::new(start),
-                    end: Box::new(end),
-                    inclusive: equal.is_some(),
+    let escape: Boxed<'_, '_, _, char, _> = just('\\')
+        .then(choice((
+            just('\\'),
+            just('/'),
+            just('"'),
+            just('b').to('\x08'),
+            just('f').to('\x0C'),
+            just('n').to('\n'),
+            just('r').to('\r'),
+            just('t').to('\t'),
+            just('u').ignore_then(text::digits(16).exactly(4).slice().validate(
+                |digits, span, emitter| {
+                    char::from_u32(u32::from_str_radix(digits, 16).unwrap()).unwrap_or_else(|| {
+                        emitter.emit(Rich::custom(span, "invalid unicode character"));
+                        '\u{FFFD}' // unicode replacement character
+                    })
                 },
-                end_idx,
-            ),
-        ))
-    } else {
-        Ok((source, start))
-    }
+            )),
+        )))
+        .map(|(_, c)| c)
+        .boxed();
+
+    let string: Boxed<'_, '_, _, Vec<char>, _> = none_of("\\\"")
+        .or(escape)
+        .repeated()
+        .collect::<Vec<_>>()
+        .delimited_by(just('"'), just('"'))
+        .boxed();
+
+    let char_escape: Boxed<'_, '_, _, char, _> = just('\\')
+        .ignore_then(choice((
+            just('\\'),
+            just('/'),
+            just('"'),
+            just('n').to('\n'),
+            just('r').to('\r'),
+            just('t').to('\t'),
+        )))
+        .boxed();
+
+    let char: Boxed<'_, '_, _, char, _> = just('\'')
+        .ignore_then(none_of("\\'").or(char_escape))
+        .then_ignore(just('\''))
+        .boxed();
+
+    let bool = just::<&str, _, _>("true")
+        .to(true)
+        .or(just::<&str, _, _>("false").to(false))
+        .map(Token::Bool);
+
+    let ident = text::ascii::ident().map(|s| match s {
+        "let" => Token::Let,
+        "in" => Token::In,
+        "if" => Token::If,
+        "then" => Token::Then,
+        "else" => Token::Else,
+        "true" => Token::True,
+        "false" => Token::False,
+        "fun" => Token::Fun,
+        "return" => Token::Return,
+        "while" => Token::While,
+        "make" => Token::Make,
+        "cast" => Token::Cast,
+        "for" => Token::For,
+        "sahl" => Token::Sahl,
+        "break" => Token::Break,
+        "continue" => Token::Continue,
+        _ => Token::Ident(s),
+    });
+
+    let commnts = just("//")
+        .then(none_of("\n").repeated())
+        .then(just("\n"))
+        .repeated()
+        .boxed();
+
+    let token = commnts
+        .clone()
+        .ignore_then(
+            double
+                .map(Token::Double)
+                .or(int.map(Token::Int))
+                .or(char.map(Token::Char))
+                .or(string.map(Token::Str))
+                .or(bool)
+                .or(ident)
+                .or(just("<-").to(Token::LeftArrow))
+                .or(just("..").to(Token::Range))
+                .or(just("->").to(Token::RightArrow))
+                .or(just("==").to(Token::Equal))
+                .or(just("!=").to(Token::NotEqual))
+                .or(just("<<").to(Token::LeftShift))
+                .or(just("<=").to(Token::LessThanOrEqual))
+                .or(just("<").to(Token::LessThan))
+                .or(just(">=").to(Token::GreaterThanOrEqual))
+                .or(just(">>").to(Token::RightShift))
+                .or(just(">").to(Token::GreaterThan))
+                .or(just("&&").to(Token::And))
+                .or(just("||").to(Token::Or))
+                .or(just('+').to(Token::Plus))
+                .or(just('-').to(Token::Minus))
+                .or(just('*').to(Token::Star))
+                .or(just('/').to(Token::Slash))
+                .or(just('%').to(Token::Percent))
+                .or(just('^').to(Token::Caret))
+                .or(just('&').to(Token::Ampersand))
+                .or(just('|').to(Token::Pipe))
+                .or(just('=').to(Token::Assign))
+                .or(just("!").to(Token::Not))
+                .or(just(".").to(Token::Dot))
+                .or(just(",").to(Token::Comma))
+                .or(just(":").to(Token::Colon))
+                .or(just(";").to(Token::Semicolon))
+                .or(just("(").to(Token::LeftParen))
+                .or(just(")").to(Token::RightParen))
+                .or(just("[").to(Token::LeftBracket))
+                .or(just("]").to(Token::RightBracket))
+                .or(just("{").to(Token::LeftBrace))
+                .or(just("}").to(Token::RightBrace)),
+        )
+        .then_ignore(commnts)
+        .padded()
+        .map_with_span(|x, span| (x, span));
+
+    token.repeated().collect()
 }
 
-fn declaration<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("let"), space0)(source)?;
-    let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(space0, tag("="), space0)(source)?;
-    let (source, value) = expression(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Stmt::Decl(name, Box::new(value)), end_idx),
-    ))
-}
+type ParserInput<'src, 'tokens> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
 
-fn forin<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("for"), space0)(source)?;
-    let (source, id) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(space0, tag("in"), space0)(source)?;
-    let (source, ex2) = expression(source)?;
-    let (source, stmts) = block(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Stmt::For(id, Box::new(ex2), stmts), end_idx),
-    ))
-}
-
-fn block<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Vec<Spanned<Stmt>>, VerboseError<SpanStr<'a>>> {
-    let (source, _) = delimited(faaaltu, tag("{"), faaaltu)(source)?;
-    let (source, stmts) = many0(delimited(faaaltu, statement, faaaltu))(source)?;
-    let (source, _) = delimited(faaaltu, tag("}"), faaaltu)(source)?;
-    Ok((source, stmts))
-}
-
-fn ifelse<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("if"), space0)(source)?;
-    let (source, ex1) = expression(source)?;
-    let (source, thenst) = block(source)?;
-    let (source, _) = opt(delimited(space0, tag("else"), space0))(source)?;
-    let (source, elseif) = opt(ifelse)(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    match elseif {
-        Some(elseif) => Ok((
-            source,
-            (
-                start_idx,
-                Stmt::IfElse(Box::new(ex1), thenst, Some(vec![elseif])),
-                end_idx,
-            ),
-        )),
-        None => {
-            let (source, elsest) = opt(block)(source)?;
-            Ok((
-                source,
-                (
-                    start_idx,
-                    Stmt::IfElse(Box::new(ex1), thenst, elsest),
-                    end_idx,
-                ),
+fn typee<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Type, Err<Rich<'tokens, Token<'src>, Span>>> {
+    recursive(
+        |t: Recursive<
+            dyn Parser<
+                'tokens,
+                ParserInput<'src, 'tokens>,
+                Type,
+                Err<Rich<'tokens, Token<'src>, Span>>,
+            >,
+        >| {
+            let simplety = choice((
+                just(Token::Ident("int")).to(Type::Int),
+                just(Token::Ident("bool")).to(Type::Bool),
+                just(Token::Ident("string")).to(Type::Str),
+                just(Token::Ident("char")).to(Type::Char),
+                just(Token::Ident("double")).to(Type::Double),
             ))
-        }
-    }
-}
+            .boxed();
 
-fn whileloop<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("while"), space0)(source)?;
-    let (source, ex1) = delimited(space0, expression, space0)(source)?;
-    let (source, stmts) = block(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Stmt::While(Box::new(ex1), stmts), end_idx),
-    ))
-}
+            let listty = just(Token::LeftBracket)
+                .ignored()
+                .then(t.clone())
+                .then_ignore(just(Token::RightBracket))
+                .map(|(_, ty)| Type::List(Box::new(ty)))
+                .boxed();
 
-fn breakst<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("break"), space0)(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Stmt::Break, end_idx)))
-}
+            let chanty = just(Token::Ident("chan"))
+                .then(just(Token::LessThan))
+                .ignored()
+                .then(t.clone())
+                .then_ignore(just(Token::GreaterThan))
+                .map(|(_, ty)| Type::Chan(Box::new(ty)))
+                .boxed();
 
-fn continuest<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("continue"), space0)(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Stmt::Continue, end_idx)))
-}
+            let mapty = just(Token::Ident("map"))
+                .then(just(Token::LessThan))
+                .ignored()
+                .then(t.clone())
+                .then_ignore(just(Token::Comma))
+                .then(t.clone())
+                .then_ignore(just(Token::GreaterThan))
+                .map(|((_, key), val)| Type::Map(Box::new(key), Box::new(val)))
+                .boxed();
 
-fn returnst<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("return"), space0)(source)?;
-    let (source, ex) = expression(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Stmt::Return(Box::new(ex)), end_idx)))
-}
+            let tuplety = t
+                .clone()
+                .separated_by(just(Token::Comma))
+                .collect()
+                .delimited_by(just(Token::LeftParen), just(Token::RightParen))
+                .map(|tys| Type::Tuple(tys))
+                .boxed();
 
-fn coroutine<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, _) = delimited(space0, tag("sahl"), space0)(source)?;
-    let (source, fncall) = call(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((source, (start_idx, Stmt::Coroutine(fncall), end_idx)))
-}
-
-fn chanwrite<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let start_idx = position(source)?;
-    let start_idx = start_idx.0.location_offset();
-    let (source, id) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(space0, tag("<-"), space0)(source)?;
-    let (source, ex) = expression(source)?;
-    let end_idx = position(source)?;
-    let end_idx = end_idx.1.location_offset();
-    Ok((
-        source,
-        (start_idx, Stmt::ChanWrite(id, Box::new(ex)), end_idx),
-    ))
-}
-
-fn statement<'a>(
-    source: SpanStr<'a>,
-) -> IResult<SpanStr<'a>, Spanned<Stmt>, VerboseError<SpanStr<'a>>> {
-    let (source, stmt) = alt((
-        context("chanwrite", chanwrite),
-        context("coroutine", coroutine),
-        context("forin loop", forin),
-        context("ifelse", ifelse),
-        context("while loop", whileloop),
-        context("declaration", declaration),
-        context("return", returnst),
-        context("break", breakst),
-        context("continue", continuest),
-        map(expression, |ex| {
-            (ex.0, Stmt::Expr(Box::new(ex.clone())), ex.2)
-        }),
-    ))(source)?;
-    Ok((source, stmt))
-}
-
-fn parameter<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Param, VerboseError<SpanStr<'a>>> {
-    let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(space0, tag(":"), space0)(source)?;
-    let (source, ty) = alt((listty, typee))(source)?;
-    Ok((source, Param { name, ty }))
-}
-
-fn function<'a>(source: SpanStr<'a>) -> IResult<SpanStr<'a>, Func, VerboseError<SpanStr<'a>>> {
-    let (source, _) = delimited(space0, tag("fun"), space0)(source)?;
-    let (source, name) = context("identifier", identifier)(source)?;
-    let (source, _) = delimited(space0, tag("("), space0)(source)?;
-    let (source, arg) = opt(parameter)(source)?;
-    let mut args = vec![];
-    let source = if arg.is_some() {
-        let (source, args2) = many0(map(
-            tuple((delimited(space0, tag(","), space0), parameter)),
-            |(_, p)| p,
-        ))(source)?;
-        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
-        args = vec![arg.unwrap()].into_iter().chain(args2).collect();
-        source
-    } else {
-        let (source, _) = delimited(space0, tag(")"), space0)(source)?;
-        source
-    };
-    let (source, retty) = opt(map(
-        tuple((delimited(space0, tag("->"), space0), typee)),
-        |(_, ty)| ty,
-    ))(source)?;
-    let (source, body) = block(source)?;
-    Ok((
-        source,
-        Func {
-            name,
-            args,
-            body,
-            retty: retty.unwrap_or(Type::Void),
+            tuplety.or(mapty).or(chanty).or(listty).or(simplety)
         },
-    ))
+    )
 }
 
-pub fn program<'a>(source: &'a str) -> Result<Program, VerboseError<SpanStr<'a>>> {
-    let sourcee = SpanStr::new(source);
-    final_parser(cut(many1::<_, _, VerboseError<SpanStr>, _>(delimited(
-        faaaltu, function, faaaltu,
-    ))))(sourcee)
-    .map(|funcs| Program { funcs })
+fn ident<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, String, Err<Rich<'tokens, Token<'src>, Span>>>
+{
+    select! {
+        Token::Ident(s) => s.to_string(),
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+fn exp<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Expr>, Err<Rich<'tokens, Token<'src>, Span>>>
+{
+    let variable = select! {
+        Token::Ident(v) => Expr::Variable { name: v.to_string(), ty: None }
+    };
 
-    fn check_is_range(expr: Expr, start: Expr, end: Expr, inc: bool) {
-        match expr {
-            Expr::Range {
-                start: s,
-                end: e,
-                inclusive,
-            } => {
-                assert_eq!((*s).1, start);
-                assert_eq!((*e).1, end);
-                assert_eq!(inc, inclusive);
-            }
-            _ => {
-                println!("{:?}", expr);
-                assert!(false);
-            }
-        }
-    }
+    let exp = recursive(
+        |p_exp: Recursive<
+            dyn Parser<
+                'tokens,
+                ParserInput<'src, 'tokens>,
+                Spanned<Expr>,
+                Err<Rich<'tokens, Token<'src>, Span>>,
+            >,
+        >| {
+            let bracketed = p_exp
+                .clone()
+                .delimited_by(just(Token::LeftParen), just(Token::RightParen))
+                .boxed();
 
-    #[test]
-    fn test_range() {
-        let res = range(SpanStr::new("1..=2"));
-        match res {
-            Ok((_, (_, ex, _))) => match ex {
-                Expr::Range {
-                    start,
-                    end,
-                    inclusive,
-                } => {
-                    assert_eq!(
-                        (*start).1,
-                        Expr::Literal {
-                            lit: Lit::Int(1),
-                            ty: Type::Int
+            let prim = recursive(
+                |p: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    // cast(value, type)
+                    let cast = just(Token::Cast)
+                        .ignored()
+                        .then(just(Token::LeftParen))
+                        .ignored()
+                        .then(p.clone())
+                        .then_ignore(just(Token::Comma))
+                        .then(typee())
+                        .then_ignore(just(Token::RightParen))
+                        .map(|((_, e), ty)| Expr::Cast {
+                            expr: Box::new(e),
+                            ty,
+                        })
+                        .boxed();
+
+                    let sqbrac_ex = just(Token::LeftBracket)
+                        .ignored()
+                        .then(p_exp.clone())
+                        .then_ignore(just(Token::RightBracket))
+                        .map(|(_, e)| e)
+                        .boxed();
+
+                    // use sqbrac_ex to avoid left recursion
+                    let subscript = variable
+                        .clone()
+                        .then(sqbrac_ex.clone().repeated().collect::<Vec<_>>())
+                        .map(|(name, subs)| {
+                            let mut res = name;
+                            if subs.is_empty() {
+                                return res;
+                            }
+                            let start = subs[0].0;
+                            let mut end = subs[0].2;
+                            for sub in subs {
+                                end = sub.2;
+                                res = Expr::Subscr {
+                                    expr: Box::new((start, res, end)),
+                                    index: Box::new(sub),
+                                    ty: None,
+                                };
+                            }
+                            res
+                        })
+                        .boxed();
+
+                    let call = subscript
+                        .clone()
+                        .then_ignore(just(Token::LeftParen))
+                        .then(
+                            p_exp
+                                .clone()
+                                .separated_by(just(Token::Comma))
+                                .collect::<Vec<_>>()
+                                .or_not(),
+                        ) // TODO: replace p by p__expr
+                        .then_ignore(just(Token::RightParen))
+                        .map(|(name, args)| {
+                            let args = args.unwrap_or_default();
+                            Expr::Call {
+                                name: Box::new(name),
+                                args,
+                                ty: None,
+                            }
+                        });
+
+                    let bool = select! {
+                        Token::Bool(b) => Expr::Literal { lit: Lit::Bool(b), ty: Type::Bool }
+                    };
+
+                    let char = select! {
+                        Token::Char(c) => Expr::Literal { lit: Lit::Char(c as u8), ty: Type::Char }
+                    };
+
+                    let string = select! {
+                        Token::Str(s) => Expr::Literal { lit: Lit::Str(s.into_iter().map(|c| {
+                            c as u8
+                        }).collect()), ty: Type::Str }
+                    };
+
+                    let double = select! {
+                        Token::Double(f) => Expr::Literal { lit: Lit::Double(f), ty: Type::Double }
+                    };
+
+                    let int = select! {
+                        Token::Int(i) => Expr::Literal { lit: Lit::Int(i), ty: Type::Int }
+                    };
+
+                    // primary expression: (expr) | ident | literal
+                    let prim = cast
+                        .or(call)
+                        .or(bool)
+                        .or(subscript)
+                        .or(char.clone())
+                        .or(string.clone())
+                        .or(double)
+                        .or(int)
+                        .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+                        .boxed();
+
+                    prim
+                },
+            );
+
+            let primm = one_of(vec![Token::Minus, Token::Not])
+                .or_not()
+                .then(prim.clone().or(bracketed))
+                .map(|(op, e)| {
+                    let start = e.0 - 1;
+                    let end = e.2;
+                    match op {
+                        Some(t) => {
+                            let ex = match t {
+                                Token::Minus => Expr::Neg {
+                                    expr: Box::new(e),
+                                    ty: None,
+                                },
+                                Token::Not => Expr::Not {
+                                    expr: Box::new(e),
+                                    ty: None,
+                                },
+                                _ => unreachable!(),
+                            };
+                            (start, ex, end)
                         }
-                    );
-                    assert_eq!(
-                        (*end).1,
-                        Expr::Literal {
-                            lit: Lit::Int(2),
-                            ty: Type::Int
-                        }
-                    );
-                    assert_eq!(inclusive, true);
-                }
-                _ => {
-                    println!("{:?}", ex);
-                    assert!(false);
-                }
-            },
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-    }
+                        None => e,
+                    }
+                })
+                .boxed();
 
-    // for in loop
-    #[test]
-    fn test_for_in() {
-        let res = forin(SpanStr::new("for i in 1..=10 { }"));
-        let res2 = forin(SpanStr::new("for i in start..end { }"));
-        match res {
-            Ok((_, (_, ex, _))) => match ex {
-                Stmt::For(v, range, end) => {
-                    assert_eq!(v, "i");
-                    check_is_range(
-                        (*range).1,
-                        Expr::Literal {
-                            lit: Lit::Int(1),
-                            ty: Type::Int,
-                        },
-                        Expr::Literal {
-                            lit: Lit::Int(10),
-                            ty: Type::Int,
-                        },
-                        true,
-                    );
-                    assert_eq!(end.len(), 0);
-                }
-                _ => {
-                    println!("{:?}", ex);
-                    assert!(false);
-                }
-            },
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-        match res2 {
-            Ok((_, (_, ex, _))) => match ex {
-                Stmt::For(v, range, end) => {
-                    assert_eq!(v, "i");
-                    check_is_range(
-                        (*range).1,
-                        Expr::Variable {
-                            name: "start".to_string(),
+            let factor = recursive(
+                |pfac: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    primm
+                        .clone()
+                        .then(
+                            one_of(vec![Token::Star, Token::Slash, Token::Percent])
+                                .then(pfac)
+                                .or_not(),
+                        )
+                        .map(|(l, r)| {
+                            if let Some((op, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                let ex = match op {
+                                    Token::Star => Expr::Arith {
+                                        op: ArithOp::Mul,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    Token::Slash => Expr::Arith {
+                                        op: ArithOp::Div,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    Token::Percent => Expr::Arith {
+                                        op: ArithOp::Mod,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    _ => unreachable!(),
+                                };
+                                (start, ex, end)
+                            } else {
+                                l
+                            }
+                        })
+                        .boxed()
+                },
+            );
+
+            let term = recursive(
+                |pterm: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    factor
+                        .clone()
+                        .then(one_of(vec![Token::Plus, Token::Minus]).then(pterm).or_not())
+                        .map(|(l, r)| {
+                            if let Some((op, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                let ex = match op {
+                                    Token::Plus => Expr::Arith {
+                                        op: ArithOp::Add,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    Token::Minus => Expr::Arith {
+                                        op: ArithOp::Sub,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    _ => unreachable!(),
+                                };
+                                (start, ex, end)
+                            } else {
+                                l
+                            }
+                        })
+                        .boxed()
+                },
+            );
+
+            let shift = recursive(
+                |pshift: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    term.clone()
+                        .then(
+                            just(Token::LeftShift)
+                                .or(just(Token::RightShift))
+                                .then(pshift)
+                                .or_not(),
+                        )
+                        .map(|(l, r)| {
+                            if let Some((op, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                let ex = match op {
+                                    Token::LeftShift => Expr::BitOp {
+                                        op: BitOp::Shl,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    Token::RightShift => Expr::BitOp {
+                                        op: BitOp::Shr,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    _ => unreachable!(),
+                                };
+                                (start, ex, end)
+                            } else {
+                                l
+                            }
+                        })
+                        .boxed()
+                },
+            );
+
+            let cmpop = just(Token::Equal)
+                .or(just(Token::NotEqual))
+                .or(just(Token::GreaterThanOrEqual))
+                .or(just(Token::LessThanOrEqual))
+                .or(just(Token::LessThan))
+                .or(just(Token::GreaterThan));
+
+            let comparision = shift
+                .clone()
+                .foldl(cmpop.then(shift).repeated(), |l, r| {
+                    let (op, r) = r;
+                    let start = l.0;
+                    let end = r.2;
+                    let ex = match op {
+                        Token::Equal => Expr::CmpOp {
+                            op: CmpOp::Eq,
+                            left: Box::new(l),
+                            right: Box::new(r),
                             ty: None,
                         },
-                        Expr::Variable {
-                            name: "end".to_string(),
+                        Token::NotEqual => Expr::CmpOp {
+                            op: CmpOp::Ne,
+                            left: Box::new(l),
+                            right: Box::new(r),
                             ty: None,
                         },
-                        false,
-                    );
-                    assert_eq!(end.len(), 0);
-                }
-                _ => {
-                    println!("{:?}", ex);
-                    assert!(false);
-                }
-            },
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
+                        Token::LessThanOrEqual => Expr::CmpOp {
+                            op: CmpOp::Le,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        Token::GreaterThanOrEqual => Expr::CmpOp {
+                            op: CmpOp::Ge,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        Token::LessThan => Expr::CmpOp {
+                            op: CmpOp::Lt,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        Token::GreaterThan => Expr::CmpOp {
+                            op: CmpOp::Gt,
+                            left: Box::new(l),
+                            right: Box::new(r),
+                            ty: None,
+                        },
+                        _ => unreachable!(),
+                    };
+                    (start, ex, end)
+                })
+                .boxed();
+
+            let bitand = recursive(
+                |pbitand: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    comparision
+                        .clone()
+                        .then(just(Token::Ampersand).then(pbitand).or_not())
+                        .map(|(l, r)| {
+                            if let Some((_, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                (
+                                    start,
+                                    Expr::BitOp {
+                                        op: BitOp::And,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    end,
+                                )
+                            } else {
+                                l
+                            }
+                        })
+                        .boxed()
+                },
+            );
+
+            let bitor = recursive(
+                |pbitor: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    bitand
+                        .clone()
+                        .then(just(Token::Pipe).then(pbitor).or_not())
+                        .map(|(l, r)| {
+                            if let Some((_, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                (
+                                    start,
+                                    Expr::BitOp {
+                                        op: BitOp::Or,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    end,
+                                )
+                            } else {
+                                l
+                            }
+                        })
+                        .boxed()
+                },
+            );
+
+            let bitxor = recursive(
+                |pbitxor: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    bitor
+                        .clone()
+                        .then(just(Token::Caret).then(pbitxor).or_not())
+                        .map(|(l, r)| {
+                            if let Some((_, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                (
+                                    start,
+                                    Expr::BitOp {
+                                        op: BitOp::Xor,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    end,
+                                )
+                            } else {
+                                l
+                            }
+                        })
+                },
+            );
+
+            let logicand = recursive(
+                |plogicand: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    bitxor
+                        .clone()
+                        .then(just(Token::And).then(plogicand).or_not())
+                        .map(|(l, r)| {
+                            if let Some((_, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                (
+                                    start,
+                                    Expr::BoolOp {
+                                        op: BoolOp::And,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    end,
+                                )
+                            } else {
+                                l
+                            }
+                        })
+                },
+            );
+
+            let logicor = recursive(
+                |plogicor: Recursive<
+                    dyn Parser<
+                        'tokens,
+                        ParserInput<'src, 'tokens>,
+                        Spanned<Expr>,
+                        Err<Rich<'tokens, Token<'src>, Span>>,
+                    >,
+                >| {
+                    logicand
+                        .clone()
+                        .then(just(Token::Or).then(plogicor).or_not())
+                        .map(|(l, r)| {
+                            if let Some((_, r)) = r {
+                                let start = l.0;
+                                let end = r.2;
+                                (
+                                    start,
+                                    Expr::BoolOp {
+                                        op: BoolOp::Or,
+                                        left: Box::new(l),
+                                        right: Box::new(r),
+                                        ty: None,
+                                    },
+                                    end,
+                                )
+                            } else {
+                                l
+                            }
+                        })
+                },
+            );
+
+            let aexp = logicor;
+
+            // [expr, expr, expr]
+            let list = just(Token::LeftBracket)
+                .ignored()
+                .then(p_exp.clone().separated_by(just(Token::Comma)).collect())
+                .then_ignore(just(Token::RightBracket))
+                .map(|(_, exprs)| Expr::List { exprs, ty: None })
+                .boxed();
+
+            let tuple = just(Token::LeftParen)
+                .ignored()
+                .then(p_exp.clone().separated_by(just(Token::Comma)).collect())
+                .then_ignore(just(Token::Comma))
+                .then_ignore(just(Token::RightParen))
+                .map(|(_, exprs)| Expr::Tuple { exprs, ty: None })
+                .boxed();
+
+            let chanread = just(Token::LeftArrow)
+                .ignore_then(ident())
+                .map(|name| Expr::ChanRead {
+                    name: name.to_string(),
+                    ty: None,
+                })
+                .boxed();
+
+            let range = prim
+                .clone()
+                .then(just(Token::Range))
+                .then(just(Token::Assign).or_not())
+                .then(prim.clone())
+                .map(|res| {
+                    let inclusive = match res.0 .1 {
+                        Some(_) => true,
+                        None => false,
+                    };
+                    let left = res.0 .0 .0;
+                    let right = res.1;
+                    Expr::Range {
+                        start: Box::new(left),
+                        end: Box::new(right),
+                        inclusive,
+                    }
+                })
+                .boxed();
+
+            let make = just(Token::Make)
+                .ignored()
+                .then(just(Token::LeftParen))
+                .ignored()
+                .then(typee())
+                .then_ignore(just(Token::Comma).or_not())
+                .then(p_exp.clone().or_not())
+                .then_ignore(just(Token::RightParen))
+                .map(|((_, ty), size)| Expr::Make {
+                    ty,
+                    expr: size.map(|e| Box::new(e)),
+                })
+                .boxed();
+
+            // ensure that prim is only a variable or a subscript
+            let assignment = prim
+                .clone()
+                .then(just(Token::Assign))
+                .then(p_exp.clone())
+                .map(|((left, _), right)| Expr::Assign {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                })
+                .boxed();
+
+            make.or(tuple)
+                .or(list)
+                .or(range)
+                .or(assignment)
+                .or(aexp.map(|(_, e, _)| e))
+                .or(chanread)
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+        },
+    );
+
+    exp
+}
+
+fn statement<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Stmt>, Err<Rich<'tokens, Token<'src>, Span>>>
+{
+    recursive(|st| {
+        let block = st
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
+            .boxed();
+
+        let ifstmt = just(Token::If)
+            .ignore_then(exp())
+            .then(block.clone())
+            .then(
+                just(Token::Else)
+                    .ignore_then(st.clone().repeated().collect::<Vec<_>>())
+                    .or_not(),
+            )
+            .map(|((cond, body), elsee)| Stmt::IfElse(Box::new(cond), body, elsee))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let whilestmt = just(Token::While)
+            .ignore_then(exp())
+            .then(block.clone())
+            .map(|(cond, body)| Stmt::While(Box::new(cond), body))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let forstmt = just(Token::For)
+            .ignored()
+            .then(ident())
+            .then_ignore(just(Token::In))
+            .then(exp())
+            .then(block.clone())
+            .map(|(((_, name), expr), body)| Stmt::For(name.to_string(), Box::new(expr), body))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let returnstmt = just(Token::Return)
+            .ignored()
+            .then(exp())
+            .map(|(_, expr)| Stmt::Return(Box::new(expr)))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let letstmt = just(Token::Let)
+            .ignored()
+            .then(ident())
+            .then_ignore(just(Token::Assign))
+            .then(exp())
+            .map(|res| {
+                let ((_, name), expr) = res;
+                Stmt::Decl(name.to_string(), Box::new(expr))
+            })
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let coro = just(Token::Sahl)
+            .ignored()
+            .then(exp())
+            .map(|(_, expr)| Stmt::Coroutine(expr))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let chanwrite = ident()
+            .then(just(Token::LeftArrow))
+            .then(exp())
+            .map(|((name, _), expr)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let continuest = just(Token::Continue)
+            .map(|_| Stmt::Continue)
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let breakstmt = just(Token::Break)
+            .map(|_| Stmt::Break)
+            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+        let finall: Boxed<'_, '_, _, Spanned<Stmt>, _> = ifstmt
+            .or(whilestmt)
+            .or(forstmt)
+            .or(returnstmt)
+            .or(letstmt)
+            .or(coro)
+            .or(chanwrite)
+            .or(continuest)
+            .or(breakstmt)
+            .or(block.clone().map(|stmts| {
+                let start = stmts[0].0;
+                let end = stmts[stmts.len() - 1].2;
+                (start, Stmt::Block(stmts), end)
+            }))
+            .or(exp().map(|(l, e, r)| (l, Stmt::Expr(Box::new((l, e, r))), r)))
+            .boxed();
+
+        finall
+    })
+}
+
+// fun func_name(a: int, b: string) -> b {}
+fn parse_function<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Func, Err<Rich<'tokens, Token<'src>, Span>>> {
+    let param = ident().then(just(Token::Colon)).then(typee()).boxed();
+
+    let params = param
+        .separated_by(just(Token::Comma))
+        .collect::<Vec<_>>()
+        .map(|params| {
+            params
+                .into_iter()
+                .map(|((name, _), ty)| Param {
+                    name: name.to_string(),
+                    ty,
+                })
+                .collect()
+        });
+
+    let block = statement()
+        .repeated()
+        .collect::<Vec<_>>()
+        .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
+        .boxed();
+
+    just(Token::Fun)
+        .then(ident())
+        .then(
+            just(Token::LeftParen)
+                .ignore_then(params.or_not())
+                .then_ignore(just(Token::RightParen)),
+        )
+        .then_ignore(just(Token::RightArrow).or_not())
+        .then(typee().or_not())
+        .then(block.clone())
+        .map(|res| {
+            let ((((_, name), params), retty), body) = res;
+            Func {
+                name: name.to_string(),
+                args: params.unwrap_or_default(),
+                retty: retty.unwrap_or(Type::Void),
+                body,
             }
+        })
+}
+
+pub fn program(s: &str) -> Option<Program> {
+    let lex = lexer();
+    let (tokens, errors) = lex.parse(s).into_output_errors();
+    let parser = parse_function()
+        .repeated()
+        .collect()
+        .then_ignore(end())
+        .map(|funcs| Program { funcs });
+    if let Some(tokens) = &tokens {
+        let (res, errs) = parser
+            .parse(tokens.as_slice().spanned((s.len()..s.len()).into()))
+            .into_output_errors();
+
+        if let Some(prog) = res {
+            return Some(prog);
+        } else {
+            handle_err(&errs, s);
+        }
+    } else {
+        handle_err(&errors, s);
+    };
+    None
+}
+
+pub fn handle_err<T: Clone + std::fmt::Debug + std::fmt::Display>(e: &Vec<Rich<T>>, source: &str) {
+    let mut reports = Vec::new();
+    e.into_iter().for_each(|e| {
+        let r = Report::build(ReportKind::Error, (), e.span().start)
+            .with_message(e.to_string())
+            .with_label(
+                Label::new(e.span().into_range())
+                    .with_message(e.reason().to_string())
+                    .with_color(Color::Red),
+            )
+            .finish();
+        reports.push(r);
+    });
+    for r in reports {
+        let _ = r.print(Source::from(&source));
+    }
+}
+
+#[test]
+fn test_expression() {
+    let sources = vec![
+        "((3 * 8) ^ 4)",
+        "a = make([int], 1000 / (9 + 2))",
+        "a[i] && b[i][j]",
+        "true || false",
+        "a = 3 - 8 | 4",
+        "a[0][j] = a[i][k]",
+    ];
+
+    let lexer = lexer();
+
+    let mut tokenss = Vec::new();
+
+    for source in sources {
+        let (tokens, err) = lexer.parse(source).into_output_errors();
+        handle_err(&err, source);
+        tokenss.push((tokens, source));
+    }
+
+    for (tokens, source) in tokenss {
+        if let Some(tokens) = tokens {
+            let parser = exp().then_ignore(end()).boxed();
+            let res = parser.clone().parse(
+                tokens
+                    .as_slice()
+                    .spanned((source.len()..source.len()).into()),
+            );
+            handle_err(&res.clone().into_output_errors().1, source);
+            let res = res.into_result();
+            println!("{:?}", res);
+            assert!(res.is_ok());
+        }
+    }
+}
+
+#[test]
+fn test_statements() {
+    let sources = vec![
+        "if true { 
+            a[i] = b[i][j] 
+        } else { 
+            a[i] = b[i][j] 
+        }",
+        "while true { a[i] = b[i][j] }",
+        "for i in 0..100 {
+            sahl fcall(i)
+        }",        
+        "while x < 1600 {
+            registers[0][0] = 2.0 * 1.6 * (x / 1600.0 - 0.5)
+            registers[0][1] = 2.0 * 0.9 * (y / 900.0 - 0.5)
+            i = 1
+            while i < 4 {
+                registers[i][0] = 0.0
+                registers[i][1] = 0.0
+                i = i + 1
+            }
+            i = 0
+            while i < 256 && ((registers[1][0] * registers[1][0] + registers[1][1] * registers[1][1]) < 4) {
+                interpret(registers, code)
+                i = i + 1
+            }
+            line[x] = cast(i, char)
+            x = x + 1
+        }        "
+    ];
+
+    let lexer = lexer();
+
+    let mut tokenss = Vec::new();
+
+    for source in sources {
+        let (tokens, err) = lexer.parse(source).into_output_errors();
+        handle_err(&err, source);
+        tokenss.push((tokens, source));
+    }
+
+    for (tokens, source) in tokenss {
+        if let Some(tokens) = tokens {
+            let parser = statement().then_ignore(end()).boxed();
+            let res = parser.clone().parse(
+                tokens
+                    .as_slice()
+                    .spanned((source.len()..source.len()).into()),
+            );
+            handle_err(&res.clone().into_output_errors().1, source);
+            let res = res.into_result();
+            println!("{:?}", res);
+            assert!(res.is_ok());
         }
     }
 }
