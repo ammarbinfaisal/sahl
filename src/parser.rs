@@ -922,96 +922,149 @@ fn exp<'tokens, 'src: 'tokens>(
 fn statement<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Stmt>, Err<Rich<'tokens, Token<'src>, Span>>>
 {
-    recursive(|st| {
-        let block = st
-            .clone()
-            .repeated()
-            .collect::<Vec<_>>()
-            .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
-            .boxed();
+    recursive(
+        |st: Recursive<
+            dyn Parser<
+                'tokens,
+                ParserInput<'src, 'tokens>,
+                Spanned<Stmt>,
+                Err<Rich<'tokens, Token<'src>, Span>>,
+            >,
+        >| {
+            let block = st
+                .clone()
+                .repeated()
+                .collect::<Vec<_>>()
+                .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
+                .boxed();
 
-        let ifstmt = just(Token::If)
-            .ignore_then(exp())
-            .then(block.clone())
-            .then(
-                just(Token::Else)
-                    .ignore_then(st.clone().repeated().collect::<Vec<_>>())
-                    .or_not(),
-            )
-            .map(|((cond, body), elsee)| Stmt::IfElse(Box::new(cond), body, elsee))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            // recursive(|if_| {
+            //     just(Token::If)
+            //         .ignore_then(expr.clone())
+            //         .then(block.clone())
+            //         .then(
+            //             just(Token::Else)
+            //                 .ignore_then(block.clone().or(if_))
+            //                 .or_not(),
+            //         )
+            //         .map_with_span(|((cond, a), b), span: Span| {
+            //             (
+            //                 Expr::If(
+            //                     Box::new(cond),
+            //                     Box::new(a),
+            //                     // If an `if` expression has no trailing `else` block, we magic up one that just produces null
+            //                     Box::new(b.unwrap_or_else(|| (Expr::Value(Value::Null), span.clone()))),
+            //                 ),
+            //                 span,
+            //             )
+            //         })
+            // });
 
-        let whilestmt = just(Token::While)
-            .ignore_then(exp())
-            .then(block.clone())
-            .map(|(cond, body)| Stmt::While(Box::new(cond), body))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let ifstmt = recursive(|if_| {
+                just(Token::If)
+                    .ignored()
+                    .then(exp())
+                    .then(block.clone())
+                    .then(
+                        just(Token::Else)
+                            .ignore_then(
+                                block
+                                    .clone()
+                                    .map(|stmts| {
+                                        let start = stmts[0].0;
+                                        let end = stmts[stmts.len() - 1].2;
+                                        (start, Stmt::Block(stmts), end)
+                                    })
+                                    .or(if_.clone()),
+                            )
+                            .repeated()
+                            .collect::<Vec<_>>(),
+                    )
+                    .map(|(((_, cond), body), elsee)| {
+                        if elsee.is_empty() {
+                            Stmt::IfElse(Box::new(cond), body, None)
+                        } else {
+                            Stmt::IfElse(Box::new(cond), body, Some(elsee))
+                        }
+                    })
+                    .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+                    .boxed()
+            });
 
-        let forstmt = just(Token::For)
-            .ignored()
-            .then(ident())
-            .then_ignore(just(Token::In))
-            .then(exp())
-            .then(block.clone())
-            .map(|(((_, name), expr), body)| Stmt::For(name.to_string(), Box::new(expr), body))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            // .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let returnstmt = just(Token::Return)
-            .ignored()
-            .then(exp())
-            .map(|(_, expr)| Stmt::Return(Box::new(expr)))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let whilestmt = just(Token::While)
+                .ignore_then(exp())
+                .then(block.clone())
+                .map(|(cond, body)| Stmt::While(Box::new(cond), body))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let letstmt = just(Token::Let)
-            .ignored()
-            .then(ident())
-            .then_ignore(just(Token::Assign))
-            .then(exp())
-            .map(|res| {
-                let ((_, name), expr) = res;
-                Stmt::Decl(name.to_string(), Box::new(expr))
-            })
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let forstmt = just(Token::For)
+                .ignored()
+                .then(ident())
+                .then_ignore(just(Token::In))
+                .then(exp())
+                .then(block.clone())
+                .map(|(((_, name), expr), body)| Stmt::For(name.to_string(), Box::new(expr), body))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let coro = just(Token::Sahl)
-            .ignored()
-            .then(exp())
-            .map(|(_, expr)| Stmt::Coroutine(expr))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let returnstmt = just(Token::Return)
+                .ignored()
+                .then(exp())
+                .map(|(_, expr)| Stmt::Return(Box::new(expr)))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let chanwrite = ident()
-            .then(just(Token::LeftArrow))
-            .then(exp())
-            .map(|((name, _), expr)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let letstmt = just(Token::Let)
+                .ignored()
+                .then(ident())
+                .then_ignore(just(Token::Assign))
+                .then(exp())
+                .map(|res| {
+                    let ((_, name), expr) = res;
+                    Stmt::Decl(name.to_string(), Box::new(expr))
+                })
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let continuest = just(Token::Continue)
-            .map(|_| Stmt::Continue)
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let coro = just(Token::Sahl)
+                .ignored()
+                .then(exp())
+                .map(|(_, expr)| Stmt::Coroutine(expr))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let breakstmt = just(Token::Break)
-            .map(|_| Stmt::Break)
-            .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+            let chanwrite = ident()
+                .then(just(Token::LeftArrow))
+                .then(exp())
+                .map(|((name, _), expr)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        let finall: Boxed<'_, '_, _, Spanned<Stmt>, _> = ifstmt
-            .or(whilestmt)
-            .or(forstmt)
-            .or(returnstmt)
-            .or(letstmt)
-            .or(coro)
-            .or(chanwrite)
-            .or(continuest)
-            .or(breakstmt)
-            .or(block.clone().map(|stmts| {
-                let start = stmts[0].0;
-                let end = stmts[stmts.len() - 1].2;
-                (start, Stmt::Block(stmts), end)
-            }))
-            .or(exp().map(|(l, e, r)| (l, Stmt::Expr(Box::new((l, e, r))), r)))
-            .boxed();
+            let continuest = just(Token::Continue)
+                .map(|_| Stmt::Continue)
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
-        finall
-    })
+            let breakstmt = just(Token::Break)
+                .map(|_| Stmt::Break)
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
+            let finall: Boxed<'_, '_, _, Spanned<Stmt>, _> = ifstmt
+                .or(whilestmt)
+                .or(forstmt)
+                .or(returnstmt)
+                .or(letstmt)
+                .or(coro)
+                .or(chanwrite)
+                .or(continuest)
+                .or(breakstmt)
+                .or(block.clone().map(|stmts| {
+                    let start = stmts[0].0;
+                    let end = stmts[stmts.len() - 1].2;
+                    (start, Stmt::Block(stmts), end)
+                }))
+                .or(exp().map(|(l, e, r)| (l, Stmt::Expr(Box::new((l, e, r))), r)))
+                .boxed();
+
+            finall
+        },
+    )
 }
 
 // fun func_name(a: int, b: string) -> b {}
