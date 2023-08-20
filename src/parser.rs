@@ -295,7 +295,8 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         .repeated()
         .boxed();
 
-    let token = commnts.clone()
+    let token = commnts
+        .clone()
         .ignore_then(
             double
                 .map(Token::Double)
@@ -492,7 +493,8 @@ fn exp<'tokens, 'src: 'tokens>(
                         .clone()
                         .then_ignore(just(Token::LeftParen))
                         .then(
-                            p_exp.clone()
+                            p_exp
+                                .clone()
                                 .separated_by(just(Token::Comma))
                                 .collect::<Vec<_>>()
                                 .or_not(),
@@ -545,7 +547,31 @@ fn exp<'tokens, 'src: 'tokens>(
                 },
             );
 
-            let primm = bracketed.clone().or(prim.clone());
+            let primm = one_of(vec![Token::Minus, Token::Not])
+                .or_not()
+                .then(prim.clone().or(bracketed))
+                .map(|(op, e)| {
+                    let start = e.0 - 1;
+                    let end = e.2;
+                    match op {
+                        Some(t) => {
+                            let ex = match t {
+                                Token::Minus => Expr::Neg {
+                                    expr: Box::new(e),
+                                    ty: None,
+                                },
+                                Token::Not => Expr::Not {
+                                    expr: Box::new(e),
+                                    ty: None,
+                                },
+                                _ => unreachable!(),
+                            };
+                            (start, ex, end)
+                        }
+                        None => e,
+                    }
+                })
+                .boxed();
 
             let factor = recursive(
                 |pfac: Recursive<
@@ -1002,10 +1028,12 @@ fn statement<'tokens, 'src: 'tokens>(
         let ifstmt = just(Token::If)
             .ignore_then(exp())
             .then(block.clone())
-            .then(just(Token::Else).ignore_then(st.clone().repeated().collect::<Vec<_>>()).or_not())
-            .map(|((cond, body), elsee)| {
-                Stmt::IfElse(Box::new(cond), body, elsee)
-            })
+            .then(
+                just(Token::Else)
+                    .ignore_then(st.clone().repeated().collect::<Vec<_>>())
+                    .or_not(),
+            )
+            .map(|((cond, body), elsee)| Stmt::IfElse(Box::new(cond), body, elsee))
             .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
         let whilestmt = just(Token::While)
