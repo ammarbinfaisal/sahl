@@ -1079,7 +1079,6 @@ impl<'a> RegCodeGen<'a> {
                     }
                 }
                 SuperInstParseState::LoadConst(var_ix, const_ix, reg_ix, reg_ix2) => {
-                    println!("code {:?}", self.code[i]);
                     match three_operand_code(&self.code[i]) {
                         (0, 0, 0) => {
                             state = SuperInstParseState::None;
