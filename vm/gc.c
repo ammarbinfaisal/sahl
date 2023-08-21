@@ -141,7 +141,8 @@ void mark_roots(VM *vm) {
 }
 
 void collect_garbage(VM *vm) {
-    // printf("Collecting garbage... \n");
+// printf("Collecting garbage... \n");
+#ifdef USE_GC
     if (vm->is_coro) {
         return;
     }
@@ -149,6 +150,7 @@ void collect_garbage(VM *vm) {
     trace_references(vm);
     sweep(vm);
     vm->gc_state->nextGC = vm->gc_state->allocated * GC_HEAP_GROW_FACTOR;
+#endif
 }
 
 void *allocate(VM *vm, size_t size) {

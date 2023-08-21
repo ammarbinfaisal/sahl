@@ -16,6 +16,7 @@
 // #define MINARR
 #define UNSAFE
 #define MAX_THREADS 16
+#define USE_GC
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 

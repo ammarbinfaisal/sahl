@@ -1163,9 +1163,9 @@ int main(int argc, char **argv) {
     }
     const char *filename = argv[1];
     Code *code = read_bytecode(filename);
-    printf("length %ld\n", code->length);
+    // printf("length %ld\n", code->length);
     // dissassemble(code->bytes, code->length);
-    puts("\n\n\n");
+    // puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
     scheduler_init();
     pthread_t *threads = malloc(sizeof(pthread_t) * MAX_THREADS);
