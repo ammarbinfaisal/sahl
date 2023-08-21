@@ -24,7 +24,8 @@ files_all_checks = [
     "rule110",
     "bitwise",
     "cast",
-    "graph"
+    "graph",
+    "map"
 ]
 files_retcode_check = [
     "chan",
@@ -90,6 +91,8 @@ def run_file(mode, file, only_rc_check=False):
 def run_all(mode):
     for file in files_all_checks:
         run_file(mode, file)
+    for file in files_retcode_check:
+        run_file(mode, file, True)
 
 
 def result(mode):

@@ -1,4 +1,4 @@
-fun int_list_2_map(list: [int]) {
+fun int_list_2_map(list: [int]) -> map<int,int> {
     let m = make(map<int, int>)
     let i = 0
     let l = len(list)
@@ -6,10 +6,13 @@ fun int_list_2_map(list: [int]) {
         m[list[i]] = i
         i = i + 1
     }
-    print(m, "\n")
+    return m
 }
 
 fun main() {
-    let list = [1, 2, 3, 4, 5,]
-    int_list_2_map(list)
+    let list = [1, 2, 3, 4, 5]
+    let m = int_list_2_map(list)
+    for i in list {
+        print("m[", i, "] = " , m[i], "\n")
+    }
 }
