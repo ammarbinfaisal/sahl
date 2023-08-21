@@ -643,22 +643,22 @@ fn exp<'tokens, 'src: 'tokens>(
             let shift = term
                 .clone()
                 .foldl(
-                    one_of(vec![Token::Plus, Token::Minus])
-                        .then(factor.clone())
+                    one_of(vec![Token::LeftShift, Token::RightShift])
+                        .then(term.clone())
                         .repeated(),
                     |l, r| {
                         let (op, r) = r;
                         let start = l.0;
                         let end = r.2;
                         let ex = match op {
-                            Token::Plus => Expr::Arith {
-                                op: ArithOp::Add,
+                            Token::LeftShift => Expr::BitOp {
+                                op: BitOp::Shl,
                                 left: Box::new(l),
                                 right: Box::new(r),
                                 ty: None,
                             },
-                            Token::Minus => Expr::Arith {
-                                op: ArithOp::Sub,
+                            Token::RightShift => Expr::BitOp {
+                                op: BitOp::Shr,
                                 left: Box::new(l),
                                 right: Box::new(r),
                                 ty: None,
