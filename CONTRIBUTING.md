@@ -5,12 +5,16 @@ src/ contains the frontend
 
 ## development
 
-**vm** - `gcc vm/* -o sahl -O2 -g -lm -lpthread` <br/>
-**frontend** - `cargo build` <br/>
-**compiling a sahl file** - `./target/debug/sahl path_to_sahl_file -c`  <br/>
-**run a compiled sahl file** - `./sahl exe.bin`  <br/>
+- ensure that `git` is [installed](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+- ensure that `rust` is [installed](https://www.rust-lang.org/tools/install)
+- ensure that `gcc` is [installed](https://gcc.gnu.org/install/)
+- building
+    - **vm** - `gcc vm/* -o sahl -O2 -g -lm -lpthread`
+    - **frontend** - `cargo build`
+    - **compiling a sahl file** - `./target/debug/sahl path_to_sahl_file -c` 
+**run a compiled sahl file** - `./sahl exe.bin`
 
-## how does it work?
+## how does the frontend work?
 
 The source file of a sahl program after being read goes through the parser which emits an AST (abstract syntax tree) or if there is an error exits while showing the error.
 
