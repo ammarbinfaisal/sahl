@@ -75,11 +75,7 @@ def run_file(mode, file, only_rc_check=False):
     if only_rc_check or mode == aot_mode:
         passed(file, mode)
         return
-    output = (
-        output.decode("utf-8").split("\n\n\n\n\n")[1]
-        if mode == byte_mode
-        else output.decode("utf-8")
-    )
+    output = output.decode("utf-8")
     with open(f"tests/{file}", "r") as f:
         expected = f.read()
     if expected == output:
