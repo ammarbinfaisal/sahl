@@ -10,19 +10,19 @@ a programming language with channels and coroutines
 
 sahl means easy. <s>This is the easiest statically typed language I could come up with.</s> It could be called easy before but it has become bloated now as I am adding or planning to add all sort of stuff.
 
-## contributing
-
-check [CONTRIBUTING.md](CONTRIBUTING.md)
-
-## docs
-
-check [DOCS.md](DOCS.md)
-
 ## usage
 
 - `make` to build the frontend and the virtual machine
 - `./target/release/sahl <file.sahl> -c` to compile to bytecode
 - `./sahl exe.bin` to run the bytecode
+
+## docs
+
+check [DOCS.md](DOCS.md)
+
+## contributing
+
+check [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## features
 
