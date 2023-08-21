@@ -29,7 +29,6 @@ files_all_checks = [
 ]
 files_retcode_check = [
     "chan",
-    "coroutine",
 ]
 
 byte_mode = 0
