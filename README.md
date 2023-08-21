@@ -10,10 +10,13 @@ a programming language with channels and coroutines
 
 sahl means easy. <s>This is the easiest statically typed language I could come up with.</s> It could be called easy before but it has become bloated now as I am adding or planning to add all sort of stuff.
 
-## tools
+## contributing
 
-- [rust toolchain](https://rustup.rs/)
-- gcc
+check [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## docs
+
+check [DOCS.md](DOCS.md)
 
 ## usage
 
