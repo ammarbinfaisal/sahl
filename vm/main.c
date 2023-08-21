@@ -827,7 +827,8 @@ void handle_cast(VM *vm) {
     if (ty1 == ty2) {
         vm->regs[r2].i = vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_FLOAT) {
-        vm->regs[r2].i = (double)vm->regs[r1].i;
+        double res = (double)vm->regs[r1].i;
+        vm->regs[r2].i = *(int64_t*)&res;
     } else if (ty1 == TYPE_FLOAT && ty2 == TYPE_INT) {
         vm->regs[r2].i = (int64_t)vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_BOOL) {
@@ -986,10 +987,11 @@ Value op_dummy(Value _1, Value _2) {
 typedef Value (*Op)(Value, Value);
 
 static Op op_handlers[] = {
-    op_iadd,  op_isub, op_imul, op_idiv,  op_irem, op_ine,  op_ieq,  op_ilt,
-    op_igt,   op_ige,  op_fadd, op_fsub,  op_fmul, op_fdiv, op_frem, op_fne,
-    op_feq,   op_flt,  op_fle,  op_fgt,   op_fge,  op_band, op_bor,  op_bxor,
-    op_dummy, op_lor,  op_land, op_dummy, op_bshl, op_bshr};
+    op_iadd, op_isub,  op_imul, op_idiv, op_irem,  op_ine,  op_ieq,  op_ilt,
+    op_ile,  op_igt,   op_ige,  op_fadd, op_fsub,  op_fmul, op_fdiv, op_frem,
+    op_fne,  op_feq,   op_flt,  op_fle,  op_fgt,   op_fge,  op_band, op_bor,
+    op_bxor, op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr,
+};
 
 void superinst_load_const_op(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
