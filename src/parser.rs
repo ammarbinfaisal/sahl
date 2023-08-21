@@ -292,6 +292,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
     let commnts = just("//")
         .then(none_of("\n").repeated())
         .then(just("\n"))
+        .padded()
         .repeated()
         .boxed();
 
