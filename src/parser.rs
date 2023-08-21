@@ -1140,7 +1140,7 @@ pub fn handle_err<T: Clone + std::fmt::Debug + std::fmt::Display>(e: &Vec<Rich<T
     let mut reports = Vec::new();
     e.into_iter().for_each(|e| {
         let r = Report::build(ReportKind::Error, (), e.span().start)
-            .with_message(e.to_string())
+            .with_message("Parsing Failed")
             .with_label(
                 Label::new(e.span().into_range())
                     .with_message(e.reason().to_string())
