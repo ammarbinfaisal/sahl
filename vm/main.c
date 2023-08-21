@@ -830,7 +830,8 @@ void handle_cast(VM *vm) {
         double res = (double)vm->regs[r1].i;
         vm->regs[r2].i = *(int64_t*)&res;
     } else if (ty1 == TYPE_FLOAT && ty2 == TYPE_INT) {
-        vm->regs[r2].i = (int64_t)vm->regs[r1].i;
+        double res = *(double*)&vm->regs[r1].i;
+        vm->regs[r2].i = (int64_t)res;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_BOOL) {
         vm->regs[r2].i = vm->regs[r1].i != 0;
     } else if (ty1 == TYPE_BOOL && ty2 == TYPE_INT) {
