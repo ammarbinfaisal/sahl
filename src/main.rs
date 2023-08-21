@@ -46,13 +46,15 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                         println!("{}", res)
                     } else {
                         // println!("CFG:");
-                        let gen = RegCodeGen::new(f.to_string());
-                        // gen.compile_program(&p);
-                        // for funcs in gen.func_code.iter() {
-                        //     for instr in funcs.iter().enumerate() {
-                        //         println!("\t{}: {:?}", instr.0, instr.1);
-                        //     }
-                        // }
+                        let mut gen = RegCodeGen::new(f.to_string());
+                        gen.compile_program(&p);
+                        if verbose {
+                            for funcs in gen.func_code.iter() {
+                                for instr in funcs.iter().enumerate() {
+                                    println!("\t{}: {:?}", instr.0, instr.1);
+                                }
+                            }
+                        }
                         // for funcs in gen.func_code.iter() {
                         //     let cfg = construct_cfg(funcs);
                         //     let cfg_nodes = construct_cfg_nodes(&cfg, cfg.len());
@@ -66,7 +68,6 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                             let mut file = File::create("exe.bin").unwrap();
                             file.write_all(&main_idx.to_le_bytes()).unwrap();
                             file.write_all(&gen.consts.len().to_le_bytes()).unwrap();
-                            println!("consts count {}", consts.len());
                             file.write_all(&consts).unwrap();
                             file.write_all(&gen.func_code.len().to_le_bytes()).unwrap();
                             for func in gen.func_code.iter() {
