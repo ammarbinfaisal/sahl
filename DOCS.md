@@ -150,7 +150,7 @@ fun main() {
 }
 ```
 
-make is used to create arrays, tuples and maps and channels
+make is used to create arrays, maps and channels
 
 
 ### Chan Recv/Send
