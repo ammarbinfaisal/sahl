@@ -203,7 +203,7 @@ void handle_fsub(VM *vm) {
     double arg1 = AS_DOUBLE(vm->regs[r1].i);
     double arg2 = AS_DOUBLE(vm->regs[r2].i);
     double result = arg1 - arg2;
-    vm->regs[res].i = *(int *)&result;
+    vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fmul(VM *vm) {
@@ -214,7 +214,7 @@ void handle_fmul(VM *vm) {
     double arg1 = AS_DOUBLE(vm->regs[r1].i);
     double arg2 = AS_DOUBLE(vm->regs[r2].i);
     double result = arg1 * arg2;
-    vm->regs[res].i = *(int *)&result;
+    vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fdiv(VM *vm) {
@@ -225,7 +225,7 @@ void handle_fdiv(VM *vm) {
     double arg1 = AS_DOUBLE(vm->regs[r1].i);
     double arg2 = AS_DOUBLE(vm->regs[r2].i);
     double result = arg1 / arg2;
-    vm->regs[res].i = *(int *)&result;
+    vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_frem(VM *vm) {
@@ -236,7 +236,7 @@ void handle_frem(VM *vm) {
     double arg1 = AS_DOUBLE(vm->regs[r1].i);
     double arg2 = AS_DOUBLE(vm->regs[r2].i);
     double result = fmod(arg1, arg2);
-    vm->regs[res].i = *(int *)&result;
+    vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fne(VM *vm) {
@@ -389,7 +389,7 @@ void handle_fneg(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     double result = -vm->regs[r1].f;
-    vm->regs[r2].f = *(int *)&result;
+    vm->regs[r2].f = *(int64_t *)&result;
 }
 
 void handle_ineg(VM *vm) {
