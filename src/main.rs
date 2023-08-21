@@ -72,7 +72,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                             file.write_all(&gen.func_code.len().to_le_bytes()).unwrap();
                             for func in gen.func_code.iter() {
                                 let func_bytes = emit_bytes(func);
-                                println!("func_bytes_len {}", func_bytes.len());
+                                // println!("func_bytes_len {}", func_bytes.len());
                                 file.write_all(&func_bytes.len().to_le_bytes()).unwrap();
                                 file.write_all(&func_bytes).unwrap();
                             }
