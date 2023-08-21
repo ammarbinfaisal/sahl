@@ -1,3 +1,8 @@
+// ./sahl exe.bin > image.pgm
+// display image.pgm
+
+// takes about 2 minutes
+
 fun sqr(a: double) -> double {
     return a * a
 }
