@@ -663,7 +663,6 @@ void handle_corocall(VM *vm) {
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
     // read arg registers and put them in local registers of the new call frame
-
     VM *vmm = coro_vm(vm, func);
     CallFrame *cf = new_call_frame(vm->funcs + func, NULL);
     vmm->call_frame = cf;
@@ -677,7 +676,6 @@ void handle_corocall(VM *vm) {
     vm->call_frame->ip +=
         16 + nargs; // 16 instead of 17 because we pre-increment ip again
     cf->ip = 0;
-    vm->coro_to_be_spawned = false;
     push_scheduler(vmm);
 }
 
@@ -889,7 +887,9 @@ void handle_pop(VM *vm) {
     vm->regs[r].i = pop(vm);
 }
 
-void handle_spawn(VM *vm) { vm->coro_to_be_spawned = true; }
+void handle_spawn(VM *vm) {
+    // this instruction is deprecated
+}
 
 void handle_nop(VM *vm) { ; }
 
