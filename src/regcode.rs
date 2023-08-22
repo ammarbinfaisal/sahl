@@ -77,6 +77,7 @@ pub enum RegCode {
     PrintLock,
     PrintUnlock,
     Super(SuperInstruction),
+    CoroCall(usize, Vec<u8>),
 }
 
 fn is_cond_op(c: &RegCode) -> bool {
@@ -247,6 +248,7 @@ pub struct RegCodeGen<'a> {
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
     loop_starts: Vec<usize>, // stack of (start, end) of loops
+    coro_call: bool,
 }
 
 impl<'a> RegCodeGen<'a> {
@@ -267,6 +269,7 @@ impl<'a> RegCodeGen<'a> {
             stack: Vec::new(),
             free_regs: [true; 256],
             breaks: Vec::new(),
+            coro_call: false,
         }
     }
 
@@ -703,7 +706,11 @@ impl<'a> RegCodeGen<'a> {
                         for i in self.stack.iter().rev() {
                             self.code.push(RegCode::Push(*i));
                         }
-                        self.code.push(RegCode::Call(func, arg_regs));
+                        if self.coro_call {
+                            self.code.push(RegCode::CoroCall(func, arg_regs));
+                        } else {
+                            self.code.push(RegCode::Call(func, arg_regs));
+                        }
                         // restore registers
                         for i in self.stack.iter() {
                             self.code.push(RegCode::Pop(*i));
@@ -1043,8 +1050,9 @@ impl<'a> RegCodeGen<'a> {
                 }
             }
             Stmt::Coroutine(expr) => {
-                self.code.push(RegCode::Spawn);
-                self.compile_expr(&expr);
+                self.coro_call = true;
+                self.compile_expr(expr);
+                self.coro_call = false;
             }
             Stmt::Block(stmts) => {
                 self.locals.push();

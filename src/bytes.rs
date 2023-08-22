@@ -65,6 +65,7 @@ const STACKMAP: u8 = 59;
 const PRINTLOCK: u8 = 60;
 const PRINTUNLOCK: u8 = 61;
 const SUPERINST: u8 = 62;
+const CORO_CALL: u8 = 63;
 
 const SUPERINST_LOAD_CONST_OP: u8 = 0;
 const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
@@ -354,8 +355,12 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     bytes.push(0);
                 }
             }
-            RegCode::Call(ix, args) => {
-                let mut opcodes = vec![CALL];
+            RegCode::Call(ix, args) | RegCode::CoroCall(ix, args) => {
+                let mut opcodes = match c {
+                    RegCode::Call(_,_) => vec![CALL],
+                    RegCode::CoroCall(_,_) => vec![CORO_CALL],
+                    _ => unreachable!()
+                };
                 opcodes.extend(ix.to_le_bytes().iter());
                 opcodes.extend(args.len().to_le_bytes().iter());
                 opcodes.extend(args.iter());

@@ -644,15 +644,7 @@ void handle_call(VM *vm) {
     // read arg registers and put them in local registers of the new call frame
 
     CallFrame *cf;
-    VM *vmm;
-    if (vm->coro_to_be_spawned) {
-        vmm = coro_vm(vm, func);
-        cf = new_call_frame(vm->funcs + func, NULL);
-        vmm->call_frame = cf;
-    } else {
-        vmm = vm;
-        cf = new_call_frame(vm->funcs + func, vm->call_frame);
-    }
+    cf = new_call_frame(vm->funcs + func, vm->call_frame);
     cf->locals_count = nargs;
     cf->locals_capacity = GROW_CAPACITY(nargs);
     cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
@@ -662,14 +654,31 @@ void handle_call(VM *vm) {
     }
     vm->call_frame->ip +=
         16 + nargs; // 16 instead of 17 because we pre-increment ip again
-    if (vm->coro_to_be_spawned) {
-        cf->ip = 0;
-        vm->coro_to_be_spawned = false;
-        push_scheduler(vmm);
-    } else {
-        vm->call_frame = cf;
-        vm->call_frame->ip = -1;
+    vm->call_frame = cf;
+    vm->call_frame->ip = -1;
+}
+
+void handle_corocall(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int func = read_u64(code, vm->call_frame->ip + 1);
+    int nargs = read_u64(code, vm->call_frame->ip + 9);
+    // read arg registers and put them in local registers of the new call frame
+
+    VM *vmm = coro_vm(vm, func);
+    CallFrame *cf = new_call_frame(vm->funcs + func, NULL);
+    vmm->call_frame = cf;
+    cf->locals_count = nargs;
+    cf->locals_capacity = GROW_CAPACITY(nargs);
+    cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
+    for (int i = 0; i < nargs; ++i) {
+        int reg = code[vm->call_frame->ip + 17 + i];
+        cf->locals[i] = vm->regs[reg].i;
     }
+    vm->call_frame->ip +=
+        16 + nargs; // 16 instead of 17 because we pre-increment ip again
+    cf->ip = 0;
+    vm->coro_to_be_spawned = false;
+    push_scheduler(vmm);
 }
 
 typedef void (*native_fn_t)(VM *vm);
@@ -828,9 +837,9 @@ void handle_cast(VM *vm) {
         vm->regs[r2].i = vm->regs[r1].i;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_FLOAT) {
         double res = (double)vm->regs[r1].i;
-        vm->regs[r2].i = *(int64_t*)&res;
+        vm->regs[r2].i = *(int64_t *)&res;
     } else if (ty1 == TYPE_FLOAT && ty2 == TYPE_INT) {
-        double res = *(double*)&vm->regs[r1].i;
+        double res = *(double *)&vm->regs[r1].i;
         vm->regs[r2].i = (int64_t)res;
     } else if (ty1 == TYPE_INT && ty2 == TYPE_BOOL) {
         vm->regs[r2].i = vm->regs[r1].i != 0;
@@ -1072,7 +1081,8 @@ static OpcodeHandler opcode_handlers[] = {
     handle_cast,      handle_move,        handle_return,
     handle_push,      handle_pop,         handle_spawn,
     handle_nop,       handle_ret,         handle_stack_map,
-    handle_printlock, handle_printunlock, handle_superinstruction};
+    handle_printlock, handle_printunlock, handle_superinstruction,
+    handle_corocall};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {
