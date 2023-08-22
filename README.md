@@ -18,11 +18,11 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 ## docs
 
-check [DOCS.md](DOCS.md)
+[DOCS.md](DOCS.md)
 
 ## contributing
 
-check [CONTRIBUTING.md](CONTRIBUTING.md)
+[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## features
 
