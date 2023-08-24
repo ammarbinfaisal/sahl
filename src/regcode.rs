@@ -1,4 +1,4 @@
-use crate::syntax::*;
+use crate::{cfg::*, syntax::*};
 use std::collections::{HashMap, HashSet};
 
 // highlevel enum for 3/4 address code
@@ -70,7 +70,7 @@ pub enum RegCode {
     Push(u8),
     Spawn,
     Nop,
-    Phi(usize),
+    Phi(usize, Vec<(usize, usize)>), // var_idx
     FreeRegs,
     Pop(u8),
     StackMap(Vec<u64>), // set of locals that are live
@@ -1165,6 +1165,40 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
+    fn optimise(&self) {
+        let mut cfg = construct_cfg(&self.code);
+        println!("CFG:");
+        for (i, node) in cfg.iter().enumerate() {
+            println!("\t{}: {:?}", i, node);
+        }
+        let succ_nodes = construct_succs_nodes(&cfg, cfg.len());
+        let rev_dom_tree = construct_revdom_tree(&cfg, &succ_nodes);
+        println!("Rev Dominator Tree:");
+        for (idx, dom) in rev_dom_tree.iter().enumerate() {
+            println!("\t{}: {:?}", idx, dom);
+        }
+        let idoms = construct_idoms(&rev_dom_tree);
+        let dom_tree = construct_dom_tree(&idoms, &succ_nodes);
+        println!("Dominator Tree:");
+        for (idx, dom) in dom_tree.iter().enumerate() {
+            println!("\t{}: {:?}", idx, dom);
+        }
+        println!("idoms: ");
+        for (i, j) in idoms.clone().into_iter().enumerate() {
+            println!("{} {}", i, j);
+        }
+        println!("Dominance Frontiers:");
+        let domf = construct_dominance_frontiers(&succ_nodes, &dom_tree, &idoms);
+        for (idx, dom) in domf.iter().enumerate() {
+            println!("\t{}: {:?}", idx, dom);
+        }
+        println!("Phis inserted:");
+        insert_phi_functions(&mut cfg, &domf, self.locals.prev_local);
+        for (idx, node) in cfg.iter().enumerate() {
+            println!("\t{}: {:?}", idx, node);
+        }
+    }
+
     fn compile_func(&mut self, func: &'a Func) {
         for arg in &func.args {
             let lcl = self.locals.insert(arg.name.as_str());
@@ -1201,7 +1235,8 @@ impl<'a> RegCodeGen<'a> {
                 self.start_func_idx = idx;
             }
             self.compile_func(func);
-            self.parse_super_inst();
+            self.optimise();
+            // self.parse_super_inst();
             func_code.push(self.code.clone());
             self.code.clear();
             idx += 1;

@@ -17,7 +17,6 @@ use std::fs::*;
 use std::io::{Read, Write};
 
 use crate::bytes::{consts_vec, emit_bytes};
-use crate::cfg::*;
 
 fn usage() {
     println!("Usage: sahl <filename> <option> <verbose>");
@@ -52,29 +51,6 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                             for funcs in gen.func_code.iter() {
                                 for instr in funcs.iter().enumerate() {
                                     println!("\t{}: {:?}", instr.0, instr.1);
-                                }
-                            }
-                            for funcs in gen.func_code.iter() {
-                                let cfg = construct_cfg(funcs);
-                                println!("CFG:");
-                                for (i, node) in cfg.iter().enumerate() {
-                                    println!("\t{}: {:?}", i, node);
-                                }
-                                let pred_nodes = construct_pred_nodes(&cfg, cfg.len());
-                                let dom_tree = construct_dom_tree(&cfg, &pred_nodes);
-                                let idoms = construct_idoms(&dom_tree);
-                                println!("Dominator Tree:");
-                                for (idx, dom) in dom_tree.iter().enumerate() {
-                                    println!("\t{}: {:?}", idx, dom);
-                                }
-                                println!("idoms: ");
-                                for (i, j) in idoms.clone().into_iter().enumerate() {
-                                    println!("{} {}", i, j);
-                                }
-                                println!("Dominance Frontiers:");
-                                let domf = construct_dominance_frontiers(&pred_nodes, &idoms);
-                                for (idx, dom) in domf.iter().enumerate() {
-                                    println!("\t{}: {:?}", idx, dom);
                                 }
                             }
                         }

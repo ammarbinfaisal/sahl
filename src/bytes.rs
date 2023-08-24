@@ -434,7 +434,7 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                 bytes.push(PRINTUNLOCK);
             }
             RegCode::Nop => {}
-            RegCode::Phi(_) => {}
+            RegCode::Phi(_, _) => {}
             RegCode::FreeRegs => {}
             RegCode::Super(s) => match s {
                 SuperInstruction::LoadConstOp(var_ix, const_ix, res_reg, op) => {

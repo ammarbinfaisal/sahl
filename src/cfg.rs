@@ -1,8 +1,17 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use crate::regcode::{RegCode, SuperInstruction};
 
-pub type CFG = Vec<Vec<RegCode>>;
+pub type CFG = Vec<BasicBlock>;
+
+#[derive(Debug)]
+pub struct BasicBlock {
+    phi: HashMap<usize, HashSet<usize>>,
+    code: Vec<RegCode>,
+}
 
 pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     let mut cfg: CFG = Vec::new();
@@ -11,7 +20,10 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     let mut leaders = HashSet::new();
     for (i, code) in regcode.into_iter().enumerate() {
         if leaders.contains(&i) {
-            cfg.push(block);
+            cfg.push(BasicBlock {
+                phi: HashMap::new(),
+                code: block,
+            });
             block = Vec::new();
         }
         match code {
@@ -39,10 +51,13 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
             }
         }
     }
-    cfg.push(block);
+    cfg.push(BasicBlock {
+        phi: HashMap::new(),
+        code: block,
+    });
     // patching jmps
     for block in cfg.iter_mut() {
-        for code in block.iter_mut() {
+        for code in block.code.iter_mut() {
             match code {
                 RegCode::Jmp(addr) => {
                     let block_idx = map[addr];
@@ -69,23 +84,21 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     cfg
 }
 
-pub type Preds = Vec<Vec<usize>>;
-
-pub fn construct_pred_nodes(cfg: &CFG, len: usize) -> Preds {
-    let mut nodes: Preds = vec![Vec::new(); len + 1];
+pub fn construct_succs_nodes(cfg: &CFG, len: usize) -> Vec<Vec<usize>> {
+    let mut nodes = vec![Vec::new(); len + 1];
     for (i, block) in cfg.iter().enumerate() {
-        let last_idx = block.len() - 1;
-        match block[last_idx] {
+        let last_idx = block.code.len() - 1;
+        match block.code[last_idx] {
             RegCode::Jmp(ix) => {
-                nodes[ix].push(i);
+                nodes[i].push(ix);
             }
             RegCode::JmpIfNot(_, ix) => {
-                nodes[ix].push(i);
-                nodes[i + 1].push(i);
+                nodes[i].push(ix);
+                nodes[i].push(i + 1);
             }
             _ => {
                 if i < len {
-                    nodes[i + 1].push(i);
+                    nodes[i].push(i + 1);
                 }
             }
         }
@@ -93,38 +106,54 @@ pub fn construct_pred_nodes(cfg: &CFG, len: usize) -> Preds {
     nodes
 }
 
-pub fn construct_children_nodes(pred_nodes: &Preds) -> Vec<Vec<usize>> {
-    let mut nodes: Vec<Vec<usize>> = vec![Vec::new(); pred_nodes.len()];
-    for (i, preds) in pred_nodes.iter().enumerate() {
-        for pred in preds.iter() {
-            nodes[*pred].push(i);
+fn succ_to_preds(succ_nodes: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
+    let mut preds = vec![Vec::new(); succ_nodes.len()];
+    for (i, succs) in succ_nodes.iter().enumerate() {
+        for succ in succs.iter() {
+            preds[*succ].push(i);
         }
     }
-    println!("children nodes:");
-    for (i, j) in nodes.iter().enumerate() {
-        println!("{}: ", i);
-        for k in j.into_iter() {
-            println!("\t {}", k);
+    preds
+}
+
+pub fn construct_children_nodes(dom_tree: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
+    let mut nodes: Vec<Vec<usize>> = vec![Vec::new(); dom_tree.len()];
+    for (i, preds) in dom_tree.iter().enumerate() {
+        for pred in preds.iter() {
+            nodes[*pred].push(i);
         }
     }
     nodes
 }
 
 // control flow is linear except for jumps
-pub fn construct_dom_tree(cfg: &CFG, pred_nodes: &Preds) -> Vec<HashSet<usize>> {
-    let mut dom_tree: Vec<HashSet<usize>> = vec![HashSet::new(); cfg.len()];
-    dom_tree[0].insert(0);
+pub fn construct_revdom_tree(cfg: &CFG, succ_nodes: &Vec<Vec<usize>>) -> Vec<HashSet<usize>> {
+    let pred_nodes = succ_to_preds(succ_nodes);
+    let mut rev_dom_tree: Vec<HashSet<usize>> = vec![HashSet::new(); cfg.len() + 1];
+    rev_dom_tree[0].insert(0);
     for (i, _) in cfg.iter().enumerate() {
         let mut dom = HashSet::new();
         for pred in pred_nodes[i].iter() {
             if dom.is_empty() {
-                dom = dom_tree[*pred].clone();
+                dom = rev_dom_tree[*pred].clone();
             } else {
-                dom = dom.intersection(&dom_tree[*pred]).cloned().collect();
+                dom = dom.intersection(&rev_dom_tree[*pred]).cloned().collect();
             }
         }
         dom.insert(i);
-        dom_tree[i] = dom;
+        rev_dom_tree[i] = dom;
+    }
+    rev_dom_tree
+}
+
+pub fn construct_dom_tree(idoms: &Vec<usize>, succ_nodes: &Vec<Vec<usize>>) -> Vec<Vec<usize>> {
+    let order = toposort(succ_nodes);
+    let mut dom_tree = vec![Vec::new(); idoms.len()];
+    for i in order.iter() {
+        if *i == 0 {
+            continue;
+        }
+        dom_tree[idoms[*i]].push(*i);
     }
     dom_tree
 }
@@ -133,7 +162,7 @@ pub fn construct_idoms(dom_tree: &Vec<HashSet<usize>>) -> Vec<usize> {
     let mut idoms = vec![0; dom_tree.len()];
     for (i, dom) in dom_tree.iter().enumerate() {
         for j in dom.iter() {
-            if i != *j {
+            if i != *j && *j > 0 {
                 idoms[i] = *j;
             }
         }
@@ -168,6 +197,32 @@ fn toposort(children_nodes: &Vec<Vec<usize>>) -> Vec<usize> {
     sorted
 }
 
+fn depth_first_preorder(
+    node: usize,
+    children_nodes: &Vec<Vec<usize>>,
+    visited: &mut Vec<bool>,
+    sorted: &mut Vec<usize>,
+) {
+    visited[node] = true;
+    sorted.push(node);
+    for child in children_nodes[node].iter() {
+        if !visited[*child] {
+            depth_first_preorder(*child, children_nodes, visited, sorted);
+        }
+    }
+}
+
+fn depth_first_preorder_traversal(children_nodes: &Vec<Vec<usize>>) -> Vec<usize> {
+    let mut visited = vec![false; children_nodes.len()];
+    let mut sorted = Vec::new();
+    for (i, _) in children_nodes.iter().enumerate() {
+        if !visited[i] {
+            depth_first_preorder(i, children_nodes, &mut visited, &mut sorted);
+        }
+    }
+    sorted
+}
+
 // for each X in bottom-up traversal of dominator tree
 //     DF(X) = { }
 //     for Y in parent of X
@@ -184,14 +239,17 @@ fn toposort(children_nodes: &Vec<Vec<usize>>) -> Vec<usize> {
 //     end
 // end
 pub fn construct_dominance_frontiers(
-    pred_nodes: &Preds,
+    succ_nodes: &Vec<Vec<usize>>,
+    dom_tree: &Vec<Vec<usize>>,
     idoms: &Vec<usize>,
 ) -> Vec<HashSet<usize>> {
-    let children_nodes = construct_children_nodes(pred_nodes);
+    let children_nodes = construct_children_nodes(dom_tree);
     let bottom_up = toposort(&children_nodes);
-    let mut df = vec![HashSet::new(); idoms.len() + 1];
+    println!("bottom_up {:?}", bottom_up);
+    let mut df = vec![HashSet::new(); idoms.len()];
     for x in bottom_up.iter() {
-        for y in pred_nodes[*x].iter() {
+        println!("x {}", x);
+        for y in succ_nodes[*x].iter() {
             if idoms[*y] != *x {
                 df[*x].insert(*y);
             }
@@ -206,4 +264,65 @@ pub fn construct_dominance_frontiers(
         }
     }
     df
+}
+
+fn get_defs(cfg: &CFG, var_count: usize) -> Vec<Vec<(usize, usize)>> {
+    let mut defs = vec![Vec::new(); var_count];
+    for (i, block) in cfg.iter().enumerate() {
+        for (j, code) in block.code.iter().enumerate() {
+            match code {
+                RegCode::Store(r, _) => {
+                    defs[*r].push((i, j));
+                }
+                _ => {}
+            }
+        }
+    }
+    defs
+}
+
+fn phi_add_arg(c: &mut RegCode, arg: (usize, usize)) {
+    match c {
+        RegCode::Phi(_, args) => {
+            args.push(arg);
+        }
+        _ => {}
+    }
+}
+
+pub fn insert_phi_functions(cfg: &mut CFG, df: &Vec<HashSet<usize>>, var_count: usize) {
+    let mut defs = get_defs(cfg, var_count);
+    let node_count = cfg.len();
+    for var in 0..var_count {
+        let mut worklist = defs[var]
+            .iter()
+            .map(|(i, _)| *i)
+            .collect::<HashSet<usize>>();
+        let mut inserted = HashSet::new();
+        loop {
+            let i = worklist.iter().next();
+            let i = match i {
+                Some(i) => *i,
+                None => break,
+            };
+            worklist.remove(&i);
+            for j in df[i].iter() {
+                if !inserted.contains(j) {
+                    inserted.insert(*j);
+                    let mut phi = Vec::new();
+                    for (k, _) in defs[var].iter() {
+                        phi.push(*k);
+                    }
+                    if *j >= node_count {
+                        continue;
+                    }
+                    cfg[*j].phi.insert(var, phi.into_iter().collect());
+                    if !defs[var].contains(&(*j, 0)) {
+                        defs[var].push((*j, 0));
+                        worklist.insert(*j);
+                    }
+                }
+            }
+        }
+    }
 }
