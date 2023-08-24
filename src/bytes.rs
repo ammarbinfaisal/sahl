@@ -357,9 +357,9 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             }
             RegCode::Call(ix, args) | RegCode::CoroCall(ix, args) => {
                 let mut opcodes = match c {
-                    RegCode::Call(_,_) => vec![CALL],
-                    RegCode::CoroCall(_,_) => vec![CORO_CALL],
-                    _ => unreachable!()
+                    RegCode::Call(_, _) => vec![CALL],
+                    RegCode::CoroCall(_, _) => vec![CORO_CALL],
+                    _ => unreachable!(),
                 };
                 opcodes.extend(ix.to_le_bytes().iter());
                 opcodes.extend(args.len().to_le_bytes().iter());
