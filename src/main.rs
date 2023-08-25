@@ -128,5 +128,7 @@ fn main() {
                 return;
             }
         }
+    } else {
+        usage();
     }
 }

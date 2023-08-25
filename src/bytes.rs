@@ -379,13 +379,13 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                 opcodes.push(*res);
                 bytes.extend(opcodes);
             }
-            RegCode::Load(r1, res) => {
+            RegCode::Load(r1, res, _) => {
                 let mut opcodes = vec![LOAD];
                 opcodes.extend(r1.to_le_bytes().iter());
                 opcodes.extend(vec![*res]);
                 bytes.extend(opcodes);
             }
-            RegCode::Store(r1, res) => {
+            RegCode::Store(r1, res, _) => {
                 let mut opcodes = vec![STORE];
                 opcodes.extend(r1.to_le_bytes().iter());
                 opcodes.extend(vec![*res]);
@@ -434,7 +434,6 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                 bytes.push(PRINTUNLOCK);
             }
             RegCode::Nop => {}
-            RegCode::Phi(_, _) => {}
             RegCode::FreeRegs => {}
             RegCode::Super(s) => match s {
                 SuperInstruction::LoadConstOp(var_ix, const_ix, res_reg, op) => {

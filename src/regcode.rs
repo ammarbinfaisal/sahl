@@ -1,5 +1,5 @@
 use crate::{cfg::*, syntax::*};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 // highlevel enum for 3/4 address code
 #[derive(Debug, Clone)]
@@ -61,16 +61,15 @@ pub enum RegCode {
     Call(usize, Vec<u8>),
     // others
     NCall(u8, Vec<u8>),
-    Const(usize, u8), // const_idx, reg
-    Load(usize, u8),
-    Store(usize, u8),
+    Const(usize, u8),        // const_idx, reg
+    Load(usize, u8, usize),  // local_ix, reg, version
+    Store(usize, u8, usize), // local_ix, reg, version
     Cast(u8, Type, Type, u8),
     Move(u8, u8),
     Return(u8),
     Push(u8),
     Spawn,
     Nop,
-    Phi(usize, Vec<(usize, usize)>), // var_idx
     FreeRegs,
     Pop(u8),
     StackMap(Vec<u64>), // set of locals that are live
@@ -534,7 +533,7 @@ impl<'a> RegCodeGen<'a> {
                 if local.is_some() {
                     let local = *local.unwrap();
                     let reg = self.get_reg();
-                    self.code.push(RegCode::Load(local, reg));
+                    self.code.push(RegCode::Load(local, reg, 0));
                     // println!("{:?}", self.code);
                     self.stack_push(reg);
                 } else {
@@ -753,7 +752,7 @@ impl<'a> RegCodeGen<'a> {
                         match var {
                             Some(var) => {
                                 let v = *var;
-                                self.code.push(RegCode::Store(v, arg));
+                                self.code.push(RegCode::Store(v, arg, 0));
                                 self.locals.set_live_var(v);
                             }
                             None => {
@@ -884,7 +883,7 @@ impl<'a> RegCodeGen<'a> {
                 self.compile_expr(&expr);
                 let lcl = self.add_local(var.as_str());
                 let arg = self.stack_pop();
-                self.code.push(RegCode::Store(lcl, arg));
+                self.code.push(RegCode::Store(lcl, arg, 0));
                 let ty = expr.1.get_type();
                 if ty.is_heap_type() {
                     self.locals.set_live_var(lcl);
@@ -903,7 +902,7 @@ impl<'a> RegCodeGen<'a> {
                 {
                     self.compile_expr(&start);
                     let start = self.stack_unfree_pop();
-                    self.code.push(RegCode::Store(var_ix, start));
+                    self.code.push(RegCode::Store(var_ix, start, 0));
                     self.compile_expr(&end);
                     let end = self.stack_unfree_pop();
                     let cond_reg = self.get_reg();
@@ -913,14 +912,14 @@ impl<'a> RegCodeGen<'a> {
                     self.locals.push();
                     self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_ix_1, const_reg));
-                    self.code.push(RegCode::Store(var_ix, start));
-                    self.code.push(RegCode::Load(var_ix, iter));
+                    self.code.push(RegCode::Store(var_ix, start, 0));
+                    self.code.push(RegCode::Load(var_ix, iter, 0));
                     let jmp_over_icr = self.code.len();
                     self.code.push(RegCode::Nop);
                     let incr_jmp_ix = self.code.len();
                     self.code.push(RegCode::IAdd(iter, const_reg, iter));
-                    self.code.push(RegCode::Store(var_ix, iter));
-                    self.code.push(RegCode::Load(var_ix, iter));
+                    self.code.push(RegCode::Store(var_ix, iter, 0));
+                    self.code.push(RegCode::Load(var_ix, iter, 0));
                     self.code[jmp_over_icr] = RegCode::Jmp(self.code.len());
                     if *inclusive {
                         self.code.push(RegCode::ILe(iter, end, cond_reg));
@@ -970,7 +969,7 @@ impl<'a> RegCodeGen<'a> {
                     let jmp_ix2 = self.code.len();
                     self.code.push(RegCode::Nop);
                     self.code.push(RegCode::ListGet(arg, iter, reg));
-                    self.code.push(RegCode::Store(var_ix, reg));
+                    self.code.push(RegCode::Store(var_ix, reg, 0));
                     self.loop_starts.push(jmp_ix);
                     for stmt in body {
                         self.compile_stmt(&stmt);
@@ -1071,7 +1070,7 @@ impl<'a> RegCodeGen<'a> {
             // println!("{} state: {:?}", i, state);
             match state.clone() {
                 SuperInstParseState::None => {
-                    if let RegCode::Load(var_ix, reg_ix) = self.code[i] {
+                    if let RegCode::Load(var_ix, reg_ix, _) = self.code[i] {
                         state = SuperInstParseState::Load(var_ix, reg_ix);
                     } else if is_cond_op(&self.code[i]) {
                         state = SuperInstParseState::Cond(self.code[i].clone());
@@ -1107,7 +1106,7 @@ impl<'a> RegCodeGen<'a> {
                 }
                 SuperInstParseState::LoadConstOp(var_ix, const_ix, r, op) => {
                     let mut insert_load_const_op = false;
-                    if let RegCode::Store(var_ix2, reg_ix2) = self.code[i] {
+                    if let RegCode::Store(var_ix2, reg_ix2, _) = self.code[i] {
                         if var_ix == var_ix2 && r == reg_ix2 {
                             // remove the load, const, op, store
                             self.code[i - 3] = RegCode::Nop;
@@ -1167,36 +1166,41 @@ impl<'a> RegCodeGen<'a> {
 
     fn optimise(&self) {
         let mut cfg = construct_cfg(&self.code);
-        println!("CFG:");
+        // println!("CFG:");
         for (i, node) in cfg.iter().enumerate() {
             println!("\t{}: {:?}", i, node);
         }
         let succ_nodes = construct_succs_nodes(&cfg, cfg.len());
         let rev_dom_tree = construct_revdom_tree(&cfg, &succ_nodes);
-        println!("Rev Dominator Tree:");
-        for (idx, dom) in rev_dom_tree.iter().enumerate() {
-            println!("\t{}: {:?}", idx, dom);
-        }
+        // println!("Rev Dominator Tree:");
+        // for (idx, dom) in rev_dom_tree.iter().enumerate() {
+        //     println!("\t{}: {:?}", idx, dom);
+        // }
         let idoms = construct_idoms(&rev_dom_tree);
         let dom_tree = construct_dom_tree(&idoms, &succ_nodes);
-        println!("Dominator Tree:");
-        for (idx, dom) in dom_tree.iter().enumerate() {
-            println!("\t{}: {:?}", idx, dom);
-        }
-        println!("idoms: ");
-        for (i, j) in idoms.clone().into_iter().enumerate() {
-            println!("{} {}", i, j);
-        }
-        println!("Dominance Frontiers:");
+        // println!("Dominator Tree:");
+        // for (idx, dom) in dom_tree.iter().enumerate() {
+        //     println!("\t{}: {:?}", idx, dom);
+        // }
+        // println!("idoms: ");
+        // for (i, j) in idoms.clone().into_iter().enumerate() {
+        //     println!("{} {}", i, j);
+        // }
+        // println!("Dominance Frontiers:");
         let domf = construct_dominance_frontiers(&succ_nodes, &dom_tree, &idoms);
-        for (idx, dom) in domf.iter().enumerate() {
-            println!("\t{}: {:?}", idx, dom);
-        }
-        println!("Phis inserted:");
+        // for (idx, dom) in domf.iter().enumerate() {
+        //     println!("\t{}: {:?}", idx, dom);
+        // }
+        // println!("Phis inserted and variables renamed");
         insert_phi_functions(&mut cfg, &domf, self.locals.prev_local);
-        for (idx, node) in cfg.iter().enumerate() {
-            println!("\t{}: {:?}", idx, node);
+        let mut vmap = HashMap::new();
+        let mut visited = vec![false; cfg.len()];
+        for idx in 0..cfg.len() {
+            rename_variable(idx, &mut cfg, &dom_tree, &mut vmap, &mut visited)
         }
+        // for (idx, node) in cfg.iter().enumerate() {
+        //     println!("\t{}: {:?}", idx, node);
+        // }
     }
 
     fn compile_func(&mut self, func: &'a Func) {
@@ -1236,7 +1240,7 @@ impl<'a> RegCodeGen<'a> {
             }
             self.compile_func(func);
             self.optimise();
-            // self.parse_super_inst();
+            self.parse_super_inst();
             func_code.push(self.code.clone());
             self.code.clear();
             idx += 1;

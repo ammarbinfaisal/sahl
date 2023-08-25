@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::regcode::{RegCode, SuperInstruction};
 
@@ -9,7 +6,7 @@ pub type CFG = Vec<BasicBlock>;
 
 #[derive(Debug)]
 pub struct BasicBlock {
-    phi: HashMap<usize, HashSet<usize>>,
+    phi: HashMap<usize, HashMap<usize, usize>>,
     code: Vec<RegCode>,
 }
 
@@ -267,11 +264,11 @@ pub fn construct_dominance_frontiers(
 }
 
 fn get_defs(cfg: &CFG, var_count: usize) -> Vec<Vec<(usize, usize)>> {
-    let mut defs = vec![Vec::new(); var_count];
+    let mut defs = vec![Vec::new(); var_count + 1];
     for (i, block) in cfg.iter().enumerate() {
         for (j, code) in block.code.iter().enumerate() {
             match code {
-                RegCode::Store(r, _) => {
+                RegCode::Store(r, _, _) => {
                     defs[*r].push((i, j));
                 }
                 _ => {}
@@ -279,15 +276,6 @@ fn get_defs(cfg: &CFG, var_count: usize) -> Vec<Vec<(usize, usize)>> {
         }
     }
     defs
-}
-
-fn phi_add_arg(c: &mut RegCode, arg: (usize, usize)) {
-    match c {
-        RegCode::Phi(_, args) => {
-            args.push(arg);
-        }
-        _ => {}
-    }
 }
 
 pub fn insert_phi_functions(cfg: &mut CFG, df: &Vec<HashSet<usize>>, var_count: usize) {
@@ -316,13 +304,62 @@ pub fn insert_phi_functions(cfg: &mut CFG, df: &Vec<HashSet<usize>>, var_count: 
                     if *j >= node_count {
                         continue;
                     }
-                    cfg[*j].phi.insert(var, phi.into_iter().collect());
+                    cfg[*j].phi.insert(var, phi.into_iter().map(|i| (i, 0)).collect());
                     if !defs[var].contains(&(*j, 0)) {
                         defs[var].push((*j, 0));
                         worklist.insert(*j);
                     }
                 }
             }
+        }
+    }
+}
+
+// dfs
+pub fn rename_variable(
+    node: usize,
+    cfg: &mut CFG,
+    dom_tree: &Vec<Vec<usize>>,
+    vmap: &mut HashMap<usize, usize>,
+    visited: &mut Vec<bool>,
+) {
+    for code in cfg[node].code.iter_mut() {
+        match code {
+            RegCode::Load(r, _, v) => {
+                if vmap.contains_key(r) {
+                    *v = vmap[r];
+                } else {
+                    vmap.insert(*r, 0);
+                }
+            }
+            RegCode::Store(r, _, v) => {
+                if vmap.contains_key(r) {
+                    *v = vmap[r] + 1;
+                    let vmap_r_mut = vmap.get_mut(r).unwrap();
+                    *vmap_r_mut = *v;
+                } else {
+                    *v = 0;
+                    vmap.insert(*r, 0);
+                }
+            }
+            _ => {}
+        }
+    }
+    for succ in dom_tree[node].iter() {
+        if *succ < cfg.len() &&  !visited[*succ] {
+            visited[*succ] = true;
+            // updagte the phi nodes in succ block
+            let phis = &mut cfg[*succ].phi; 
+            for (var, phi) in phis.iter_mut() {
+                for (i, j) in phi.iter_mut() {
+                    if *i == node {
+                        if let Some(v) = vmap.get(var) {
+                            *j = *v;
+                        }
+                    }
+                }
+            }
+            rename_variable(*succ, cfg, dom_tree, vmap, visited);
         }
     }
 }
