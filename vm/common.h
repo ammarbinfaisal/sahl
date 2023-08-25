@@ -137,13 +137,13 @@ struct Obj {
 
 typedef struct Obj Obj;
 
-struct Reg {
+union Reg {
     int64_t i;
     double f;
     Obj *o;
 };
 
-typedef struct Reg Reg;
+typedef union Reg Reg;
 
 struct GCState {
     Obj *objects;

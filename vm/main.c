@@ -186,8 +186,8 @@ void handle_fadd(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     double result = arg1 + arg2;
     vm->regs[res].i = *(uint64_t *)&result;
 }
@@ -197,8 +197,8 @@ void handle_fsub(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     double result = arg1 - arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
@@ -208,8 +208,8 @@ void handle_fmul(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     double result = arg1 * arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
@@ -219,8 +219,8 @@ void handle_fdiv(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     double result = arg1 / arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
@@ -230,8 +230,8 @@ void handle_frem(VM *vm) {
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     double result = fmod(arg1, arg2);
     vm->regs[res].i = *(int64_t *)&result;
 }
@@ -240,8 +240,8 @@ void handle_fne(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 != arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -251,8 +251,8 @@ void handle_feq(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 == arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -262,8 +262,8 @@ void handle_flt(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 < arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -273,8 +273,8 @@ void handle_fle(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 <= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -284,8 +284,8 @@ void handle_fgt(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 > arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -295,8 +295,8 @@ void handle_fge(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int r2 = code[++vm->call_frame->ip];
-    double arg1 = AS_DOUBLE(vm->regs[r1].i);
-    double arg2 = AS_DOUBLE(vm->regs[r2].i);
+    double arg1 = vm->regs[r1].f;
+    double arg2 = vm->regs[r2].f;
     bool result = arg1 >= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -454,7 +454,7 @@ void handle_listset(VM *vm) {
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
     int value = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[list].i;
+    Obj *obj = vm->regs[list].o;
     int idx = vm->regs[index].i;
     obj->list.items[idx] = vm->regs[value].i;
 }
@@ -464,7 +464,7 @@ void handle_listget(VM *vm) {
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[list].i;
+    Obj *obj = vm->regs[list].o;
     int idx = vm->regs[index].i;
     vm->regs[res].i = obj->list.items[idx];
 }
@@ -474,7 +474,7 @@ void handle_mapset(VM *vm) {
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
     int value = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[map].i;
+    Obj *obj = vm->regs[map].o;
     RBNode *new = new_rb_node(vm->regs[key].i);
     new->value = vm->regs[value].i;
     rb_insert(obj->map.map, new);
@@ -487,7 +487,7 @@ void handle_mapget(VM *vm) {
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[map].i;
+    Obj *obj = vm->regs[map].o;
     RBNode *n = rb_search(obj->map.map, vm->regs[key].i);
 #ifdef DEBUG
     printf("mapget %p %ld\n", obj, vm->regs[key].i);
@@ -548,7 +548,7 @@ void handle_tupleget(VM *vm) {
     int tuple = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[tuple].i;
+    Obj *obj = vm->regs[tuple].o;
     vm->regs[res].i = obj->tuple.items[vm->regs[index].i];
 }
 
@@ -610,7 +610,7 @@ void handle_strget(VM *vm) {
     int str = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[str].i;
+    Obj *obj = vm->regs[str].o;
     vm->regs[res].i = obj->string.data[index];
 }
 
@@ -696,7 +696,7 @@ void native_print_float(VM *vm) {
     // read regs and print them
     for (int i = 0; i < argc; ++i) {
         int arg = code[++vm->call_frame->ip];
-        printf("%lf", AS_DOUBLE(vm->regs[arg].i));
+        printf("%lf", vm->regs[arg].f);
     }
 }
 
@@ -729,7 +729,7 @@ void native_print_str(VM *vm) {
     // read regs and print them
     for (int i = 0; i < argc; ++i) {
         int arg = code[++vm->call_frame->ip];
-        Obj *obj = (Obj *)vm->regs[arg].i;
+        Obj *obj = vm->regs[arg].o;
         printf("%s", obj->string.data);
     }
 }
@@ -740,7 +740,7 @@ void native_append(VM *vm) {
     vm->call_frame->ip += 7; // 7 instead of 8 because we pre-increment ip again
     int list = vm->call_frame->func->code[++vm->call_frame->ip];
     int value = vm->call_frame->func->code[++vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[list].i;
+    Obj *obj = vm->regs[list].o;
     if (obj->list.length == obj->list.capacity) {
         obj->list.capacity = GROW_CAPACITY(obj->list.capacity);
         obj->list.items =
@@ -759,7 +759,7 @@ void native_list_len(VM *vm) {
     int argc = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8; // 7 instead of 8 because we pre-increment ip again
     int list = code[vm->call_frame->ip];
-    Obj *obj = (Obj *)vm->regs[list].i;
+    Obj *obj = vm->regs[list].o;
     vm->regs[0].i = obj->list.length;
 }
 
