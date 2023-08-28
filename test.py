@@ -25,7 +25,8 @@ files_all_checks = [
     "bitwise",
     "cast",
     "graph",
-    "map"
+    "map",
+    "seive"
 ]
 files_retcode_check = [
     "chan",
