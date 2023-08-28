@@ -1167,9 +1167,9 @@ impl<'a> RegCodeGen<'a> {
     fn optimise(&self) {
         let mut cfg = construct_cfg(&self.code);
         // println!("CFG:");
-        for (i, node) in cfg.iter().enumerate() {
-            println!("\t{}: {:?}", i, node);
-        }
+        // for (i, node) in cfg.iter().enumerate() {
+        //     println!("\t{}: {:?}", i, node);
+        // }
         let succ_nodes = construct_succs_nodes(&cfg, cfg.len());
         let rev_dom_tree = construct_revdom_tree(&cfg, &succ_nodes);
         // println!("Rev Dominator Tree:");

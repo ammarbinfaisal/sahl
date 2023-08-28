@@ -242,10 +242,10 @@ pub fn construct_dominance_frontiers(
 ) -> Vec<HashSet<usize>> {
     let children_nodes = construct_children_nodes(dom_tree);
     let bottom_up = toposort(&children_nodes);
-    println!("bottom_up {:?}", bottom_up);
+    // println!("bottom_up {:?}", bottom_up);
     let mut df = vec![HashSet::new(); idoms.len()];
     for x in bottom_up.iter() {
-        println!("x {}", x);
+        // println!("x {}", x);
         for y in succ_nodes[*x].iter() {
             if idoms[*y] != *x {
                 df[*x].insert(*y);
