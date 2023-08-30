@@ -103,10 +103,10 @@ impl<'ctx> Compiler<'ctx> {
         let mut variables = Vec::new();
 
         // move args to v{0..n}
-        for (i, _) in func.get_param_iter().enumerate() {
-            let arg = self.builder.build_alloca(i64_type, &format!("var{}", i));
-            variables.push(arg);
-            self.builder.build_store(arg, arg);
+        for (i, arg) in func.get_param_iter().enumerate() {
+            let arg1 = self.builder.build_alloca(i64_type, &format!("var{}", i));
+            self.builder.build_store(arg1, arg);
+            variables.push(arg1);
         }
 
         let mut registers = Vec::new();
