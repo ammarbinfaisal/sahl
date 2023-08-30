@@ -8,6 +8,7 @@ mod regcode;
 mod semant;
 mod syntax;
 mod utils;
+mod native;
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use parser::*;
@@ -15,6 +16,7 @@ use regcode::RegCodeGen;
 use semant::*;
 use std::fs::*;
 use std::io::{Read, Write};
+use inkwell::context::Context;
 
 use crate::bytes::{consts_vec, emit_bytes};
 
@@ -46,7 +48,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                     } else {
                         // println!("CFG:");
                         let mut gen = RegCodeGen::new(f.to_string());
-                        gen.compile_program(&p);
+                        gen.compile_program(&p, to_compile);
                         if verbose {
                             for funcs in gen.func_code.iter() {
                                 for instr in funcs.iter().enumerate() {
@@ -69,8 +71,11 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                                 file.write_all(&func_bytes).unwrap();
                             }
                         } else {
-                            // let mut asm = Asm::new(env);
-                            // asm.compile(&p);
+                            let context = Context::create();
+                            let module = context.create_module("main");
+                            let builder = context.create_builder();
+                            let mut compiler = native::Compiler::new(&context, module, builder, gen.consts.clone());
+                            compiler.compile_program(&p, gen.func_code);
                         }
                     }
                 }

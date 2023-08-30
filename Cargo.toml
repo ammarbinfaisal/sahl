@@ -12,3 +12,5 @@ nom-supreme = "0.8.0"
 ariadne = "0.3.0"
 rand = "0.8"
 chumsky = { git = "https://github.com/zesterer/chumsky", rev = "3b1ab316cd322129156eac4a2fda3f5a113a52d9" }
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm12-0"] }
+

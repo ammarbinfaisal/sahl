@@ -1217,7 +1217,7 @@ impl<'a> RegCodeGen<'a> {
         self.code.push(RegCode::Return(0));
     }
 
-    pub fn compile_program(&mut self, prog: &'a Program) {
+    pub fn compile_program(&mut self, prog: &'a Program, super_inst: bool) {
         let fns = &prog.funcs;
         let mut idx = 0;
         for func in fns {
@@ -1240,7 +1240,9 @@ impl<'a> RegCodeGen<'a> {
             }
             self.compile_func(func);
             self.optimise();
-            self.parse_super_inst();
+            if super_inst {
+                self.parse_super_inst();
+            }
             func_code.push(self.code.clone());
             self.code.clear();
             idx += 1;
