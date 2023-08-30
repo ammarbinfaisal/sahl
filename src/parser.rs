@@ -1,6 +1,6 @@
 use crate::syntax::*;
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{combinator::Validate, extra::Err, input::SpannedInput, prelude::*, Parser};
+use chumsky::{extra::Err, input::SpannedInput, prelude::*, Parser};
 
 #[derive(Clone, Debug, PartialEq)]
 enum Token<'src> {

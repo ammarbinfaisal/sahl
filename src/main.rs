@@ -106,7 +106,7 @@ fn main() {
     let opt = std::env::args().nth(2);
     let opt2 = std::env::args().nth(3);
     if filename.is_some() && opt.is_some() {
-        let f = filename.clone().unwrap();
+        let _f = filename.clone().unwrap();
         let to_go = opt.clone().unwrap() == "-g";
         let to_compile = opt.clone().unwrap() == "-c";
         let native = opt.unwrap() == "-n";
