@@ -1239,7 +1239,7 @@ impl<'a> RegCodeGen<'a> {
                 self.start_func_idx = idx;
             }
             self.compile_func(func);
-            self.optimise();
+            // self.optimise();
             if super_inst {
                 self.parse_super_inst();
             }
