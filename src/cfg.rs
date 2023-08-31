@@ -7,7 +7,7 @@ pub type CFG = Vec<BasicBlock>;
 #[derive(Debug)]
 pub struct BasicBlock {
     phi: HashMap<usize, HashMap<usize, usize>>,
-    code: Vec<RegCode>,
+    pub code: Vec<RegCode>,
 }
 
 pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
