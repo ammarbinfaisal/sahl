@@ -8,7 +8,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
-use inkwell::values::FunctionValue;
+use inkwell::values::{FunctionValue, BasicValueEnum, BasicMetadataValueEnum};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
 
 enum LLVMTy<'ctx> {
@@ -98,7 +98,14 @@ impl<'ctx> Compiler<'ctx> {
         func_type
     }
 
-    pub fn compile_fn(&mut self, func: &FunctionValue<'ctx>, code: Vec<RegCode>) {
+    pub fn compile_fn(
+        &mut self,
+        func: &FunctionValue<'ctx>,
+        retty: &Type,
+        is_main: bool,
+        code: &Vec<RegCode>,
+    ) {
+        let i8_type = self.context.i8_type();
         let i64_type = self.context.i64_type();
         let entry = self.context.append_basic_block(func.clone(), "entry");
         self.builder.position_at_end(entry);
@@ -117,6 +124,25 @@ impl<'ctx> Compiler<'ctx> {
             registers.push(self.builder.build_alloca(i64_type, &format!("r{}", r)));
         }
 
+        // allocate all variables in the entry block itself
+        // count the number of variables
+        let mut max_var_ix = 0;
+        for c in code.iter() {
+            match c {
+                RegCode::Store(var_ix, _, _) => {
+                    if *var_ix > max_var_ix {
+                        max_var_ix = *var_ix;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for i in 0..=max_var_ix {
+            let var = self.builder.build_alloca(i64_type, &format!("var{}", i));
+            variables.push(var);
+        }
+
         let cfg = cfg::construct_cfg(&code);
 
         let mut bbs: Vec<BasicBlock<'ctx>> = Vec::new();
@@ -130,7 +156,6 @@ impl<'ctx> Compiler<'ctx> {
         self.builder.build_unconditional_branch(bbs[0]);
 
         for (i, bb) in cfg.iter().enumerate() {
-            println!("{:?}", bb);
             let code = &bb.code;
             let bb = bbs[i];
             self.builder.position_at_end(bb);
@@ -181,70 +206,29 @@ impl<'ctx> Compiler<'ctx> {
                         let v3 = self.builder.build_int_signed_rem(v1, v2, "v3");
                         self.builder.build_store(r3, v3);
                     }
-                    RegCode::INe(r1, r2, r3) => {
+                    RegCode::INe(r1, r2, r3) | RegCode::IEq(r1, r2, r3) | RegCode::ILt(r1, r2, r3)
+                    | RegCode::ILe(r1, r2, r3) | RegCode::IGt(r1, r2, r3) | RegCode::IGe(r1, r2, r3) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
                         let v1 = self.builder.build_load(r1, "v1").into_int_value();
                         let v2 = self.builder.build_load(r2, "v2").into_int_value();
+                        
+                        let pred = match c {
+                            RegCode::INe(_, _, _) => IntPredicate::NE,
+                            RegCode::IEq(_, _, _) => IntPredicate::EQ,
+                            RegCode::ILt(_, _, _) => IntPredicate::SLT,
+                            RegCode::ILe(_, _, _) => IntPredicate::SLE,
+                            RegCode::IGt(_, _, _) => IntPredicate::SGT,
+                            RegCode::IGe(_, _, _) => IntPredicate::SGE,
+                            _ => unreachable!(),
+                        };
+
                         let v3 = self
                             .builder
-                            .build_int_compare(IntPredicate::NE, v1, v2, "v3");
-                        self.builder.build_store(r3, v3);
-                    }
-                    RegCode::IEq(r1, r2, r3) => {
-                        let r1 = registers[*r1 as usize];
-                        let r2 = registers[*r2 as usize];
-                        let r3 = registers[*r3 as usize];
-                        let v1 = self.builder.build_load(r1, "v1").into_int_value();
-                        let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        let v3 = self
-                            .builder
-                            .build_int_compare(IntPredicate::EQ, v1, v2, "v3");
-                        self.builder.build_store(r3, v3);
-                    }
-                    RegCode::ILt(r1, r2, r3) => {
-                        let r1 = registers[*r1 as usize];
-                        let r2 = registers[*r2 as usize];
-                        let r3 = registers[*r3 as usize];
-                        let v1 = self.builder.build_load(r1, "v1").into_int_value();
-                        let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        let v3 = self
-                            .builder
-                            .build_int_compare(IntPredicate::SLT, v1, v2, "v3");
-                        self.builder.build_store(r3, v3);
-                    }
-                    RegCode::ILe(r1, r2, r3) => {
-                        let r1 = registers[*r1 as usize];
-                        let r2 = registers[*r2 as usize];
-                        let r3 = registers[*r3 as usize];
-                        let v1 = self.builder.build_load(r1, "v1").into_int_value();
-                        let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        let v3 = self
-                            .builder
-                            .build_int_compare(IntPredicate::SLE, v1, v2, "v3");
-                        self.builder.build_store(r3, v3);
-                    }
-                    RegCode::IGt(r1, r2, r3) => {
-                        let r1 = registers[*r1 as usize];
-                        let r2 = registers[*r2 as usize];
-                        let r3 = registers[*r3 as usize];
-                        let v1 = self.builder.build_load(r1, "v1").into_int_value();
-                        let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        let v3 = self
-                            .builder
-                            .build_int_compare(IntPredicate::SGT, v1, v2, "v3");
-                        self.builder.build_store(r3, v3);
-                    }
-                    RegCode::IGe(r1, r2, r3) => {
-                        let r1 = registers[*r1 as usize];
-                        let r2 = registers[*r2 as usize];
-                        let r3 = registers[*r3 as usize];
-                        let v1 = self.builder.build_load(r1, "v1").into_int_value();
-                        let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        let v3 = self
-                            .builder
-                            .build_int_compare(IntPredicate::SGE, v1, v2, "v3");
+                            .build_int_compare(pred, v1, v2, "v3");
+
+                        let v3 = self.builder.build_int_cast(v3, i64_type, "cast");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FAdd(r1, r2, r3) => {
@@ -318,6 +302,7 @@ impl<'ctx> Compiler<'ctx> {
                         };
 
                         let v3 = self.builder.build_float_compare(pred, v1, v2, "v3");
+                        let v3 = self.builder.build_int_cast(v3, i64_type, "cast");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::BAnd(r1, r2, r3)
@@ -435,7 +420,7 @@ impl<'ctx> Compiler<'ctx> {
                         let v = self.builder.build_int_compare(
                             IntPredicate::EQ,
                             v,
-                            self.context.bool_type().const_int(0, false),
+                            self.context.i64_type().const_int(0, false),
                             "v",
                         );
                         self.builder
@@ -464,8 +449,16 @@ impl<'ctx> Compiler<'ctx> {
                         let mut args = Vec::new();
                         for r in regs {
                             let r = registers[*r as usize];
-                            let v = self.builder.build_load(r, "v").into();
-                            args.push(v);
+                            let v = self.builder.build_load(r, "v");
+                            let v_cast: BasicMetadataValueEnum = match fn_ix {
+                                0 => self.builder.build_int_cast(v.into_int_value(), i64_type, "cast").into(),
+                                1 => self.builder.build_float_cast(v.into_float_value(), self.context.f64_type(), "cast").into(),
+                                2 => self.builder.build_int_cast(v.into_int_value(), self.context.i8_type(), "cast").into(),
+                                3 => self.builder.build_int_cast(v.into_int_value(), self.context.bool_type(), "cast").into(),
+                                4 => self.builder.build_int_to_ptr(v.into_int_value(), self.context.i8_type().ptr_type(AddressSpace::from(0)), "cast").into(),
+                                _ => todo!(),
+                            };
+                            args.push(v_cast);
                         }
                         self.builder.build_call(fn_ptr, args.as_slice(), "ret");
                     }
@@ -507,11 +500,23 @@ impl<'ctx> Compiler<'ctx> {
                                 self.builder.build_store(r, v);
                             }
                             Type::Str => {
-                                let v = self.builder.build_global_string_ptr(
-                                    std::str::from_utf8(const_val.1.as_slice()).unwrap(),
+                                let v = unsafe {
+                                    self.builder.build_global_string(
+                                        &String::from_utf8(const_val.1).unwrap(),
+                                        "str",
+                                    )
+                                };
+                                let v = self.builder.build_pointer_cast(
+                                    v.as_pointer_value(),
+                                    self.context.i8_type().ptr_type(AddressSpace::from(0)),
                                     "str",
                                 );
-                                self.builder.build_store(r, v);
+                                let v_int = self.builder.build_ptr_to_int(
+                                    v,
+                                    self.context.i64_type(),
+                                    "str",
+                                );
+                                self.builder.build_store(r, v_int);
                             }
                             _ => todo!(),
                         }
@@ -528,13 +533,7 @@ impl<'ctx> Compiler<'ctx> {
                             .build_store(registers[*reg_ix as usize], varloaded);
                     }
                     RegCode::Store(var_ix, reg_ix, _) => {
-                        let var = if *var_ix == variables.len() {
-                            let v = self.builder.build_alloca(i64_type, "var");
-                            variables.push(v);
-                            v
-                        } else {
-                            variables[*var_ix]
-                        };
+                        let var = variables[*var_ix];
                         let reg = registers[*reg_ix as usize];
                         let regloaded = self.builder.build_load(reg, "v");
                         self.builder.build_store(var, regloaded);
@@ -567,8 +566,19 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
         }
+
         self.builder.position_at_end(bbs[bbs.len() - 1]);
-        self.builder.build_return(None);
+
+        if is_main {
+            // call exit
+            let exit_fn = self.module.get_function("exit").unwrap();
+            self.builder
+                .build_call(exit_fn, &[i64_type.const_int(0, false).into()], "ret");
+        }
+
+        if *retty == Type::Void {
+            self.builder.build_return(None);
+        }
     }
 
     pub fn compile_program(&mut self, program: &Program, code: Vec<Vec<RegCode>>) {
@@ -597,6 +607,11 @@ impl<'ctx> Compiler<'ctx> {
             self.create_func_type(&[Type::Str], Type::Void),
             None,
         );
+        self.module.add_function(
+            "exit",
+            self.create_func_type(&[Type::Int], Type::Void),
+            None,
+        );
 
         let mut funcs = Vec::new();
         for func in program.funcs.iter() {
@@ -612,7 +627,7 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         for (i, func) in program.funcs.iter().zip(code.iter()).enumerate() {
-            self.compile_fn(&funcs[i], func.1.clone());
+            self.compile_fn(&funcs[i], &func.0.retty, func.0.name == "main", func.1);
         }
 
         // mem2reg
