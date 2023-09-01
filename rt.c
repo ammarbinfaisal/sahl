@@ -40,25 +40,19 @@ struct Obj {
 
 typedef struct Obj Obj;
 
-#define ALIGN_STACK asm("and $-16, %rsp");
-
 void iprint(int64_t i) {
-    ALIGN_STACK
     printf("%ld", i);
 }
 
 void fprint(double f) {
-    ALIGN_STACK
     printf("%lf", f);
 }
 
 void cprint(char c) {
-    ALIGN_STACK
     printf("%c", c);
 }
 
 void bprint(int b) {
-    ALIGN_STACK
     printf("%s", b ? "true" : "false");
 }
 
@@ -104,21 +98,17 @@ Obj *newstr(char *ptr) {
     obj->str = str;
 
 #ifdef DEBUG
-    ALIGN_STACK
     printf("newstr(%p) -> %p\n", ptr, obj);
 #endif
     return obj;
 }
 
-void sprint(Obj *s) {
-    str_t *str = s->str;
-    ALIGN_STACK
-    printf("%s", str->ptr);
+void sprint(char *s) {
+    printf("%s", s);
 }
 
 Obj *strcatt(Obj *aobj, Obj *bobj) {
 #ifdef DEBUG
-    ALIGN_STACK
     printf("strcatt(%p, %p)\n", aobj, bobj);
 #endif
     str_t *astr = aobj->str;
@@ -167,7 +157,6 @@ void list_append(Obj *obj, void *val) {
 void list_set(Obj *list, uint64_t index, void *val) {
     list_t *l = list->list;
     if (index >= l->length) {
-        ALIGN_STACK
         printf("list index out of range\n");
         exit(1);
     }
@@ -190,7 +179,6 @@ void list_set(Obj *list, uint64_t index, void *val) {
 void list_get(Obj *list, uint64_t index, void *val) {
     list_t *l = list->list;
     if (index >= l->length) {
-        ALIGN_STACK
         printf("list index out of range\n");
         exit(1);
     }
