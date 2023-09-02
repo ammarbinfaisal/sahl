@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::regcode::{RegCode, SuperInstruction};
+use crate::regcode::RegCode;
 
 pub type CFG = Vec<BasicBlock>;
 
@@ -296,7 +296,9 @@ pub fn insert_phi_functions(cfg: &mut CFG, df: &Vec<HashSet<usize>>, var_count: 
                     if *j >= node_count {
                         continue;
                     }
-                    cfg[*j].phi.insert(var, phi.into_iter().map(|i| (i, 0)).collect());
+                    cfg[*j]
+                        .phi
+                        .insert(var, phi.into_iter().map(|i| (i, 0)).collect());
                     if !defs[var].contains(&(*j, 0)) {
                         defs[var].push((*j, 0));
                         worklist.insert(*j);
@@ -338,10 +340,10 @@ pub fn rename_variable(
         }
     }
     for succ in dom_tree[node].iter() {
-        if *succ < cfg.len() &&  !visited[*succ] {
+        if *succ < cfg.len() && !visited[*succ] {
             visited[*succ] = true;
             // updagte the phi nodes in succ block
-            let phis = &mut cfg[*succ].phi; 
+            let phis = &mut cfg[*succ].phi;
             for (var, phi) in phis.iter_mut() {
                 for (i, j) in phi.iter_mut() {
                     if *i == node {

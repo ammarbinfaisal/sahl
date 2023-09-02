@@ -107,7 +107,7 @@ fn op_to_byte(r: &RegCode) -> u8 {
     }
 }
 
-fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
+pub fn rec_vectorise_ty(ty: &Type, vec: &mut Vec<u8>) {
     match ty {
         Type::Int => vec.push(0),
         Type::Double => vec.push(1),

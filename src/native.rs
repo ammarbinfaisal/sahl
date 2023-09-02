@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::bytes::rec_vectorise_ty;
 use crate::regcode::RegCode;
 use crate::{cfg, syntax::*};
 use inkwell::basic_block::BasicBlock;
@@ -8,7 +9,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
-use inkwell::values::{FunctionValue, BasicValueEnum, BasicMetadataValueEnum};
+use inkwell::values::{BasicMetadataValueEnum, FunctionValue};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
 
 enum LLVMTy<'ctx> {
@@ -16,27 +17,15 @@ enum LLVMTy<'ctx> {
     Float(FloatType<'ctx>),
     Bool(IntType<'ctx>),
     Str(PointerType<'ctx>),
-    List(PointerType<'ctx>),
 }
 
 impl<'ctx> LLVMTy<'ctx> {
-    fn into_pointer_type(self) -> PointerType<'ctx> {
-        match self {
-            LLVMTy::Int(t) => t.ptr_type(AddressSpace::from(0)),
-            LLVMTy::Float(t) => t.ptr_type(AddressSpace::from(0)),
-            LLVMTy::Bool(t) => t.ptr_type(AddressSpace::from(0)),
-            LLVMTy::Str(t) => t,
-            LLVMTy::List(t) => t,
-        }
-    }
-
     fn basic_type(&self) -> BasicMetadataTypeEnum<'ctx> {
         match self {
             LLVMTy::Int(t) => BasicMetadataTypeEnum::IntType(*t),
             LLVMTy::Float(t) => BasicMetadataTypeEnum::FloatType(*t),
             LLVMTy::Bool(t) => BasicMetadataTypeEnum::IntType(*t),
             LLVMTy::Str(t) => BasicMetadataTypeEnum::PointerType(*t),
-            LLVMTy::List(t) => BasicMetadataTypeEnum::PointerType(*t),
         }
     }
 }
@@ -71,13 +60,13 @@ impl<'ctx> Compiler<'ctx> {
             Type::Bool => LLVMTy::Bool(self.context.bool_type()),
             Type::Char => LLVMTy::Int(self.context.i8_type()),
             Type::Str => LLVMTy::Str(self.context.i8_type().ptr_type(AddressSpace::from(0))),
-            Type::List(t) => LLVMTy::List(self.get_type(t).into_pointer_type()),
             Type::Double => LLVMTy::Float(self.context.f64_type()),
-            _ => todo!(),
+            _ => LLVMTy::Int(self.context.i64_type()),
         }
     }
 
     fn create_func_type(&self, params: &[Type], ret: Type) -> FunctionType<'ctx> {
+        let ret = self.get_type(&ret);
         let mut param_types = Vec::new();
         for param in params {
             param_types.push(self.get_type(param));
@@ -86,16 +75,24 @@ impl<'ctx> Compiler<'ctx> {
             .iter()
             .map(|t| t.basic_type())
             .collect::<Vec<_>>();
-        if ret == Type::Void {
-            let void_type = self.context.void_type();
-            let func_type = void_type.fn_type(params.as_slice(), false);
-            return func_type;
+        match ret {
+            LLVMTy::Int(t) => {
+                let func_type = t.fn_type(params.as_slice(), false);
+                func_type
+            }
+            LLVMTy::Float(t) => {
+                let func_type = t.fn_type(params.as_slice(), false);
+                func_type
+            }
+            LLVMTy::Bool(t) => {
+                let func_type = t.fn_type(params.as_slice(), false);
+                func_type
+            }
+            LLVMTy::Str(t) => {
+                let func_type = t.fn_type(params.as_slice(), false);
+                func_type
+            }
         }
-        let ret_type = self.get_type(&ret);
-        let func_type = ret_type
-            .into_pointer_type()
-            .fn_type(params.as_slice(), false);
-        func_type
     }
 
     pub fn compile_fn(
@@ -105,7 +102,6 @@ impl<'ctx> Compiler<'ctx> {
         is_main: bool,
         code: &Vec<RegCode>,
     ) {
-        let i8_type = self.context.i8_type();
         let i64_type = self.context.i64_type();
         let entry = self.context.append_basic_block(func.clone(), "entry");
         self.builder.position_at_end(entry);
@@ -206,14 +202,18 @@ impl<'ctx> Compiler<'ctx> {
                         let v3 = self.builder.build_int_signed_rem(v1, v2, "v3");
                         self.builder.build_store(r3, v3);
                     }
-                    RegCode::INe(r1, r2, r3) | RegCode::IEq(r1, r2, r3) | RegCode::ILt(r1, r2, r3)
-                    | RegCode::ILe(r1, r2, r3) | RegCode::IGt(r1, r2, r3) | RegCode::IGe(r1, r2, r3) => {
+                    RegCode::INe(r1, r2, r3)
+                    | RegCode::IEq(r1, r2, r3)
+                    | RegCode::ILt(r1, r2, r3)
+                    | RegCode::ILe(r1, r2, r3)
+                    | RegCode::IGt(r1, r2, r3)
+                    | RegCode::IGe(r1, r2, r3) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
                         let v1 = self.builder.build_load(r1, "v1").into_int_value();
                         let v2 = self.builder.build_load(r2, "v2").into_int_value();
-                        
+
                         let pred = match c {
                             RegCode::INe(_, _, _) => IntPredicate::NE,
                             RegCode::IEq(_, _, _) => IntPredicate::EQ,
@@ -224,9 +224,7 @@ impl<'ctx> Compiler<'ctx> {
                             _ => unreachable!(),
                         };
 
-                        let v3 = self
-                            .builder
-                            .build_int_compare(pred, v1, v2, "v3");
+                        let v3 = self.builder.build_int_compare(pred, v1, v2, "v3");
 
                         let v3 = self.builder.build_int_cast(v3, i64_type, "cast");
                         self.builder.build_store(r3, v3);
@@ -400,9 +398,54 @@ impl<'ctx> Compiler<'ctx> {
                         let v2 = self.builder.build_int_neg(v1, "v2");
                         self.builder.build_store(r2, v2);
                     }
-                    RegCode::Make(_, _, _) => todo!(),
-                    RegCode::ListSet(_, _, _) => todo!(),
-                    RegCode::ListGet(_, _, _) => todo!(),
+                    RegCode::Make(ty, r, len) => {
+                        let mut v = Vec::new();
+                        rec_vectorise_ty(ty, &mut v);
+                        // call make function
+                        let make = self.module.get_function("make").unwrap();
+                        let tyy = v[0] as u64;
+                        let tyy = self.context.i64_type().const_int(tyy, false);
+                        let len = self.builder.build_load(registers[*len as usize], "len");
+                        let args = &[tyy.into(), len.into()];
+                        let v = self
+                            .builder
+                            .build_call(make, args, "v")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        let v = v.into_int_value();
+                        self.builder.build_store(registers[*r as usize], v);
+                    }
+                    RegCode::ListSet(list_reg, idx_reg, val_reg) => {
+                        let list_reg = registers[*list_reg as usize];
+                        let idx_reg = registers[*idx_reg as usize];
+                        let val_reg = registers[*val_reg as usize];
+                        let listset = self.module.get_function("listset").unwrap();
+                        let list = self.builder.build_load(list_reg, "list");
+                        let idx = self.builder.build_load(idx_reg, "idx");
+                        let val = self.builder.build_load(val_reg, "val");
+                        let val =
+                            self.builder
+                                .build_int_cast(val.into_int_value(), i64_type, "cast");
+                        let args = &[list.into(), idx.into(), val.into()];
+                        self.builder.build_call(listset, args, "ret");
+                    }
+                    RegCode::ListGet(list_reg, idx_reg, val_reg) => {
+                        let list_reg = registers[*list_reg as usize];
+                        let idx_reg = registers[*idx_reg as usize];
+                        let val_reg = registers[*val_reg as usize];
+                        let listget = self.module.get_function("listget").unwrap();
+                        let list = self.builder.build_load(list_reg, "list");
+                        let idx = self.builder.build_load(idx_reg, "idx");
+                        let args = &[list.into(), idx.into()];
+                        let v = self
+                            .builder
+                            .build_call(listget, args, "ret")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        self.builder.build_store(val_reg, v.into_int_value());
+                    }
                     RegCode::List(_, _, _) => todo!(),
                     RegCode::TupleGet(_, _, _) => todo!(),
                     RegCode::Tuple(_, _, _) => todo!(),
@@ -443,6 +486,8 @@ impl<'ctx> Compiler<'ctx> {
                             2 => "cprint",
                             3 => "bprint",
                             4 => "sprint",
+                            5 => "append",
+                            6 => "len",
                             _ => todo!(),
                         };
                         let fn_ptr = self.module.get_function(&fn_name).unwrap();
@@ -451,12 +496,23 @@ impl<'ctx> Compiler<'ctx> {
                             let r = registers[*r as usize];
                             let v = self.builder.build_load(r, "v");
                             let v_cast: BasicMetadataValueEnum = match fn_ix {
-                                0 => self.builder.build_int_cast(v.into_int_value(), i64_type, "cast").into(),
-                                1 => self.builder.build_float_cast(v.into_float_value(), self.context.f64_type(), "cast").into(),
-                                2 => self.builder.build_int_cast(v.into_int_value(), self.context.i8_type(), "cast").into(),
-                                3 => self.builder.build_int_cast(v.into_int_value(), self.context.bool_type(), "cast").into(),
-                                4 => self.builder.build_int_to_ptr(v.into_int_value(), self.context.i8_type().ptr_type(AddressSpace::from(0)), "cast").into(),
-                                _ => todo!(),
+                                1 => self
+                                    .builder
+                                    .build_float_cast(
+                                        v.into_float_value(),
+                                        self.context.f64_type(),
+                                        "cast",
+                                    )
+                                    .into(),
+                                4 => self
+                                    .builder
+                                    .build_int_to_ptr(
+                                        v.into_int_value(),
+                                        self.context.i8_type().ptr_type(AddressSpace::from(0)),
+                                        "cast",
+                                    )
+                                    .into(),
+                                _ => v.into(),
                             };
                             args.push(v_cast);
                         }
@@ -491,7 +547,7 @@ impl<'ctx> Compiler<'ctx> {
                             }
                             Type::Bool => {
                                 let byte = const_val.1[0];
-                                let v = self.context.bool_type().const_int(u64::from(byte), false);
+                                let v = i64_type.const_int(u64::from(byte), false);
                                 self.builder.build_store(r, v);
                             }
                             Type::Char => {
@@ -524,11 +580,9 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::Load(var_ix, reg_ix, _) => {
                         let varloaded = self.builder.build_load(variables[*var_ix], "v");
                         // cast var to i64
-                        let varloaded = self.builder.build_int_cast(
-                            varloaded.into_int_value(),
-                            i64_type,
-                            "v",
-                        );
+                        let varloaded =
+                            self.builder
+                                .build_int_cast(varloaded.into_int_value(), i64_type, "v");
                         self.builder
                             .build_store(registers[*reg_ix as usize], varloaded);
                     }
@@ -551,9 +605,9 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
                     RegCode::Pop(_) => todo!(),
-                    RegCode::StackMap(_) => todo!(),
-                    RegCode::PrintLock => todo!(),
-                    RegCode::PrintUnlock => todo!(),
+                    RegCode::StackMap(_) => {}
+                    RegCode::PrintLock => {}
+                    RegCode::PrintUnlock => {}
                     RegCode::Super(_) => {}
                     RegCode::CoroCall(_, _) => todo!(),
                 }
@@ -577,7 +631,8 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         if *retty == Type::Void {
-            self.builder.build_return(None);
+            self.builder
+                .build_return(Some(&i64_type.const_int(0, false)));
         }
     }
 
@@ -610,6 +665,31 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "exit",
             self.create_func_type(&[Type::Int], Type::Void),
+            None,
+        );
+        self.module.add_function(
+            "append",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Void), // list, val
+            None,
+        );
+        self.module.add_function(
+            "len",
+            self.create_func_type(&[Type::Int], Type::Int), // list
+            None,
+        );
+        self.module.add_function(
+            "make",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // type, len
+            None,
+        );
+        self.module.add_function(
+            "listset",
+            self.create_func_type(&[Type::Int, Type::Int, Type::Int], Type::Void), // list, idx, val
+            None,
+        );
+        self.module.add_function(
+            "listget",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // list, idx
             None,
         );
 
