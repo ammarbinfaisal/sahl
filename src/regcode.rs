@@ -1251,3 +1251,17 @@ impl<'a> RegCodeGen<'a> {
         self.locals.clear();
     }
 }
+
+let mut const_manager = HashMap::new();
+
+fn add_const(key:){
+    if !const_manager.contains_key(key){
+        let const_counter = const_manager.entry(key).or_insert(0);
+        *const_counter+=1;
+        const_manager.insert(key,const_counter);
+        }
+    const_manager.get(key)
+    
+
+
+}
