@@ -242,7 +242,7 @@ pub struct RegCodeGen<'a> {
     opcode_span: HashMap<usize, (usize, usize)>,
     span: (usize, usize),
     source_name: String,
-    pub consts: Vec<(Type, Vec<u8>)>,
+    pub consts: HashMap<(Type, Vec<u8>), usize>,
     stack: Vec<u8>,
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
@@ -262,7 +262,7 @@ impl<'a> RegCodeGen<'a> {
             start_func_idx: 0,
             curr_func: 0,
             opcode_span: HashMap::new(),
-            consts: Vec::new(),
+            consts: HashMap::new(),
             span: (0, 0),
             source_name,
             stack: Vec::new(),
@@ -323,6 +323,15 @@ impl<'a> RegCodeGen<'a> {
         let reg = self.stack.pop().unwrap();
         // println!("stack unfree pop: {}", reg);
         reg
+    }
+
+    fn add_const(&mut self, cnst: (Type, Vec<u8>)) -> usize {
+        // 0 .. const_count
+        // if const exists return cosnts[vec]
+        // else cosnts[vec] = self.consts_count;
+        // let ix = self.consts_count
+        // self.consts_count + 1;
+        // return ix
     }
 
     fn compile_print(&mut self, reg: u8, arg_ty: Type) {
@@ -1250,18 +1259,4 @@ impl<'a> RegCodeGen<'a> {
         self.func_code = func_code;
         self.locals.clear();
     }
-}
-
-let mut const_manager = HashMap::new();
-
-fn add_const(key:){
-    if !const_manager.contains_key(key){
-        let const_counter = const_manager.entry(key).or_insert(0);
-        *const_counter+=1;
-        const_manager.insert(key,const_counter);
-        }
-    const_manager.get(key)
-    
-
-
 }
