@@ -332,6 +332,13 @@ impl<'a> RegCodeGen<'a> {
         // let ix = self.consts_count
         // self.consts_count + 1;
         // return ix
+        if !self.consts.contain_key(cnst){
+            let const_counter = self.consts.entry(cnst).or_insert(-1);
+            *const_counter+=1;
+            self.consts.insert(cnst,const_counter);
+        }
+        self.consts.get(cnst)
+
     }
 
     fn compile_print(&mut self, reg: u8, arg_ty: Type) {
