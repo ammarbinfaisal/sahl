@@ -427,12 +427,6 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     bytes.extend(opcodes);
                 }
             }
-            RegCode::PrintLock => {
-                bytes.push(PRINTLOCK);
-            }
-            RegCode::PrintUnlock => {
-                bytes.push(PRINTUNLOCK);
-            }
             RegCode::Nop => {}
             RegCode::FreeRegs => {}
             RegCode::Super(s) => match s {
