@@ -25,7 +25,6 @@
 #define MAIN_ID 0xc001beef
 
 Scheduler *scheduler;
-pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void push_scheduler(VM *corovm) {
     pthread_mutex_lock(&scheduler->vmq_mu);
@@ -837,10 +836,6 @@ void handle_stack_map(VM *vm) {
     --vm->call_frame->ip;
 }
 
-void handle_printlock(VM *_) { pthread_mutex_lock(&print_lock); }
-
-void handle_printunlock(VM *_) { pthread_mutex_unlock(&print_lock); }
-
 // super instructions
 Value op_iadd(Value v1, Value v2) { return v1 + v2; }
 
@@ -1008,7 +1003,7 @@ static OpcodeHandler opcode_handlers[] = {
     handle_cast,      handle_move,        handle_return,
     handle_push,      handle_pop,         handle_spawn,
     handle_nop,       handle_ret,         handle_stack_map,
-    handle_printlock, handle_printunlock, handle_superinstruction,
+    handle_nop, handle_nop, handle_superinstruction,
     handle_corocall};
 
 void run(VM *vm) {

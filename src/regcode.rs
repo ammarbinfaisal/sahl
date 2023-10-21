@@ -73,8 +73,6 @@ pub enum RegCode {
     FreeRegs,
     Pop(u8),
     StackMap(Vec<u64>), // set of locals that are live
-    PrintLock,
-    PrintUnlock,
     Super(SuperInstruction),
     CoroCall(usize, Vec<u8>),
 }
