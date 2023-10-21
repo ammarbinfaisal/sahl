@@ -88,6 +88,10 @@ typedef void (*OpcodeHandler)(VM *);
     int r1 = code[++vm->call_frame->ip]; \
     int r2 = code[++vm->call_frame->ip]; \
 
+#define DOUBLE_ARG1_ARG2 \
+    double arg1 = vm->regs[r1].f; \
+    double arg2 = vm->regs[r2].f;
+
 void handle_iadd(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i + vm->regs[r2].i;
@@ -166,48 +170,42 @@ void handle_ige(VM *vm) {
 
 void handle_fadd(VM *vm) {
     OP_R1_R2_RES
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     double result = arg1 + arg2;
     vm->regs[res].i = *(uint64_t *)&result;
 }
 
 void handle_fsub(VM *vm) {
     OP_R1_R2_RES
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     double result = arg1 - arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fmul(VM *vm) {
     OP_R1_R2_RES
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     double result = arg1 * arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fdiv(VM *vm) {
     OP_R1_R2_RES
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     double result = arg1 / arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_frem(VM *vm) {
     OP_R1_R2_RES
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     double result = fmod(arg1, arg2);
     vm->regs[res].i = *(int64_t *)&result;
 }
 
 void handle_fne(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 != arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -215,8 +213,7 @@ void handle_fne(VM *vm) {
 
 void handle_feq(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 == arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -224,8 +221,7 @@ void handle_feq(VM *vm) {
 
 void handle_flt(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 < arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -233,8 +229,7 @@ void handle_flt(VM *vm) {
 
 void handle_fle(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 <= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -242,8 +237,7 @@ void handle_fle(VM *vm) {
 
 void handle_fgt(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 > arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
@@ -251,8 +245,7 @@ void handle_fgt(VM *vm) {
 
 void handle_fge(VM *vm) {
     OP_CODE_R1_R2
-    double arg1 = vm->regs[r1].f;
-    double arg2 = vm->regs[r2].f;
+    DOUBLE_ARG1_ARG2
     bool result = arg1 >= arg2;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
