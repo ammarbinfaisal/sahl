@@ -1,11 +1,11 @@
 fun main() {
-    let a = 1 << 2
-    let b = 1 << 3
-    let c = 1 << 4
-    print(a, "\n")
-    print(b, "\n")
-    print(c, "\n")
-    print(a | b | c, "\n")
-    print(a & b & c, "\n")
-    print(a ^ b ^ c, "\n")
+    let a = 1 << 2;
+    let b = 1 << 3;
+    let c = 1 << 4;
+    print(a, "\n");
+    print(b, "\n");
+    print(c, "\n");
+    print(a | b | c, "\n");
+    print(a & b & c, "\n");
+    print(a ^ b ^ c, "\n");
 }

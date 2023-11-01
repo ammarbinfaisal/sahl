@@ -1,7 +1,7 @@
 fun main() {
-    let i = 97
+    let i = 97;
     while i < 123 {
-        print(cast(i, char), "\n")
-        i = i + 1
+        print(cast(i, char), "\n");
+        i = i + 1;
     }
 }

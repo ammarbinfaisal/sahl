@@ -1,20 +1,20 @@
 fun merge(arr: [int], left: int, mid: int, right: int) {
-    let a1 = mid - left + 1
-    let a2 = right - mid
-    let arr1 = make([int], a1)
-    let arr2 = make([int], a2)
+    let a1 = mid - left + 1;
+    let a2 = right - mid;
+    let arr1 = make([int], a1);
+    let arr2 = make([int], a2);
     
-    let i = 0
+    let i = 0;
 
     while i < a1 {
-        arr1[i] = arr[left + i]
-        i = i + 1
+        arr1[i] = arr[left + i];
+        i = i + 1;
     }
 
-    i = 0
+    i = 0;
     while i < a2 {
-        arr2[i] = arr[mid + i + 1]
-        i = i + 1
+        arr2[i] = arr[mid + i + 1];
+        i = i + 1;
     }
     
     let i1 = 0

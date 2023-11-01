@@ -1,28 +1,28 @@
 fun seive(flags: [bool], n: int) -> [int] {
-    let primes = make([int])
-    let i = 2
+    let primes = make([int]);
+    let i = 2;
     while i < n {
         if flags[i] {
-            append(primes, i)
-            let j = i * i
+            append(primes, i);
+            let j = i * i;
             while j < n {
-                flags[j] = false
-                j = j + i
+                flags[j] = false;
+                j = j + i;
             }
         }
-        i = i + 1
+        i = i + 1;
     }
-    return primes
+    return primes;
 }
 
 fun main() {
-    let n = 500000
-    let flags = make([bool], n)
-    flags[0] = false
-    flags[1] = false
+    let n = 500000;
+    let flags = make([bool], n);
+    flags[0] = false;
+    flags[1] = false;
     for i in 2..n {
-        flags[i] = true
+        flags[i] = true;
     }
-    let primes = seive(flags, n)
-    print(primes)
+    let primes = seive(flags, n);
+    print(primes);
 }

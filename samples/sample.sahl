@@ -1,57 +1,57 @@
 fun getEvenNumbers(list: [int]) -> [int] {
-    let evenNumbers = make([int])
+    let evenNumbers = make([int]);
     for number in list {
         if number % 2 == 0 {
-            append(evenNumbers, number)
+            append(evenNumbers, number);
         }
     }
-    return evenNumbers
+    return evenNumbers;
 }
 
 fun fizzBuzz(list: [int]) -> [string] {
-    let fizzBuzzList = make([string])
+    let fizzBuzzList = make([string]);
     for number in list {
         if number % 3 == 0 && number % 5 == 0 {
-            append(fizzBuzzList, "FizzBuzz")
+            append(fizzBuzzList, "FizzBuzz");
         } else if number % 3 == 0 {
-            append(fizzBuzzList, "Fizz")
+            append(fizzBuzzList, "Fizz");
         } else if number % 5 == 0 {
-            append(fizzBuzzList, "Buzz")
+            append(fizzBuzzList, "Buzz");
         }
     }
-    return fizzBuzzList
+    return fizzBuzzList;
 }
 
 fun factorial(number: int) -> int {
     if number == 0 {
-        return 1
+        return 1;
     }
-    return number * factorial(number - 1)
+    return number * factorial(number - 1);
 }
 
 fun fibonacci(number: int) -> int {
     if number == 0 {
-        return 0
+        return 0;
     } else if number == 1 {
-        return 1
+        return 1;
     }
-    return fibonacci(number - 1) + fibonacci(number - 2)
+    return fibonacci(number - 1) + fibonacci(number - 2);
 }
 
 
 fun main() {
-    let list = make([int])
-    let i = 0
+    let list = make([int]);
+    let i = 0;
     while i < 100 {
-        append(list, i)
-        i = i + 1
+        append(list, i);
+        i = i + 1;
     }
-    print(list, "\n")
+    print(list, "\n");
     for n in list {
-        print(n, "\n")
+        print(n, "\n");
     }
-    print(getEvenNumbers(list), "\n")
-    print(fizzBuzz(list), "\n")
-    print(factorial(5), "\n")
-    print(fibonacci(5), "\n")
+    print(getEvenNumbers(list), "\n");
+    print(fizzBuzz(list), "\n");
+    print(factorial(5), "\n");
+    print(fibonacci(5), "\n");
 }

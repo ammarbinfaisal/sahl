@@ -1,25 +1,25 @@
 fun sendvals(c: chan<int>, count: int, id: int) {
-    let i = 0
+    let i = 0;
     while i < count {
-        c <- i
-        i = i + 1
+        c <- i;
+        i = i + 1;
     }
 }
 
 fun recvvals(c: chan<int>, count: int, id: int) {
-    let i = 0
+    let i = 0;
     while i < count {
-        print(<-c, " - ", id, "\n")
-        i = i + 1
+        print(<-c, " - ", id, "\n");
+        i = i + 1;
     }
 }
 
 fun main() {
-    let i = 0
+    let i = 0;
     while i < 100 {
-        let a = make(chan<int>, 1000)
-        sahl sendvals(a, 10000, i)
-        sahl recvvals(a, 10000, i)
-        i = i + 1
+        let a = make(chan<int>, 1000);
+        sahl sendvals(a, 10000, i);
+        sahl recvvals(a, 10000, i);
+        i = i + 1;
     }
 }

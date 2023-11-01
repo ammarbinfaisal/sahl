@@ -1,11 +1,11 @@
 fun printn(n: int) {
     for i in 0..10 {
-    print(n, "\n")  
+    print(n, "\n");
     }
 }
 
 fun main() {
     for i in 0..100 {
-        sahl printn(i)
+        sahl printn(i);
     }
 }

@@ -1,26 +1,26 @@
 fun mul_by_2(x : int) -> int {
-    return x * 2
+    return x * 2;
 }
 
 fun map_mul_by_2 (xs : [int], len : int) -> [int] {
-    let i = 0
+    let i = 0;
     while i < len {
-        xs[i] = xs[i] * 2
-        i = i + 1
+        xs[i] = xs[i] * 2;
+        i = i + 1;
     }
-    return xs
+    return xs;
 }
 
 fun range (start : int, end : int) -> [int] {
-    let xs = make([int])
+    let xs = make([int]);
     for i in start..end {
-        append(xs, i)
+        append(xs, i);
     }
-    return xs
+    return xs;
 }
 
 fun main () {
-    let xs = range(0, 100)
-    map_mul_by_2(xs, 100)
-    print(xs, "\n")
+    let xs = range(0, 100);
+    map_mul_by_2(xs, 100);
+    print(xs, "\n");
 }
