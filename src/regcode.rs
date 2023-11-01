@@ -1,4 +1,4 @@
-use crate::{cfg::*, syntax::*};
+use crate::{cfg::*, syntax::*, utils::extract_var_name};
 use std::collections::HashMap;
 
 // highlevel enum for 3/4 address code
@@ -75,6 +75,9 @@ pub enum RegCode {
     StackMap(Vec<u64>), // set of locals that are live
     Super(SuperInstruction),
     CoroCall(usize, Vec<u8>),
+    Ref(usize, u8),   // local_ix, reg
+    Deref(u8, usize), // result reg, local_ix
+    DerefAssign(usize, u8, usize),
 }
 
 fn is_cond_op(c: &RegCode) -> bool {
@@ -772,6 +775,24 @@ impl<'a> RegCodeGen<'a> {
                         self.free_reg(ix_arg);
                         self.free_reg(ex_arg);
                     }
+                    Expr::Deref { expr, ty } => {
+                        let var = extract_var_name(expr);
+                        if let Some(var) = var {
+                            let v = self.get_local(var.as_str());
+                            match v {
+                                Some(var) => {
+                                    let v = *var;
+                                    self.code.push(RegCode::DerefAssign(v, arg, 0));
+                                    self.locals.set_live_var(v);
+                                }
+                                None => {
+                                    unreachable!("Unknown variable: {}", var);
+                                }
+                            }
+                        } else {
+                            unreachable!("Cannot compile deref using a non variable expression");
+                        }
+                    }
                     _ => unreachable!(),
                 }
                 self.free_reg(arg);
@@ -837,6 +858,44 @@ impl<'a> RegCodeGen<'a> {
                 let chan = self.locals.get(name.as_str()).unwrap();
                 self.code.push(RegCode::ChanRecv(*chan, reg));
                 self.stack_push(reg);
+            }
+            Expr::Ref { expr, .. } => {
+                let v = extract_var_name(expr);
+                if let Some(name) = v {
+                    let var = self.get_local(name.as_str());
+                    match var {
+                        Some(var) => {
+                            let v = *var;
+                            let reg = self.get_reg();
+                            self.code.push(RegCode::Ref(v, reg));
+                            self.stack_push(reg);
+                        }
+                        None => {
+                            unreachable!("Unknown variable: {}", name);
+                        }
+                    }
+                } else {
+                    unreachable!("Cannot compile ref using a non variable expression");
+                }
+            }
+            Expr::Deref { expr, ty } => {
+                let v = extract_var_name(expr);
+                if let Some(v) = v {
+                    let var = self.get_local(v.as_str());
+                    match var {
+                        Some(var) => {
+                            let v = *var;
+                            let reg = self.get_reg();
+                            self.code.push(RegCode::Deref(reg, v));
+                            self.stack_push(reg);
+                        }
+                        None => {
+                            unreachable!("Unknown variable: {}", v);
+                        }
+                    }
+                } else {
+                    unreachable!("Cannot compile deref using a non variable expression");
+                }
             }
             _ => {
                 unimplemented!();

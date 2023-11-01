@@ -440,13 +440,15 @@ impl GOCodegen {
                 code.push_str(")");
                 code
             }
-            Expr::Ref { expr, ty, usage } => {
+            Expr::Ref { expr, ty } => {
                 let mut code = String::new();
-                if *usage {
                     code.push_str("&");
-                } else {
-                    code.push_str("*");
-                }
+                code.push_str(&self.compile_expr(expr));
+                code
+            },
+            Expr::Deref { expr, ty } => {
+                let mut code = String::new();
+                code.push_str("*");
                 code.push_str(&self.compile_expr(expr));
                 code
             },

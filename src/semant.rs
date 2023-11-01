@@ -16,6 +16,7 @@ pub enum Error {
     MainNotVoid,
     TupleIndexOutOfBounds(usize, usize),
     CastError(Type, Type),
+    RefNonLValue,
 }
 
 impl std::fmt::Display for Error {
@@ -68,6 +69,9 @@ impl std::fmt::Display for Error {
             }
             Error::CastError(from, to) => {
                 write!(f, "Cannot cast from {:?} to {:?}", from, to)
+            }
+            Error::RefNonLValue => {
+                write!(f, "Cannot take reference of non-lvalue")
             }
         }
     }
@@ -169,37 +173,57 @@ impl<'a> Checker<'a> {
                     Ok(t)
                 }
             }
-            Expr::Ref { expr, ty, usage } => {
-                let ex = *expr.clone();
-                let start = (**expr).0;
-                let end = (**expr).2;
-                let ty = match ex {
-                    Expr::Variable { name, ty } => {
-                        if let Some(t) = ty {
-                            t
-                        } else {
-                            let t = self.find_var(&name, start, end)?;
-                            *ty = Some(t.clone());
-                            t
-                        }
+            Expr::Ref { expr: ref_ex, ty } => {
+                let ex = *ref_ex.clone();
+                let start = expr.0;
+                let end = expr.2;
+                let t = match ex {
+                    Expr::Variable { name, .. } => {
+                        self.find_var(&name, start, end)?
                     }
                     _ => {
                         return Err((
                             start,
-                            Error::TypeMismatch(vec![Type::Any], vec![ex.ty()]),
+                            Error::RefNonLValue,
                             end,
                         ))
                     }
+                };
+                let typee = Type::Ref(Box::new(t));
+                *ty = Some(typee.clone());
+                Ok(typee)
+            }
+            Expr::Deref { expr: deref_ex, ty } => {
+                let t = match *deref_ex.clone() {
+                    Expr::Variable { name, .. } => {
+                        self.find_var(&name, expr.0, expr.2)?
+                    }
+                    _ => {
+                        return Err((
+                            expr.0,
+                            Error::RefNonLValue,
+                            expr.2,
+                        ))
+                    }
+                };
+                if let Type::Ref(t) = t {
+                    let typee = *t.clone();
+                    *ty = Some(typee.clone());
+                    Ok(typee)
+                } else {
+                    Err((
+                        expr.0,
+                        Error::RefNonLValue,
+                        expr.2,
+                    ))
                 }
-                *ty = ty.clone();
-                *usage = true;
-                Ok(Type::Ref(Box::new(ty)))
             }
             Expr::Assign { left, right } => {
                 let ty = self.check_expr(right)?;
                 let correct_lhs = match left.1.clone() {
                     Expr::Variable { .. } => true,
                     Expr::Subscr { .. } => true,
+                    Expr::Deref { .. } => true,
                     _ => false,
                 };
                 if correct_lhs {

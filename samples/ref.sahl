@@ -1,0 +1,6 @@
+fun main() {
+    let i = 0;
+    let j = ref i;
+    *j = 1;
+    print(i);
+}

@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// #define PRINT_OPCODES
+#define PRINT_OPCODES
 // #define PRINT_STACK
 // #define PRINT_LOCALS
 // #define DEBUG
@@ -16,7 +16,7 @@
 // #define MINARR
 #define UNSAFE
 #define MAX_THREADS 16
-#define USE_GC
+// #define USE_GC
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
@@ -96,7 +96,7 @@ struct RBNode {
 
 typedef struct RBNode RBNode;
 
-enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP };
+enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP, OBJ_REF };
 
 typedef enum ObjType ObjType;
 
@@ -132,6 +132,10 @@ struct Obj {
             bool key_boxed;
             bool value_boxed;
         } map;
+        struct {
+            CallFrame *frame;
+            int local_ix;
+        } ref;
     };
 };
 
