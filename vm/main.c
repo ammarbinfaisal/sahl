@@ -330,7 +330,6 @@ void make_map(VM *vm, int reg, int _) {
     uint8_t value_heap_alloc = code[++vm->call_frame->ip];
     obj->map.key_boxed = key_boxed;
     obj->map.value_boxed = value_heap_alloc;
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make map %p - reg %d\n", obj, reg);
 #endif
@@ -339,12 +338,11 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = allocate(vm, cap * sizeof(Value));
+    obj->list.items = malloc(sizeof(Value) * cap);
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make list %p - reg %d\n", obj, reg);
 #endif
@@ -355,7 +353,6 @@ void make_chan(VM *vm, int reg, int len) {
     obj->channel.chan = new_chan(len ? len : 2);
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make chan %p - reg %d\n", obj, reg);
 #endif
@@ -439,7 +436,6 @@ void handle_list(VM *vm) {
         newobj->list.items[i] = pop(vm);
     }
     vm->regs[res].i = (uint64_t)newobj;
-    track_obj(vm, newobj);
 }
 
 void handle_tuple(VM *vm) {
@@ -464,7 +460,6 @@ void handle_tuple(VM *vm) {
     }
     newobj->tuple.boxed_items = bitsets;
     vm->regs[res].i = (uint64_t)newobj;
-    track_obj(vm, newobj);
 }
 
 void handle_tupleget(VM *vm) {

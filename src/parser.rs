@@ -425,27 +425,13 @@ fn exp<'tokens, 'src: 'tokens>(
         Token::Ident(v) => Expr::Variable { name: v.to_string(), ty: None }
     };
 
-    let optional_ref = just(Token::Ref)
+    let optional_ref = just(Token::Ampersand)
         .repeated()
         .collect::<Vec<_>>()
         .then(variable)
         .map(|(refs, mut var)| {
             for _ in 0..refs.len() {
                 var = Expr::Ref {
-                    expr: Box::new(var),
-                    ty: None,
-                }
-            }
-            var
-        });
-
-    let optional_deref = just(Token::Star)
-        .repeated()
-        .collect::<Vec<_>>()
-        .then(variable)
-        .map(|(refs, mut var)| {
-            for _ in 0..refs.len() {
-                var = Expr::Deref {
                     expr: Box::new(var),
                     ty: None,
                 }
@@ -531,6 +517,20 @@ fn exp<'tokens, 'src: 'tokens>(
                             res
                         })
                         .boxed();
+
+                    let optional_deref = just(Token::Star)
+                        .repeated()
+                        .collect::<Vec<_>>()
+                        .then(subscript.clone())
+                        .map(|(refs, mut var)| {
+                            for _ in 0..refs.len() {
+                                var = Expr::Deref {
+                                    expr: Box::new(var),
+                                    ty: None,
+                                }
+                            }
+                            var
+                        });
 
                     let call = subscript
                         .clone()
@@ -940,8 +940,7 @@ fn exp<'tokens, 'src: 'tokens>(
                 .boxed();
 
             // ensure that prim is only a variable or a subscript
-            let assignment = optional_deref
-                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+            let assignment = primm
                 .clone()
                 .then(just(Token::Assign))
                 .then(p_exp.clone())

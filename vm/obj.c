@@ -11,17 +11,10 @@ double value_to_float(Value value) { return *(double *)&value; }
 Value float_to_value(double f) { return *(Value *)&f; }
 
 Obj *new_obj(VM *vm, ObjType type) {
-    Obj *obj = allocate(vm, sizeof(Obj));
+    Obj *obj = cheney_allocate(vm, 1);
     obj->type = type;
     obj->marked = false;
     return obj;
-}
-
-void track_obj(VM *vm, Obj *obj) {
-    pthread_mutex_lock(&vm->gc_state->lock);
-    obj->next = vm->gc_state->objects;
-    vm->gc_state->objects = obj;
-    pthread_mutex_unlock(&vm->gc_state->lock);
 }
 
 void free_obj(Obj *obj) {

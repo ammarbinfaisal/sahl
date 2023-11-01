@@ -1,44 +1,44 @@
 fun dfs(g: [[bool]], visited: [bool], node: int) {
-    print("Visiting node: ", node, "\n")
-    visited[node] = true
-    let i = 0
+    print("Visiting node: ", node, "\n");
+    visited[node] = true;
+    let i = 0;
     while i < len(g[node]) {
         if node == i {
-            i = i + 1
-            continue
+            i = i + 1;
+            continue;
         }
         if !visited[i] && g[node][i] {
-            print("trying to Visiting node: ", i, " from node: ", node, "\n")
-            dfs(g, visited, i)
+            print("trying to Visiting node: ", i, " from node: ", node, "\n");
+            dfs(g, visited, i);
         }
-        i = i + 1
+        i = i + 1;
     }
 }
 
 fun main() {
-    let node_count = 1000
-    let g = make([[bool]], node_count)
-    let i = 0
+    let node_count = 10000;
+    let g = make([[bool]], node_count);
+    let i = 0;
     while i < node_count {
-        g[i] = make([bool], node_count)
-        let j = 0
+        g[i] = make([bool], node_count);
+        let j = 0;
         while j < node_count {
-            g[i][j] = false
-            j = j + 1
+            g[i][j] = false;
+            j = j + 1;
         }
-        i = i + 1
+        i = i + 1;
     }
-    i = 0
+    i = 0;
     while i < node_count {
-        let j = 0
+        let j = 0;
         while j < node_count {
             if i % 2 == j % 2 {
-                g[i][j] = true
+                g[i][j] = true;
             }
-            j = j + 1
+            j = j + 1;
         }
-        i = i + 1
+        i = i + 1;
     }
-    let visited = make([bool], node_count)
-    dfs(g, visited, 5)
+    let visited = make([bool], node_count);
+    dfs(g, visited, 5);
 }
