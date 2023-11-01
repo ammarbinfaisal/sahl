@@ -62,6 +62,7 @@ enum Token<'src> {
     RightArrow,
     Range,
     ForwSlashForwSlash,
+    Ref,
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -89,6 +90,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Sahl => write!(f, "sahl"),
             Token::Break => write!(f, "break"),
             Token::Continue => write!(f, "continue"),
+            Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
@@ -286,6 +288,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "sahl" => Token::Sahl,
         "break" => Token::Break,
         "continue" => Token::Continue,
+        "ref" => Token::Ref,
         _ => Token::Ident(s),
     });
 
@@ -422,6 +425,19 @@ fn exp<'tokens, 'src: 'tokens>(
         Token::Ident(v) => Expr::Variable { name: v.to_string(), ty: None }
     };
 
+    let optional_ref = just(Token::Ref).repeated().collect::<Vec<_>>().then(variable).map(
+        |(refs, mut var)| {
+            for _ in 0..refs.len() {
+                var = Expr::Ref {
+                    expr: Box::new(var),
+                    ty: None,
+                    usage: false
+                }
+            }
+            var
+        }
+    );
+
     let exp = recursive(
         |p_exp: Recursive<
             dyn Parser<
@@ -468,23 +484,35 @@ fn exp<'tokens, 'src: 'tokens>(
                         .boxed();
 
                     // use sqbrac_ex to avoid left recursion
-                    let subscript = variable
+                    let subscript = optional_ref
                         .clone()
                         .then(sqbrac_ex.clone().repeated().collect::<Vec<_>>())
                         .map(|(name, subs)| {
-                            let mut res = name;
+                            let mut res = name.clone();
                             if subs.is_empty() {
                                 return res;
                             }
+                            let mut ref_count = 0;
+                            let mut name2 = name.clone();
+                            while let Expr::Ref { expr, ..  } = name2 {
+                                name2 = (*expr).clone();
+                                ref_count += 1;
+                            }
                             let start = subs[0].0;
-                            let mut end = subs[0].2;
                             for sub in subs {
-                                end = sub.2;
+                                let end = sub.2;
                                 res = Expr::Subscr {
                                     expr: Box::new((start, res, end)),
                                     index: Box::new(sub),
                                     ty: None,
                                 };
+                            }
+                            for _ in 0..ref_count {
+                                res =  Expr::Ref {
+                                    expr: Box::new(res),
+                                    usage: true,
+                                    ty: None,
+                                }
                             }
                             res
                         })

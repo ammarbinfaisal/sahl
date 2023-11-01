@@ -169,6 +169,32 @@ impl<'a> Checker<'a> {
                     Ok(t)
                 }
             }
+            Expr::Ref { expr, ty, usage } => {
+                let ex = *expr.clone();
+                let start = (**expr).0;
+                let end = (**expr).2;
+                let ty = match ex {
+                    Expr::Variable { name, ty } => {
+                        if let Some(t) = ty {
+                            t
+                        } else {
+                            let t = self.find_var(&name, start, end)?;
+                            *ty = Some(t.clone());
+                            t
+                        }
+                    }
+                    _ => {
+                        return Err((
+                            start,
+                            Error::TypeMismatch(vec![Type::Any], vec![ex.ty()]),
+                            end,
+                        ))
+                    }
+                }
+                *ty = ty.clone();
+                *usage = true;
+                Ok(Type::Ref(Box::new(ty)))
+            }
             Expr::Assign { left, right } => {
                 let ty = self.check_expr(right)?;
                 let correct_lhs = match left.1.clone() {

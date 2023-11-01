@@ -3,7 +3,7 @@
 mod bytes;
 mod cfg;
 mod go;
-mod native;
+// mod native;
 mod parser;
 mod regcode;
 mod semant;
@@ -11,7 +11,6 @@ mod syntax;
 mod utils;
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use inkwell::context::Context;
 use parser::*;
 use regcode::RegCodeGen;
 use semant::*;
@@ -71,16 +70,16 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                                 file.write_all(&func_bytes).unwrap();
                             }
                         } else {
-                            let context = Context::create();
-                            let module = context.create_module("main");
-                            let builder = context.create_builder();
-                            let mut compiler = native::Compiler::new(
-                                &context,
-                                module,
-                                builder,
-                                gen.consts.clone(),
-                            );
-                            compiler.compile_program(&p, gen.func_code);
+                            // let context = Context::create();
+                            // let module = context.create_module("main");
+                            // let builder = context.create_builder();
+                            // let mut compiler = native::Compiler::new(
+                            //     &context,
+                            //     module,
+                            //     builder,
+                            //     gen.consts.clone(),
+                            // );
+                            // compiler.compile_program(&p, gen.func_code);
                         }
                     }
                 }

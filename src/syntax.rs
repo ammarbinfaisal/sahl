@@ -148,6 +148,11 @@ pub enum Expr {
         expr: Box<Spanned<Expr>>,
         ty: Type,
     },
+    Ref {
+        expr: Box<Expr>,
+        ty: Option<Type>,
+        usage: bool,
+    },
 }
 
 impl Expr {
@@ -170,6 +175,7 @@ impl Expr {
             Expr::ChanRead { ty, .. } => ty.clone().unwrap(),
             Expr::List { ty, .. } => ty.clone().unwrap(),
             Expr::Cast { ty, .. } => ty.clone(),
+            Expr::Ref { ty, .. } => ty.clone().unwrap(),
         }
     }
 }
