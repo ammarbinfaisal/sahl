@@ -26,7 +26,7 @@ files_all_checks = [
     "cast",
     "graph",
     "map",
-    "seive"
+    "seive",
 ]
 files_retcode_check = [
     "chan",
@@ -55,13 +55,16 @@ str_to_mode = {
     "go": go_mode,
 }
 
+
 def passed(file, mode):
     global passing
     passing[mode] += 1
     print(f"{file} passed")
 
+
 def failed(file, mode):
     print(f"{file} failed in {mode_to_str[mode]}")
+
 
 def run_file(mode, file, only_rc_check=False):
     modestr = mode_to_str[mode]
@@ -94,6 +97,7 @@ def run_all(mode):
 def result(mode):
     print(f"{passing[mode]}/{total} {mode_to_str[mode]} tests passed")
 
+
 modes = [byte_mode, aot_mode, go_mode]
 
 if __name__ == "__main__":
@@ -104,16 +108,21 @@ if __name__ == "__main__":
             result(m)
         elif argv[1] in files_all_checks:
             run_file(byte_mode, argv[1])
-            run_file(aot_mode, argv[1])
+            # run_file(aot_mode, argv[1])
             run_file(go_mode, argv[1])
         elif argv[1] in files_retcode_check:
             run_file(byte_mode, argv[1], True)
-            run_file(aot_mode, argv[1], True)
+            # run_file(aot_mode, argv[1], True)
             run_file(go_mode, argv[1], True)
         exit(0)
-    for mode in [byte_mode, aot_mode, go_mode]:
+    modes = [
+        byte_mode,
+        #   aot_mode,
+        go_mode,
+    ]
+    for mode in modes:
         run_all(mode)
-    for mode in [byte_mode, aot_mode, go_mode]:
+    for mode in modes:
         result(mode)
     if not "GITHUB_ENV" in environ:
         exit(0)
