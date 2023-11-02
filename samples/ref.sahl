@@ -1,6 +1,10 @@
+fun printt(arr: ref [int]) {
+    for i in *arr {
+        print(i);
+    }
+}
+
 fun main() {
-    let i = 0;
-    let j = &i;
-    *j = 1;
-    print(i);
+    let arr = [1, 2, 3, 4, 5];
+    printt(&arr);
 }

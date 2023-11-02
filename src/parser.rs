@@ -363,6 +363,12 @@ fn typee<'tokens, 'src: 'tokens>(
                 Err<Rich<'tokens, Token<'src>, Span>>,
             >,
         >| {
+            let reff = just(Token::Ref)
+                .ignored()
+                .then(t.clone())
+                .map(|(_, ty)| Type::Ref(Box::new(ty)))
+                .boxed();
+
             let simplety = choice((
                 just(Token::Ident("int")).to(Type::Int),
                 just(Token::Ident("bool")).to(Type::Bool),
@@ -405,7 +411,7 @@ fn typee<'tokens, 'src: 'tokens>(
                 .map(|tys| Type::Tuple(tys))
                 .boxed();
 
-            tuplety.or(mapty).or(chanty).or(listty).or(simplety)
+            reff.or(tuplety).or(mapty).or(chanty).or(listty).or(simplety)
         },
     )
 }
