@@ -1,7 +1,7 @@
 # sahl
 
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/tests.json)
-![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/aot.json)
+<!-- ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/aot.json) -->
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/abooishaaq/2bc57fe31c6d742b25defe3549e78433/raw/go.json)
 
 a programming language with channels and coroutines
@@ -46,7 +46,7 @@ Initially I made the virtual machine in rust. It was slow so I rewrote the codeg
   - generational GC
   - coroutines
 
-## `exe.bin` format
+## `exe.bin` format (deprecated)
 
 - 4 bytes: filename length
 - then the filename

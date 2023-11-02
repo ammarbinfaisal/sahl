@@ -14,7 +14,7 @@
 
 ```kt
 fun main() {
-    print("Hello World! \n")
+    print("Hello World! \n");
 }
 ```
 
@@ -22,7 +22,7 @@ fun main() {
 
 ```kt
 fun add(a: int, b: int) -> int {
-    return a + b
+    return a + b;
 }
 ```
 
@@ -32,10 +32,10 @@ If the return type is not specified it is assumed to be `void`.
 
 ```kt
 fun main() {
-    let a = 10
-    let b = 20
-    let c = a + b
-    print(c, "\n")
+    let a = 10;
+    let b = 20;
+    let c = a + b;
+    print(c, "\n");
 }
 ```
 
@@ -49,7 +49,7 @@ The type of the variable is inferred from the value assigned to it.
 - `double`
 - `bool`
 - `string`
-- `chat`
+- `char`
 
 ### Arrays
 
@@ -77,7 +77,7 @@ The type of the variable is inferred from the value assigned to it.
 
 ```kt
 if a > 0 {
-    a = a + 1
+    a = a + 1;
 }
 ```
 
@@ -85,7 +85,7 @@ if a > 0 {
 
 ```kt
 while a > 0 {
-    a = a - 1
+    a = a - 1;
 }
 ```
 
@@ -93,7 +93,7 @@ while a > 0 {
 
 ```kt
 for i in 0..10 {
-    print(i, "\n")
+    print(i, "\n");
 }
 ```
 
@@ -123,12 +123,12 @@ used inside functions to return a value
 
 ```kt
 fun add(a: int, b: int) -> int {
-    return a + b
+    return a + b;
 }
 
 fun main() {
-    let a = add(10, 20)
-    print(a, "\n")
+    let a = add(10, 20);
+    print(a, "\n");
 }
 ```
 
@@ -136,8 +136,8 @@ fun main() {
 
 ```kt
 fun main() {
-    let a = [1, 2, 3]
-    print(a[0], "\n")
+    let a = [1, 2, 3];
+    print(a[0], "\n");
 }
 ```
 
@@ -145,8 +145,8 @@ fun main() {
 
 ```kt
 fun main() {
-    let a = make([int], 10)
-    print(a[0], "\n")
+    let a = make([int], 10);
+    print(a[0], "\n");
 }
 ```
 
@@ -157,10 +157,10 @@ make is used to create arrays, maps and channels
 
 ```kt
 fun main() {
-    let c = make(chan<int>)
-    c <- 10
-    let a = <-c
-    print(a, "\n")
+    let c = make(chan<int>);
+    c <- 10;
+    let a = <-c;
+    print(a, "\n");
 }
 ```
 
@@ -172,28 +172,28 @@ check [channels](#channels)
 
 ```kt
 fun sendvals(c: chan<int>, count: int, id: int) {
-    let i = 0
+    let i = 0;
     while i < count {
-        c <- i
-        i = i + 1
+        c <- i;
+        i = i + 1;
     }
 }
 
 fun recvvals(c: chan<int>, count: int, id: int) {
-    let i = 0
+    let i = 0;
     while i < count {
-        print(<-c, " - ", id, "\n")
-        i = i + 1
+        print(<-c, " - ", id, "\n");
+        i = i + 1;
     }
 }
 
 fun main() {
-    let i = 0
+    let i = 0;
     while i < 100 {
-        let a = make(chan<int>, 1000)
-        sahl sendvals(a, 10000, i)
-        sahl recvvals(a, 10000, i)
-        i = i + 1
+        let a = make(chan<int>, 1000);
+        sahl sendvals(a, 10000, i);
+        sahl recvvals(a, 10000, i);
+        i = i + 1;
     }
 }
 ```
