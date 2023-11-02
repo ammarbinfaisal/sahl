@@ -1,14 +1,14 @@
 fun fn(i: int) -> (int, int) {
-    return (i*i, i*i*i,)
+    return (i*i, i*i*i,);
 }
 
 fun main() {
-    let i = 0
+    let i = 0;
     while i < 10000 {
-        let res = fn(i)
-        print("fn(i) = ", res, "\n")
-        print("fn(i)[0] = ", res[0], "\n")
-        print("fn(i)[1] = ", res[1], "\n")
-        i = i + 1
+        let res = fn(i);
+        print("fn(i) = ", res, "\n");
+        print("fn(i)[0] = ", res[0], "\n");
+        print("fn(i)[1] = ", res[1], "\n");
+        i = i + 1;
     }
 }
