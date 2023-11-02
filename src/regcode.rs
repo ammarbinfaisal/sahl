@@ -966,6 +966,10 @@ impl<'a> RegCodeGen<'a> {
                     let iter = self.get_reg();
                     let const_reg = self.get_reg();
                     let const_ix_1 = self.consts.len();
+                    // push iter and end to abstract stack so that if there is a function call
+                    // inside the loop, it doesnt get overwritten
+                    self.stack.push(iter);
+                    self.stack.push(end);
                     self.locals.push();
                     self.consts.push((Type::Int, 1u64.to_le_bytes().to_vec()));
                     self.code.push(RegCode::Const(const_ix_1, const_reg));
@@ -992,8 +996,12 @@ impl<'a> RegCodeGen<'a> {
                     self.code.push(RegCode::Jmp(incr_jmp_ix));
                     let jmp_ix4 = self.code.len();
                     self.code[jmp_ix2] = RegCode::JmpIfNot(cond_reg, jmp_ix4);
+                    // pop iter from abstract stack
+                    self.stack.pop(); // end
+                    self.stack.pop(); // iter
                     self.free_reg(iter);
                     self.free_reg(cond_reg);
+                    self.free_reg(const_reg);
                     let loop_ix: usize = self.breaks.len() - 1;
                     for ix in self.breaks[loop_ix].iter() {
                         self.code[*ix] = RegCode::Jmp(jmp_ix4);
