@@ -65,7 +65,11 @@
 #define OP_PRINTLOCK 60
 #define OP_PRINTUNLOCK 61
 #define OP_SUPER_INSTRUCTION 62
+#define OP_CORO_CALL 63
+#define OP_REF 64
+#define OP_DEREF 65
+#define OP_DEREF_ASSIGN 66
 
-#define NUM_OPCODES 63
+#define NUM_OPCODES 66
 
 #endif

@@ -62,6 +62,7 @@ enum Token<'src> {
     RightArrow,
     Range,
     ForwSlashForwSlash,
+    Ref,
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -89,6 +90,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Sahl => write!(f, "sahl"),
             Token::Break => write!(f, "break"),
             Token::Continue => write!(f, "continue"),
+            Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
@@ -286,6 +288,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "sahl" => Token::Sahl,
         "break" => Token::Break,
         "continue" => Token::Continue,
+        "ref" => Token::Ref,
         _ => Token::Ident(s),
     });
 
@@ -360,6 +363,12 @@ fn typee<'tokens, 'src: 'tokens>(
                 Err<Rich<'tokens, Token<'src>, Span>>,
             >,
         >| {
+            let reff = just(Token::Ref)
+                .ignored()
+                .then(t.clone())
+                .map(|(_, ty)| Type::Ref(Box::new(ty)))
+                .boxed();
+
             let simplety = choice((
                 just(Token::Ident("int")).to(Type::Int),
                 just(Token::Ident("bool")).to(Type::Bool),
@@ -402,7 +411,7 @@ fn typee<'tokens, 'src: 'tokens>(
                 .map(|tys| Type::Tuple(tys))
                 .boxed();
 
-            tuplety.or(mapty).or(chanty).or(listty).or(simplety)
+            reff.or(tuplety).or(mapty).or(chanty).or(listty).or(simplety)
         },
     )
 }
@@ -421,6 +430,20 @@ fn exp<'tokens, 'src: 'tokens>(
     let variable = select! {
         Token::Ident(v) => Expr::Variable { name: v.to_string(), ty: None }
     };
+
+    let optional_ref = just(Token::Ampersand)
+        .repeated()
+        .collect::<Vec<_>>()
+        .then(variable)
+        .map(|(refs, mut var)| {
+            for _ in 0..refs.len() {
+                var = Expr::Ref {
+                    expr: Box::new(var),
+                    ty: None,
+                }
+            }
+            var
+        });
 
     let exp = recursive(
         |p_exp: Recursive<
@@ -468,27 +491,52 @@ fn exp<'tokens, 'src: 'tokens>(
                         .boxed();
 
                     // use sqbrac_ex to avoid left recursion
-                    let subscript = variable
+                    let subscript = optional_ref
                         .clone()
                         .then(sqbrac_ex.clone().repeated().collect::<Vec<_>>())
                         .map(|(name, subs)| {
-                            let mut res = name;
+                            let mut res = name.clone();
                             if subs.is_empty() {
                                 return res;
                             }
+                            let mut ref_count = 0;
+                            let mut name2 = name.clone();
+                            while let Expr::Ref { expr, .. } = name2 {
+                                name2 = (*expr).clone();
+                                ref_count += 1;
+                            }
                             let start = subs[0].0;
-                            let mut end = subs[0].2;
                             for sub in subs {
-                                end = sub.2;
+                                let end = sub.2;
                                 res = Expr::Subscr {
                                     expr: Box::new((start, res, end)),
                                     index: Box::new(sub),
                                     ty: None,
                                 };
                             }
+                            for _ in 0..ref_count {
+                                res = Expr::Ref {
+                                    expr: Box::new(res),
+                                    ty: None,
+                                }
+                            }
                             res
                         })
                         .boxed();
+
+                    let optional_deref = just(Token::Star)
+                        .repeated()
+                        .collect::<Vec<_>>()
+                        .then(subscript.clone())
+                        .map(|(refs, mut var)| {
+                            for _ in 0..refs.len() {
+                                var = Expr::Deref {
+                                    expr: Box::new(var),
+                                    ty: None,
+                                }
+                            }
+                            var
+                        });
 
                     let call = subscript
                         .clone()
@@ -541,6 +589,7 @@ fn exp<'tokens, 'src: 'tokens>(
                         .or(string.clone())
                         .or(double)
                         .or(int)
+                        .or(optional_deref.clone())
                         .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
                         .boxed();
 
@@ -897,7 +946,7 @@ fn exp<'tokens, 'src: 'tokens>(
                 .boxed();
 
             // ensure that prim is only a variable or a subscript
-            let assignment = prim
+            let assignment = primm
                 .clone()
                 .then(just(Token::Assign))
                 .then(p_exp.clone())
@@ -1012,7 +1061,8 @@ fn statement<'tokens, 'src: 'tokens>(
             let returnstmt = just(Token::Return)
                 .ignored()
                 .then(exp())
-                .map(|(_, expr)| Stmt::Return(Box::new(expr)))
+                .then(just(Token::Semicolon))
+                .map(|((_, expr), _)| Stmt::Return(Box::new(expr)))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
             let letstmt = just(Token::Let)
@@ -1020,8 +1070,9 @@ fn statement<'tokens, 'src: 'tokens>(
                 .then(ident())
                 .then_ignore(just(Token::Assign))
                 .then(exp())
+                .then(just(Token::Semicolon))
                 .map(|res| {
-                    let ((_, name), expr) = res;
+                    let (((_, name), expr), _) = res;
                     Stmt::Decl(name.to_string(), Box::new(expr))
                 })
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
@@ -1029,22 +1080,30 @@ fn statement<'tokens, 'src: 'tokens>(
             let coro = just(Token::Sahl)
                 .ignored()
                 .then(exp())
-                .map(|(_, expr)| Stmt::Coroutine(expr))
+                .then(just(Token::Semicolon))
+                .map(|((_, expr), _)| Stmt::Coroutine(expr))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
             let chanwrite = ident()
                 .then(just(Token::LeftArrow))
                 .then(exp())
-                .map(|((name, _), expr)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
+                .then(just(Token::Semicolon))
+                .map(|(((name, _), expr), _)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
             let continuest = just(Token::Continue)
                 .map(|_| Stmt::Continue)
-                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+                .then(just(Token::Semicolon))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e.0, span.end));
 
             let breakstmt = just(Token::Break)
                 .map(|_| Stmt::Break)
-                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+                .then(just(Token::Semicolon))
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e.0, span.end));
+
+            let ex = exp()
+                .then(just(Token::Semicolon))
+                .map(|((l, e, r), _)| (l, Stmt::Expr(Box::new((l, e, r))), r));
 
             let finall: Boxed<'_, '_, _, Spanned<Stmt>, _> = ifstmt
                 .or(whilestmt)
@@ -1060,7 +1119,7 @@ fn statement<'tokens, 'src: 'tokens>(
                     let end = stmts[stmts.len() - 1].2;
                     (start, Stmt::Block(stmts), end)
                 }))
-                .or(exp().map(|(l, e, r)| (l, Stmt::Expr(Box::new((l, e, r))), r)))
+                .or(ex)
                 .boxed();
 
             finall

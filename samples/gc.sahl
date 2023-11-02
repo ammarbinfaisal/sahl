@@ -1,0 +1,10 @@
+fun alloc(i: int) {
+    print(i, "\n");
+    let a = make([int], 100000000);
+}
+
+fun main() {
+    for i in 0..1024 {
+        alloc(i);
+    }
+}

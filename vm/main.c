@@ -77,19 +77,19 @@ void push(VM *vm, Value value) {
 // Define function pointer type for opcodes
 typedef void (*OpcodeHandler)(VM *);
 
-#define OP_R1_R2_RES \
-    uint8_t *code = vm->call_frame->func->code; \
-    int r1 = code[++vm->call_frame->ip]; \
-    int r2 = code[++vm->call_frame->ip]; \
-    int res = code[++vm->call_frame->ip]; \
+#define OP_R1_R2_RES                                                           \
+    uint8_t *code = vm->call_frame->func->code;                                \
+    int r1 = code[++vm->call_frame->ip];                                       \
+    int r2 = code[++vm->call_frame->ip];                                       \
+    int res = code[++vm->call_frame->ip];
 
-#define OP_CODE_R1_R2 \
-    uint8_t *code = vm->call_frame->func->code; \
-    int r1 = code[++vm->call_frame->ip]; \
-    int r2 = code[++vm->call_frame->ip]; \
+#define OP_CODE_R1_R2                                                          \
+    uint8_t *code = vm->call_frame->func->code;                                \
+    int r1 = code[++vm->call_frame->ip];                                       \
+    int r2 = code[++vm->call_frame->ip];
 
-#define DOUBLE_ARG1_ARG2 \
-    double arg1 = vm->regs[r1].f; \
+#define DOUBLE_ARG1_ARG2                                                       \
+    double arg1 = vm->regs[r1].f;                                              \
     double arg2 = vm->regs[r2].f;
 
 void handle_iadd(VM *vm) {
@@ -330,7 +330,6 @@ void make_map(VM *vm, int reg, int _) {
     uint8_t value_heap_alloc = code[++vm->call_frame->ip];
     obj->map.key_boxed = key_boxed;
     obj->map.value_boxed = value_heap_alloc;
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make map %p - reg %d\n", obj, reg);
 #endif
@@ -339,12 +338,11 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = allocate(vm, cap * sizeof(Value));
+    obj->list.items = malloc(sizeof(Value) * cap);
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make list %p - reg %d\n", obj, reg);
 #endif
@@ -355,7 +353,6 @@ void make_chan(VM *vm, int reg, int len) {
     obj->channel.chan = new_chan(len ? len : 2);
     vm->regs[reg].i = (uint64_t)obj;
     obj->list.boxed_items = vm->call_frame->func->code[++vm->call_frame->ip];
-    track_obj(vm, obj);
 #ifdef DEBUG
     printf("make chan %p - reg %d\n", obj, reg);
 #endif
@@ -439,7 +436,6 @@ void handle_list(VM *vm) {
         newobj->list.items[i] = pop(vm);
     }
     vm->regs[res].i = (uint64_t)newobj;
-    track_obj(vm, newobj);
 }
 
 void handle_tuple(VM *vm) {
@@ -464,7 +460,6 @@ void handle_tuple(VM *vm) {
     }
     newobj->tuple.boxed_items = bitsets;
     vm->regs[res].i = (uint64_t)newobj;
-    track_obj(vm, newobj);
 }
 
 void handle_tupleget(VM *vm) {
@@ -974,30 +969,60 @@ void handle_superinstruction(VM *vm) {
     superinst_handlers[inst](vm);
 }
 
+void handle_ref(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int var = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int res = code[vm->call_frame->ip];
+    Obj *ref = new_obj(vm, OBJ_REF);
+    ref->ref.frame = vm->call_frame;
+    ref->ref.local_ix = var;
+    vm->regs[res].o = ref;
+}
+
+void handle_deref(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int var = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int res = code[vm->call_frame->ip];
+    Obj *ref = (Obj *)vm->call_frame->locals[var];
+    vm->regs[res].i = ref->ref.frame->locals[ref->ref.local_ix];
+}
+
+void handle_deref_assign(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int var = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int arg = code[vm->call_frame->ip];
+    Obj *ref = (Obj *)vm->call_frame->locals[var];
+    ref->ref.frame->locals[ref->ref.local_ix] = vm->regs[arg].i;
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[] = {
-    handle_iadd,      handle_isub,        handle_imul,
-    handle_idiv,      handle_irem,        handle_ine,
-    handle_ieq,       handle_ilt,         handle_ile,
-    handle_igt,       handle_ige,         handle_fadd,
-    handle_fsub,      handle_fmul,        handle_fdiv,
-    handle_frem,      handle_fne,         handle_feq,
-    handle_flt,       handle_fle,         handle_fgt,
-    handle_fge,       handle_band,        handle_bor,
-    handle_bxor,      handle_bnot,        handle_land,
-    handle_lor,       handle_lnot,        handle_bshl,
-    handle_bshr,      handle_fneg,        handle_ineg,
-    handle_make,      handle_listset,     handle_listget,
-    handle_list,      handle_tupleget,    handle_tuple,
-    handle_strget,    handle_mapget,      handle_mapset,
-    handle_chansend,  handle_chanrecv,    handle_jmp,
-    handle_jmpifnot,  handle_call,        handle_ncall,
-    handle_const,     handle_load,        handle_store,
-    handle_cast,      handle_move,        handle_return,
-    handle_push,      handle_pop,         handle_spawn,
-    handle_nop,       handle_ret,         handle_stack_map,
-    handle_nop, handle_nop, handle_superinstruction,
-    handle_corocall};
+    handle_iadd,        handle_isub,     handle_imul,
+    handle_idiv,        handle_irem,     handle_ine,
+    handle_ieq,         handle_ilt,      handle_ile,
+    handle_igt,         handle_ige,      handle_fadd,
+    handle_fsub,        handle_fmul,     handle_fdiv,
+    handle_frem,        handle_fne,      handle_feq,
+    handle_flt,         handle_fle,      handle_fgt,
+    handle_fge,         handle_band,     handle_bor,
+    handle_bxor,        handle_bnot,     handle_land,
+    handle_lor,         handle_lnot,     handle_bshl,
+    handle_bshr,        handle_fneg,     handle_ineg,
+    handle_make,        handle_listset,  handle_listget,
+    handle_list,        handle_tupleget, handle_tuple,
+    handle_strget,      handle_mapget,   handle_mapset,
+    handle_chansend,    handle_chanrecv, handle_jmp,
+    handle_jmpifnot,    handle_call,     handle_ncall,
+    handle_const,       handle_load,     handle_store,
+    handle_cast,        handle_move,     handle_return,
+    handle_push,        handle_pop,      handle_spawn,
+    handle_nop,         handle_ret,      handle_stack_map,
+    handle_nop,         handle_nop,      handle_superinstruction,
+    handle_corocall,    handle_ref,      handle_deref,
+    handle_deref_assign};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {

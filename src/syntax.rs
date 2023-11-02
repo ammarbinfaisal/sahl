@@ -12,6 +12,7 @@ pub enum Type {
     Tuple(Vec<Type>),
     Map(Box<Type>, Box<Type>),
     Range,
+    Ref(Box<Type>),
 }
 
 impl Type {
@@ -148,6 +149,14 @@ pub enum Expr {
         expr: Box<Spanned<Expr>>,
         ty: Type,
     },
+    Ref {
+        expr: Box<Expr>,
+        ty: Option<Type>,
+    },
+    Deref {
+        expr: Box<Expr>,
+        ty: Option<Type>,
+    },
 }
 
 impl Expr {
@@ -170,6 +179,8 @@ impl Expr {
             Expr::ChanRead { ty, .. } => ty.clone().unwrap(),
             Expr::List { ty, .. } => ty.clone().unwrap(),
             Expr::Cast { ty, .. } => ty.clone(),
+            Expr::Ref { ty, .. } => ty.clone().unwrap(),
+            Expr::Deref { expr, ty } => ty.clone().unwrap(),
         }
     }
 }

@@ -1,22 +1,22 @@
 fun main() {
-    let list = make([int])
-    let i  = 0
+    let list = make([int]);
+    let i  = 0;
     while i < 100 {
-        append(list, i)
-        i = i + 1
+        append(list, i);
+        i = i + 1;
     }
-    print(list, "\n")
+    print(list, "\n");
 
-    let fizzBuzzList = make([string])
+    let fizzBuzzList = make([string]);
     for number in list {
-        print(number, "\n")
+        print(number, "\n");
         if number % 3 == 0 && number % 5 == 0 {
-            append(fizzBuzzList, "FizzBuzz")
+            append(fizzBuzzList, "FizzBuzz");
         } else if number % 3 == 0 {
-            append(fizzBuzzList, "Fizz")
+            append(fizzBuzzList, "Fizz");
         } else if number % 5 == 0 {
-            append(fizzBuzzList, "Buzz")
+            append(fizzBuzzList, "Buzz");
         }
     }
-    print(fizzBuzzList, "\n")
+    print(fizzBuzzList, "\n");
 }

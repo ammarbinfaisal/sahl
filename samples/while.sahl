@@ -1,8 +1,8 @@
 fun main() {
-    let i = 0
-    let l = 10000
+    let i = 0;
+    let l = 10000;
     while i < l {
-        print(i, "\n")
-        i = i + 1
+        print(i, "\n");
+        i = i + 1;
     }
 }

@@ -1,66 +1,66 @@
 fun merge(arr: [int], left: int, mid: int, right: int) {
-    let a1 = mid - left + 1
-    let a2 = right - mid
-    let arr1 = make([int], a1)
-    let arr2 = make([int], a2)
+    let a1 = mid - left + 1;
+    let a2 = right - mid;
+    let arr1 = make([int], a1);
+    let arr2 = make([int], a2);
     
-    let i = 0
+    let i = 0;
 
     while i < a1 {
-        arr1[i] = arr[left + i]
-        i = i + 1
+        arr1[i] = arr[left + i];
+        i = i + 1;
     }
 
-    i = 0
+    i = 0;
     while i < a2 {
-        arr2[i] = arr[mid + i + 1]
-        i = i + 1
+        arr2[i] = arr[mid + i + 1];
+        i = i + 1;
     }
     
-    let i1 = 0
-    let i2 = 0
-    let i_merged = left
+    let i1 = 0;
+    let i2 = 0;
+    let i_merged = left;
 
     while i1 < a1 && i2 < a2 {
         if arr1[i1] < arr2[i2] {
-            arr[i_merged] = arr1[i1]
-            i1 = i1 + 1
+            arr[i_merged] = arr1[i1];
+            i1 = i1 + 1;
         } else {
-            arr[i_merged] = arr2[i2]
-            i2 = i2 + 1
+            arr[i_merged] = arr2[i2];
+            i2 = i2 + 1;
         }
-        i_merged = i_merged + 1
+        i_merged = i_merged + 1;
     }
 
     while i1 < a1 {
-        arr[i_merged] = arr1[i1]
-        i1 = i1 + 1
-        i_merged = i_merged + 1
+        arr[i_merged] = arr1[i1];
+        i1 = i1 + 1;
+        i_merged = i_merged + 1;
     }
 
     while i2 < a2 {
-        arr[i_merged] = arr2[i2]
-        i2 = i2 + 1
-        i_merged = i_merged + 1
+        arr[i_merged] = arr2[i2];
+        i2 = i2 + 1;
+        i_merged = i_merged + 1;
     }
 }
 
 fun sort(arr: [int], left: int, right: int) {
     if left < right {
-        let mid = left + (right - left) / 2
-        sort(arr, left, mid)
-        sort(arr, mid + 1, right)
-        merge(arr, left, mid, right)
+        let mid = left + (right - left) / 2;
+        sort(arr, left, mid);
+        sort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
     }
 }
 
 fun main() {
-    let arr = make([int], 100000)
-    let i = 0
+    let arr = make([int], 100000);
+    let i = 0;
     while i < 100000 {
-        arr[i] = 100000 - i
-        i = i + 1
+        arr[i] = 100000 - i;
+        i = i + 1;
     }
-    sort(arr, 0, 100000 - 1)
-    print(arr, "\n")
+    sort(arr, 0, 100000 - 1);
+    print(arr, "\n");
 }

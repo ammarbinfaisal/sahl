@@ -17,6 +17,7 @@
 #define UNSAFE
 #define MAX_THREADS 16
 #define USE_GC
+#define DEBUGGC
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
 
@@ -96,7 +97,7 @@ struct RBNode {
 
 typedef struct RBNode RBNode;
 
-enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP };
+enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP, OBJ_REF };
 
 typedef enum ObjType ObjType;
 
@@ -132,6 +133,10 @@ struct Obj {
             bool key_boxed;
             bool value_boxed;
         } map;
+        struct {
+            CallFrame *frame;
+            int local_ix;
+        } ref;
     };
 };
 
@@ -145,18 +150,15 @@ union Reg {
 
 typedef union Reg Reg;
 
-struct GCState {
-    Obj *objects;
-    int grayCount;
-    int grayCapacity;
-    Obj **grayStack;
-    uint64_t allocated;
-    uint64_t nextGC;
+struct CheneyState {
+    void *from_space;
+    void *extent;
+    void *from_top;
+    int from_space_size;
     pthread_mutex_t lock;
-    pthread_mutex_t sweeplock;
 };
 
-typedef struct GCState GCState;
+typedef struct CheneyState CheneyState;
 
 struct VM {
     Value *stack;
@@ -171,7 +173,7 @@ struct VM {
     int start_func;
 
     // garbage collection
-    GCState *gc_state;
+    CheneyState *cheney_state;
 
     // thread
     bool coro_to_be_spawned;

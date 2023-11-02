@@ -18,15 +18,14 @@ VM *new_vm(uint8_t *code, int code_length) {
     vm->consts = malloc(sizeof(char *) * vm->consts_count);
     offset += 16;
 
-    GCState *gc_state = malloc(sizeof(GCState));
-    gc_state->objects = NULL;
-    gc_state->grayCount = 0;
-    gc_state->grayCapacity = 1024;
-    gc_state->grayStack = malloc(sizeof(Obj *) * 1024);
-    gc_state->allocated = 0;
-    gc_state->nextGC = 1024 * 1024;
-    pthread_mutex_init(&gc_state->lock, NULL);
-    vm->gc_state = gc_state;
+    CheneyState *cheney_state = malloc(sizeof(CheneyState));
+    void *mem = malloc(1024 * 256 * sizeof(Obj));
+    cheney_state->from_space = mem;
+    cheney_state->from_top = mem;
+    cheney_state->from_space_size = 1024 * 128 * sizeof(Obj);
+    cheney_state->extent = mem + 1024 * 256 * sizeof(Obj);
+    pthread_mutex_init(&cheney_state->lock, NULL);
+    vm->cheney_state = cheney_state;
 
     LinkedList *strings = new_list(); // strings to be added to vm->objects
     for (int i = 0; i < vm->consts_count; ++i) {
@@ -79,15 +78,6 @@ VM *new_vm(uint8_t *code, int code_length) {
     // garbage collection
     vm->call_frame->stackmap = NULL;
 
-    // add strings to vm->objects
-    void *p;
-    while ((p = dequeue(strings))) {
-        Obj *obj = p;
-        obj->next = gc_state->objects;
-        gc_state->objects = obj;
-    }
-    free_linkedlist(strings);
-
     // threads
     vm->is_coro = false;
     vm->halted = false;
@@ -122,7 +112,7 @@ VM *coro_vm(VM *curr, int start_func) {
     }
 
     // garbage collection
-    vm->gc_state = curr->gc_state;
+    vm->cheney_state = curr->cheney_state;
 
     // threads
     vm->is_coro = true;
@@ -135,7 +125,7 @@ VM *coro_vm(VM *curr, int start_func) {
 void free_vm(VM *vm) {
     free(vm->stack);
     free(vm->consts);
-    free(vm->gc_state->grayStack);
-    free(vm->gc_state);
+    free(vm->cheney_state->from_space);
+    free(vm->cheney_state);
     free(vm);
 }

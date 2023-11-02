@@ -1,5 +1,5 @@
 fun main() {
-    let a = 1000
-    let b = 2000
-    print(a + b)
+    let a = 1000;
+    let b = 2000;
+    print(a + b);
 }

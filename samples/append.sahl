@@ -1,23 +1,23 @@
 fun print_list(ar: [int]) {
-    let l = len(ar)
-    let i = 0
+    let l = len(ar);
+    let i = 0;
     while i < l {
-        print(ar[i])
-        i = i + 1
+        print(ar[i]);
+        i = i + 1;
         if i < l {
-            print(", ")
+            print(", ");
         }
     }
-    print("\n")
+    print("\n");
 }
 
 
 fun main() {
-    let list = make([int])
-    let i = 0 
+    let list = make([int]);
+    let i = 0;
     while i < 1000000 {
-        append(list, i)
-        i = i + 1
+        append(list, i);
+        i = i + 1;
     }
-    print_list(list)
+    print_list(list);
 }

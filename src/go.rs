@@ -195,6 +195,10 @@ impl GOCodegen {
                 let ty2 = self.ty_to_go(ty2);
                 format!("map[{}]{}", ty1, ty2)
             }
+            Type::Ref(ty) => {
+                let ty = self.ty_to_go(ty);
+                format!("*{}", ty)
+            }
             _ => unreachable!("ty_to_go: {:?}", tyy),
         }
     }
@@ -440,6 +444,18 @@ impl GOCodegen {
                 code.push_str(")");
                 code
             }
+            Expr::Ref { expr, ty } => {
+                let mut code = String::new();
+                    code.push_str("&");
+                code.push_str(&self.compile_expr(expr));
+                code
+            },
+            Expr::Deref { expr, ty } => {
+                let mut code = String::new();
+                code.push_str("*");
+                code.push_str(&self.compile_expr(expr));
+                code
+            },
         }
     }
 

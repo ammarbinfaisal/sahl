@@ -1,9 +1,9 @@
 fun main() {
-    let i = 1
-    let sum = 0
+    let i = 1;
+    let sum = 0;
     while i < 1000000 {
-        sum = sum + i
-        i = i + 1
+        sum = sum + i;
+        i = i + 1;
     }
-    print(sum, "\n")
+    print(sum, "\n");
 }
