@@ -15,34 +15,39 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     let mut block: Vec<RegCode> = Vec::new();
     let mut map = HashMap::new(); // regcode index -> block index, code index
     let mut leaders = HashSet::new();
-
-    // find leaders
-    for (i, code) in regcode.iter().enumerate() {
-        match code {
-            RegCode::Jmp(ix) => {
-                leaders.insert(*ix);
-            }
-            RegCode::JmpIfNot(_, ix) => {
-                leaders.insert(*ix);
-                leaders.insert(i + 1);
-            }
-            _ => {}
-        }
-    }
-
-    // construct blocks
-    for (i, code) in regcode.iter().enumerate() {
-        if leaders.contains(&i) && !block.is_empty() {
+    for (i, code) in regcode.into_iter().enumerate() {
+        if leaders.contains(&i) {
             cfg.push(BasicBlock {
                 phi: HashMap::new(),
                 code: block,
             });
             block = Vec::new();
         }
-        block.push(code.clone());
-        map.insert(i, cfg.len());
+        match code {
+            RegCode::Jmp(ix) => {
+                leaders.insert(i + 1);
+                leaders.insert(*ix);
+                map.insert(i, cfg.len());
+                block.push(code.clone());
+            }
+            RegCode::JmpIfNot(_, ix) => {
+                leaders.insert(i + 1);
+                leaders.insert(*ix);
+                map.insert(i, cfg.len());
+                block.push(code.clone());
+            }
+            RegCode::Super(SuperInstruction::JmpIfNotCond(ix, _, _, _, _)) => {
+                leaders.insert(i + 1);
+                leaders.insert(*ix);
+                map.insert(i, cfg.len());
+                block.push(code.clone());
+            }
+            _ => {
+                map.insert(i, cfg.len());
+                block.push(code.clone());
+            }
+        }
     }
-
     cfg.push(BasicBlock {
         phi: HashMap::new(),
         code: block,
@@ -59,17 +64,20 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
                     let block_idx = map[addr];
                     *code = RegCode::JmpIfNot(cond.clone(), block_idx);
                 }
+                RegCode::Super(SuperInstruction::JmpIfNotCond(addr, r1, r2, r3, op)) => {
+                    let block_idx = map[addr];
+                    *code = RegCode::Super(SuperInstruction::JmpIfNotCond(
+                        block_idx,
+                        *r1,
+                        *r2,
+                        *r3,
+                        op.clone(),
+                    ));
+                }
                 _ => {}
             }
         }
     }
-
-    // for (i, block) in cfg.iter().enumerate() {
-    //     println!("block {}", i);
-    //     for code in block.code.iter() {
-    //         println!("\t{:?}", code);
-    //     }
-    // }
     cfg
 }
 
