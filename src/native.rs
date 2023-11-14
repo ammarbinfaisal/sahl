@@ -671,8 +671,7 @@ impl<'ctx> Compiler<'ctx> {
                 RegCode::Jmp(_) => {}
                 RegCode::JmpIfNot(_1, _) => {}
                 _ => {
-                    let lim = if is_main { code.len() } else { code.len() - 1 };
-                    if bb_ix < lim {
+                    if bb_ix < range {
                         self.builder.build_unconditional_branch(bbs[bb_ix + 1]);
                     }
                 }
