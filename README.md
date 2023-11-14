@@ -1,6 +1,6 @@
 # sahl
 
-![badge](https://img.shields.io/endpoint?https://gist.githubusercontent.com/ammarbinfaisal/2bc57fe31c6d742b25defe3549e78433/raw/51e6f239a466298ae66b7013dd8073f9820b667f/aot.json)
+![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/ammarbinfaisal/2bc57fe31c6d742b25defe3549e78433/raw/51e6f239a466298ae66b7013dd8073f9820b667f/aot.json)
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/ammarbinfaisal/2bc57fe31c6d742b25defe3549e78433/raw/51e6f239a466298ae66b7013dd8073f9820b667f/go.json)
 ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/ammarbinfaisal/2bc57fe31c6d742b25defe3549e78433/raw/51e6f239a466298ae66b7013dd8073f9820b667f/tests.json)
 
