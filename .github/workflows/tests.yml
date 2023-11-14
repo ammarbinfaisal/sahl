@@ -18,7 +18,6 @@ jobs:
     - uses: actions/setup-go@v4
       with:
         go-version: '>=1.17.0'
-    - uses: ilammy/setup-nasm@v1
     - uses: Swatinem/rust-cache@v2
     - name: make
       run: make all
