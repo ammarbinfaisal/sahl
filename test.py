@@ -78,7 +78,7 @@ def run_file(mode, file, only_rc_check=False):
     if rc != 0:
         failed(file, mode)
         return
-    if only_rc_check or mode == aot_mode:
+    if only_rc_check:
         passed(file, mode)
         return
     output = output.decode("utf-8")
@@ -111,11 +111,11 @@ if __name__ == "__main__":
             result(m)
         elif argv[1] in files_all_checks:
             run_file(byte_mode, argv[1])
-            # run_file(aot_mode, argv[1])
+            run_file(aot_mode, argv[1])
             run_file(go_mode, argv[1])
         elif argv[1] in files_retcode_check:
             run_file(byte_mode, argv[1], True)
-            # run_file(aot_mode, argv[1], True)
+            run_file(aot_mode, argv[1], True)
             run_file(go_mode, argv[1], True)
         exit(0)
     modes = [
