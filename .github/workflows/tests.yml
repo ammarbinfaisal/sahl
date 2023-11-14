@@ -51,7 +51,7 @@ jobs:
         gistID: 2bc57fe31c6d742b25defe3549e78433
         auth: ${{ secrets.GHSECRET }}
         filename: aot.json
-        label: x86_64
+        label: native
         message: ${{ env.AOT_TEST_RESULT }}
         valColorRange: ${{ env.AOT_COLOR }}
         maxColorRange: 100
