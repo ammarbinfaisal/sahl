@@ -120,7 +120,7 @@ if __name__ == "__main__":
         exit(0)
     modes = [
         byte_mode,
-        #   aot_mode,
+        aot_mode,
         go_mode,
     ]
     for mode in modes:
