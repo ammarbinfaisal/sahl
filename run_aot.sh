@@ -12,4 +12,4 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
-./target/release/sahl $1 -n 2>./exe.ll && clang -g ./exe.ll ./rt.c -o ./exe && ./exe
+./target/release/sahl $1 -n 2>./exe.ll && clang -g -O3 ./exe.ll ./rt.c -o ./exe && ./exe
