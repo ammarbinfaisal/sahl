@@ -16,7 +16,7 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     let mut map = HashMap::new(); // regcode index -> block index, code index
     let mut leaders = HashSet::new();
 
-    for (i, code) in regcode.into_iter().enumerate() {
+    for code in regcode.into_iter() {
         match code {
             RegCode::Jmp(ix) => {
                 leaders.insert(*ix);
@@ -47,10 +47,13 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
         map.insert(i, cfg.len());
     }
 
-    cfg.push(BasicBlock {
-        phi: HashMap::new(),
-        code: block,
-    });
+    if !block.is_empty() {
+        cfg.push(BasicBlock {
+            phi: HashMap::new(),
+            code: block,
+        });
+    }
+
     // patching jmps
     for block in cfg.iter_mut() {
         for code in block.code.iter_mut() {

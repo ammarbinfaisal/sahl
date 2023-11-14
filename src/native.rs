@@ -7,6 +7,7 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
+use inkwell::targets::TargetTriple;
 use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
 use inkwell::values::{BasicMetadataValueEnum, FunctionValue};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
@@ -141,7 +142,8 @@ impl<'ctx> Compiler<'ctx> {
         let cfg = cfg::construct_cfg(&code);
 
         let mut bbs: Vec<BasicBlock<'ctx>> = Vec::new();
-        for i in 0..=cfg.len() {
+        let range = if is_main { cfg.len() } else { cfg.len() - 1 };
+        for i in 0..=range {
             let bb = self
                 .context
                 .append_basic_block(func.clone(), &format!("bb{}", i));
@@ -150,9 +152,9 @@ impl<'ctx> Compiler<'ctx> {
 
         self.builder.build_unconditional_branch(bbs[0]);
 
-        for (i, bb) in cfg.iter().enumerate() {
+        for (bb_ix, bb) in cfg.iter().enumerate() {
             let code = &bb.code;
-            let bb = bbs[i];
+            let bb = bbs[bb_ix];
             self.builder.position_at_end(bb);
             for c in code.iter() {
                 match c {
@@ -507,7 +509,7 @@ impl<'ctx> Compiler<'ctx> {
                             "v",
                         );
                         self.builder
-                            .build_conditional_branch(v, bbs[*ix], bbs[i + 1]);
+                            .build_conditional_branch(v, bbs[*ix], bbs[bb_ix + 1]);
                     }
                     RegCode::Call(fn_ix, regs) => {
                         let fn_ptr = self.module.get_function(&self.fn_names[*fn_ix]).unwrap();
@@ -647,7 +649,11 @@ impl<'ctx> Compiler<'ctx> {
                         let v1 = self.builder.build_load(i64_type, r2, "v1");
                         self.builder.build_store(r1, v1);
                     }
-                    RegCode::Return(_) => {}
+                    RegCode::Return(reg) => {
+                        let reg = registers[*reg as usize];
+                        let v = self.builder.build_load(i64_type, reg, "v");
+                        self.builder.build_return(Some(&v));
+                    }
                     RegCode::Push(_) => {}
                     RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
@@ -665,7 +671,10 @@ impl<'ctx> Compiler<'ctx> {
                 RegCode::Jmp(_) => {}
                 RegCode::JmpIfNot(_1, _) => {}
                 _ => {
-                    self.builder.build_unconditional_branch(bbs[i + 1]);
+                    let lim = if is_main { code.len() } else { code.len() - 1 };
+                    if bb_ix < lim {
+                        self.builder.build_unconditional_branch(bbs[bb_ix + 1]);
+                    }
                 }
             }
         }
@@ -764,6 +773,8 @@ impl<'ctx> Compiler<'ctx> {
         // pass_manager.add_instruction_simplify_pass();
         // pass_manager.run_on(&self.module);
 
+        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        self.module.set_triple(&triple);
         self.module.print_to_stderr();
         self.module.write_bitcode_to_path(Path::new("./exe.bc"));
     }
