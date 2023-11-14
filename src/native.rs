@@ -7,7 +7,6 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::passes::PassManager;
 use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
 use inkwell::values::{BasicMetadataValueEnum, FunctionValue};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
@@ -518,7 +517,11 @@ impl<'ctx> Compiler<'ctx> {
                             let v = self.builder.build_load(i64_type, r, "v").into();
                             args.push(v);
                         }
-                        self.builder.build_call(fn_ptr, args.as_slice(), "ret");
+                        let res = self.builder.build_call(fn_ptr, args.as_slice(), "ret");
+                        self.builder.build_store(
+                            registers[0 as usize],
+                            res.try_as_basic_value().left().unwrap().into_int_value(),
+                        );
                     }
                     RegCode::NCall(fn_ix, regs) => {
                         let fn_name = match fn_ix {
@@ -545,7 +548,7 @@ impl<'ctx> Compiler<'ctx> {
                                         "cast",
                                     )
                                     .into(),
-                                4 => self
+                                4 | 6 => self
                                     .builder
                                     .build_int_to_ptr(
                                         v.into_int_value(),
@@ -557,7 +560,11 @@ impl<'ctx> Compiler<'ctx> {
                             };
                             args.push(v_cast);
                         }
-                        self.builder.build_call(fn_ptr, args.as_slice(), "ret");
+                        let res = self.builder.build_call(fn_ptr, args.as_slice(), "ret");
+                        self.builder.build_store(
+                            registers[0 as usize],
+                            res.try_as_basic_value().left().unwrap().into_int_value(),
+                        );
                     }
                     RegCode::Const(const_ix, r) => {
                         let const_val = self.consts[*const_ix as usize].clone();
@@ -637,15 +644,15 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::Move(r1, r2) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
-                        let v1 = self.builder.build_load(i64_type, r1, "v1");
-                        self.builder.build_store(r2, v1);
+                        let v1 = self.builder.build_load(i64_type, r2, "v1");
+                        self.builder.build_store(r1, v1);
                     }
                     RegCode::Return(_) => {}
-                    RegCode::Push(_) => todo!(),
+                    RegCode::Push(_) => {}
                     RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
-                    RegCode::Pop(_) => todo!(),
+                    RegCode::Pop(_) => {}
                     RegCode::StackMap(_) => {}
                     RegCode::Super(_) => {}
                     RegCode::CoroCall(_, _) => todo!(),

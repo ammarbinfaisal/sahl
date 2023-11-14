@@ -56,30 +56,6 @@ void bprint(int b) {
     printf("%s", b ? "true" : "false");
 }
 
-double ifadd(int64_t a, double b) { return a + b; }
-
-double ffadd(double a, double b) { return a + b; }
-
-double ifsub(int64_t a, double b) { return a - b; }
-
-double ffsub(double a, double b) { return a - b; }
-
-double ifmul(int64_t a, double b) { return a * b; }
-
-double ffmul(double a, double b) { return a * b; }
-
-int64_t iidiv(int64_t a, int64_t b) { return a / b; }
-
-double ifdiv(int64_t a, double b) { return a / b; }
-
-double fidiv(double a, int64_t b) { return a / b; }
-
-double ffdiv(double a, double b) { return a / b; }
-
-int ifcmp(int64_t a, double b) { return a < (int64_t)b ? -1 : a > b ? 1 : 0; }
-
-int ffcmp(double a, double b) { return a < b ? -1 : a > b ? 1 : 0; }
-
 void exit_with(int32_t code) { exit(code); }
 
 Obj *newobj(ObjType ty) {
@@ -134,27 +110,51 @@ void str_free(str_t *str) {
     free(str);
 }
 
-Obj *new_list(uint8_t elemsize, int len) {
+Obj *make_list(int size, int elemsize) {
+    list_t *list = (list_t *)malloc(sizeof(list_t));
+    list->cap = size;
+    list->length = size;
+    list->elemsize = elemsize;
+    list->data = (uint64_t *)malloc(elemsize * size);
     Obj *obj = newobj(OBJ_LIST);
-    obj->list = (list_t *)malloc(sizeof(list_t));
-    obj->list->length = len;
-    obj->list->cap = len ? len : 8;
-    obj->list->data = (uint64_t *)malloc(elemsize * obj->list->cap);
-    obj->list->elemsize = elemsize;
+    obj->list = list;
     return obj;
 }
 
-void list_append(Obj *obj, void *val) {
+typedef Obj* (*MakeFn)(int len, int elemsize);
+
+static MakeFn make_fns[] = {make_list};
+
+Obj* make(int ty, int size) {
+    // the first 5 types are primitives
+    // elemsize is set to 8 right now but it should be set to the size of the primitive
+    return make_fns[ty-5](size, 8); 
+}
+
+void append(Obj *obj, int64_t val) {
     list_t *l = obj->list;
     if (l->length + 1 > l->cap) {
         l->cap = l->cap == 0 ? 8 : l->cap * 2;
         l->data = (uint64_t *)realloc(l->data, l->elemsize * l->cap);
     }
-    memcpy(l->data + l->length * l->elemsize, val, l->elemsize);
+    switch (l->elemsize) {
+    case 1:
+        *(uint8_t *)(l->data + l->length * l->elemsize) = *(uint8_t *)&val;
+        break;
+    case 2:
+        *(uint16_t *)(l->data + l->length * l->elemsize) = *(uint16_t *)&val;
+        break;
+    case 4:
+        *(uint32_t *)(l->data + l->length * l->elemsize) = *(uint32_t *)&val;
+        break;
+    case 8:
+        *(uint64_t *)(l->data + l->length * l->elemsize) = *(uint64_t *)&val;
+        break;
+    }
     l->length++;
 }
 
-void list_set(Obj *list, uint64_t index, void *val) {
+void listset(Obj *list, uint64_t index, int64_t val) {
     list_t *l = list->list;
     if (index >= l->length) {
         printf("list index out of range\n");
@@ -162,21 +162,21 @@ void list_set(Obj *list, uint64_t index, void *val) {
     }
     switch (l->elemsize) {
     case 1:
-        *(uint8_t *)(l->data + index * l->elemsize) = *(uint8_t *)val;
+        *(uint8_t *)(l->data + index * l->elemsize) = *(uint8_t *)&val;
         break;
     case 2:
-        *(uint16_t *)(l->data + index * l->elemsize) = *(uint16_t *)val;
+        *(uint16_t *)(l->data + index * l->elemsize) = *(uint16_t *)&val;
         break;
     case 4:
-        *(uint32_t *)(l->data + index * l->elemsize) = *(uint32_t *)val;
+        *(uint32_t *)(l->data + index * l->elemsize) = *(uint32_t *)&val;
         break;
     case 8:
-        *(uint64_t *)(l->data + index * l->elemsize) = *(uint64_t *)val;
+        *(uint64_t *)(l->data + index * l->elemsize) = *(uint64_t *)&val;
         break;
     }
 }
 
-void list_get(Obj *list, uint64_t index, void *val) {
+int64_t listget(Obj *list, uint64_t index) {
     list_t *l = list->list;
     if (index >= l->length) {
         printf("list index out of range\n");
@@ -184,18 +184,15 @@ void list_get(Obj *list, uint64_t index, void *val) {
     }
     switch (l->elemsize) {
     case 1:
-        *(uint8_t *)val = *(uint8_t *)(l->data + index * l->elemsize);
-        break;
+        return *(uint8_t *)(l->data + index * l->elemsize);
     case 2:
-        *(uint16_t *)val = *(uint16_t *)(l->data + index * l->elemsize);
-        break;
+        return *(uint16_t *)(l->data + index * l->elemsize);
     case 4:
-        *(uint32_t *)val = *(uint32_t *)(l->data + index * l->elemsize);
-        break;
+        return *(uint32_t *)(l->data + index * l->elemsize);
     case 8:
-        *(uint64_t *)val = *(uint64_t *)(l->data + index * l->elemsize);
-        break;
+        return *(uint64_t *)(l->data + index * l->elemsize);
     }
+    return 0;
 }
 
 void list_set_all(Obj *list, void *val) {
@@ -210,4 +207,4 @@ void list_free(list_t *list) {
     free(list);
 }
 
-int list_len(Obj *list) { return list->list->length; }
+int len(Obj *list) { return list->list->length; }

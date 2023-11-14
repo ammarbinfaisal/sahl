@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::regcode::RegCode;
+use crate::regcode::{RegCode, SuperInstruction};
 
 pub type CFG = Vec<BasicBlock>;
 
@@ -15,39 +15,38 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     let mut block: Vec<RegCode> = Vec::new();
     let mut map = HashMap::new(); // regcode index -> block index, code index
     let mut leaders = HashSet::new();
+
     for (i, code) in regcode.into_iter().enumerate() {
-        if leaders.contains(&i) {
+        match code {
+            RegCode::Jmp(ix) => {
+                leaders.insert(*ix);
+            }
+            RegCode::JmpIfNot(_, ix) => {
+                leaders.insert(*ix);
+            }
+            RegCode::Super(SuperInstruction::JmpIfNotCond(ix, _, _, _, _)) => {
+                leaders.insert(*ix);
+            }
+            _ => {}
+        }
+    }
+
+    for (i, code) in regcode.into_iter().enumerate() {
+        // if the last code is a jump if not then the next code is a leader
+        if let RegCode::JmpIfNot(_, _) = code {
+            leaders.insert(i + 1);
+        }
+        if leaders.contains(&i) && !block.is_empty() {
             cfg.push(BasicBlock {
                 phi: HashMap::new(),
                 code: block,
             });
             block = Vec::new();
         }
-        match code {
-            RegCode::Jmp(ix) => {
-                leaders.insert(i + 1);
-                leaders.insert(*ix);
-                map.insert(i, cfg.len());
-                block.push(code.clone());
-            }
-            RegCode::JmpIfNot(_, ix) => {
-                leaders.insert(i + 1);
-                leaders.insert(*ix);
-                map.insert(i, cfg.len());
-                block.push(code.clone());
-            }
-            RegCode::Super(SuperInstruction::JmpIfNotCond(ix, _, _, _, _)) => {
-                leaders.insert(i + 1);
-                leaders.insert(*ix);
-                map.insert(i, cfg.len());
-                block.push(code.clone());
-            }
-            _ => {
-                map.insert(i, cfg.len());
-                block.push(code.clone());
-            }
-        }
+        block.push(code.clone());
+        map.insert(i, cfg.len());
     }
+
     cfg.push(BasicBlock {
         phi: HashMap::new(),
         code: block,
@@ -78,6 +77,7 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
             }
         }
     }
+    // println!("cfg {:?}", cfg);
     cfg
 }
 
