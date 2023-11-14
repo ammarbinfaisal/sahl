@@ -775,7 +775,7 @@ impl<'a> RegCodeGen<'a> {
                         self.free_reg(ix_arg);
                         self.free_reg(ex_arg);
                     }
-                    Expr::Deref { expr, ty } => {
+                    Expr::Deref { expr, ty: _ } => {
                         let var = extract_var_name(expr);
                         if let Some(var) = var {
                             let v = self.get_local(var.as_str());
@@ -878,7 +878,7 @@ impl<'a> RegCodeGen<'a> {
                     unreachable!("Cannot compile ref using a non variable expression");
                 }
             }
-            Expr::Deref { expr, ty } => {
+            Expr::Deref { expr, ty: _ } => {
                 let v = extract_var_name(expr);
                 if let Some(v) = v {
                     let var = self.get_local(v.as_str());

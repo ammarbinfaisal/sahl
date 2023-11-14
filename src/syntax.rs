@@ -180,7 +180,7 @@ impl Expr {
             Expr::List { ty, .. } => ty.clone().unwrap(),
             Expr::Cast { ty, .. } => ty.clone(),
             Expr::Ref { ty, .. } => ty.clone().unwrap(),
-            Expr::Deref { expr, ty } => ty.clone().unwrap(),
+            Expr::Deref { expr: _, ty } => ty.clone().unwrap(),
         }
     }
 }
