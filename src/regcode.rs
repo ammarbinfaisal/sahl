@@ -841,16 +841,26 @@ impl<'a> RegCodeGen<'a> {
                 self.stack_push(reg);
             }
             Expr::List { exprs, .. } => {
-                for expr in exprs.iter().rev() {
-                    self.compile_expr(&expr);
-                    let reg = self.stack_pop();
-                    self.code.push(RegCode::Push(reg));
-                }
                 let reg = self.get_reg();
                 let stackmap = self.emit_stack_map();
                 self.code.push(RegCode::StackMap(stackmap));
+                let len_reg = self.get_reg();
+                let const_ix = self.consts.len();
+                self.consts.push((Type::Int, exprs.len().to_le_bytes().to_vec()));
+                self.code.push(RegCode::Const(const_ix, len_reg));
+                for expr in exprs.iter().rev() {
+                    self.compile_expr(&expr);
+                }
                 self.code
-                    .push(RegCode::List(exprs.len(), reg, exprs[0].1.get_type()));
+                    .push(RegCode::Make(Type::List(Box::new(exprs[0].1.get_type())), reg, len_reg));
+                for ix in 0..exprs.len() {
+                    let vreg = self.stack_pop();
+                    let const_ix = self.consts.len();
+                    self.consts.push((Type::Int, ix.to_le_bytes().to_vec()));
+                    self.code.push(RegCode::Const(const_ix, len_reg));
+                    self.code.push(RegCode::ListSet(reg, len_reg, vreg));
+                }
+                self.free_reg(len_reg);
                 self.stack_push(reg);
             }
             Expr::ChanRead { name, .. } => {

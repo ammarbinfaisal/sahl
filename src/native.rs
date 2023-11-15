@@ -8,8 +8,12 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::TargetTriple;
-use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
-use inkwell::values::{BasicMetadataValueEnum, FunctionValue};
+use inkwell::types::{
+    BasicMetadataTypeEnum, BasicType, FloatType, FunctionType, IntType, PointerType,
+};
+use inkwell::values::{
+    BasicMetadataValueEnum, FloatValue, FunctionValue, InstructionOpcode, IntValue,
+};
 use inkwell::{AddressSpace, FloatPredicate, IntPredicate};
 
 enum LLVMTy<'ctx> {
@@ -36,6 +40,7 @@ pub struct Compiler<'ctx> {
     builder: Builder<'ctx>,
     consts: Vec<(Type, Vec<u8>)>,
     fn_names: Vec<String>,
+    stack: Vec<u8>,
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -51,6 +56,7 @@ impl<'ctx> Compiler<'ctx> {
             builder,
             consts,
             fn_names: Vec::new(),
+            stack: Vec::new(),
         }
     }
 
@@ -63,6 +69,18 @@ impl<'ctx> Compiler<'ctx> {
             Type::Double => LLVMTy::Float(self.context.f64_type()),
             _ => LLVMTy::Int(self.context.i64_type()),
         }
+    }
+
+    fn int_to_float_reinterpret(&self, v1: IntValue<'ctx>) -> FloatValue<'ctx> {
+        self.builder
+            .build_bitcast(v1, self.context.f64_type(), "cast")
+            .into_float_value()
+    }
+
+    fn float_to_int_reinterpret(&self, v1: FloatValue<'ctx>) -> IntValue<'ctx> {
+        self.builder
+            .build_bitcast(v1, self.context.i64_type(), "cast")
+            .into_int_value()
     }
 
     fn create_func_type(&self, params: &[Type], ret: Type) -> FunctionType<'ctx> {
@@ -138,6 +156,20 @@ impl<'ctx> Compiler<'ctx> {
             let var = self.builder.build_alloca(i64_type, &format!("var{}", i));
             variables.push(var);
         }
+
+        // make a stack
+        let stack = self.builder.build_call(
+            self.module.get_function("make_list").unwrap(),
+            &[i64_type.const_int(1024, false).into()],
+            "stack",
+        );
+
+        let stack = stack.try_as_basic_value().left().unwrap();
+        let stack = self
+            .builder
+            .build_int_cast(stack.into_int_value(), i64_type, "stack");
+        let stack_var = self.builder.build_alloca(i64_type, "stack_var");
+        self.builder.build_store(stack_var, stack);
 
         let cfg = cfg::construct_cfg(&code);
 
@@ -234,45 +266,33 @@ impl<'ctx> Compiler<'ctx> {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
-                        let v3 = self.builder.build_float_add(v1, v2, "v3");
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
+                        let v3 = self.builder.build_float_add(v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FSub(r1, r2, r3) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
-                        let v3 = self.builder.build_float_sub(v1, v2, "v3");
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
+                        let v3 = self.builder.build_float_sub(v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FMul(r1, r2, r3) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
-                        let v3 = self.builder.build_float_mul(v1, v2, "v3");
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
+                        let v3 = self.builder.build_float_mul(v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FDiv(r1, r2, r3) => {
@@ -280,15 +300,11 @@ impl<'ctx> Compiler<'ctx> {
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
 
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
-                        let v3 = self.builder.build_float_div(v1, v2, "v3");
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
+                        let v3 = self.builder.build_float_div(v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FRem(r1, r2, r3) => {
@@ -296,15 +312,11 @@ impl<'ctx> Compiler<'ctx> {
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
 
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
-                        let v3 = self.builder.build_float_rem(v1, v2, "v3");
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
+                        let v3 = self.builder.build_float_rem(v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::FNe(r1, r2, r3)
@@ -317,14 +329,10 @@ impl<'ctx> Compiler<'ctx> {
                         let r2 = registers[*r2 as usize];
                         let r3 = registers[*r3 as usize];
 
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_float_value();
-                        let v2 = self
-                            .builder
-                            .build_load(i64_type, r2, "v2")
-                            .into_float_value();
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
+                        let v2 = self.builder.build_load(i64_type, r2, "v2").into_int_value();
+                        let v1_f = self.int_to_float_reinterpret(v1);
+                        let v2_f = self.int_to_float_reinterpret(v2);
 
                         let pred = match c {
                             RegCode::FNe(_, _, _) => FloatPredicate::ONE,
@@ -336,8 +344,7 @@ impl<'ctx> Compiler<'ctx> {
                             _ => unreachable!(),
                         };
 
-                        let v3 = self.builder.build_float_compare(pred, v1, v2, "v3");
-                        let v3 = self.builder.build_int_cast(v3, i64_type, "cast");
+                        let v3 = self.builder.build_float_compare(pred, v1_f, v2_f, "v3");
                         self.builder.build_store(r3, v3);
                     }
                     RegCode::BAnd(r1, r2, r3)
@@ -488,7 +495,29 @@ impl<'ctx> Compiler<'ctx> {
                             .unwrap();
                         self.builder.build_store(val_reg, v.into_int_value());
                     }
-                    RegCode::List(_, _, _) => todo!(),
+                    RegCode::List(len, reg, _) => {
+                        // pop from stack len regs
+                        let make = self.module.get_function("make_list").unwrap();
+                        let len = i64_type.const_int(*len as u64, false);
+                        let args = &[len.into()];
+                        let v = self
+                            .builder
+                            .build_call(make, args, "v")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        let v = v.into_int_value();
+                        // list(res_of_make_list, stack, len)
+                        let list = self.module.get_function("list").unwrap();
+                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
+                        let args = &[v.into(), stack.into(), len.into()];
+                        let res = self.builder.build_call(list, args, "ret");
+                        let res = res.try_as_basic_value().left().unwrap();
+                        let res =
+                            self.builder
+                                .build_int_cast(res.into_int_value(), i64_type, "cast");
+                        self.builder.build_store(registers[*reg as usize], res);
+                    }
                     RegCode::TupleGet(_, _, _) => todo!(),
                     RegCode::Tuple(_, _, _) => todo!(),
                     RegCode::StrGet(_, _, _) => todo!(),
@@ -520,10 +549,17 @@ impl<'ctx> Compiler<'ctx> {
                             args.push(v);
                         }
                         let res = self.builder.build_call(fn_ptr, args.as_slice(), "ret");
-                        self.builder.build_store(
-                            registers[0 as usize],
-                            res.try_as_basic_value().left().unwrap().into_int_value(),
-                        );
+                        let res = res.try_as_basic_value().left().unwrap().into();
+                        match res {
+                            BasicMetadataValueEnum::IntValue(v) => {
+                                self.builder.build_store(registers[0 as usize], v);
+                            }
+                            BasicMetadataValueEnum::FloatValue(v) => {
+                                let reinp = self.float_to_int_reinterpret(v);
+                                self.builder.build_store(registers[0 as usize], reinp);
+                            }
+                            _ => todo!(),
+                        }
                     }
                     RegCode::NCall(fn_ix, regs) => {
                         let fn_name = match fn_ix {
@@ -542,14 +578,7 @@ impl<'ctx> Compiler<'ctx> {
                             let r = registers[*r as usize];
                             let v = self.builder.build_load(i64_type, r, "v");
                             let v_cast: BasicMetadataValueEnum = match fn_ix {
-                                1 => self
-                                    .builder
-                                    .build_float_cast(
-                                        v.into_float_value(),
-                                        self.context.f64_type(),
-                                        "cast",
-                                    )
-                                    .into(),
+                                1 => self.int_to_float_reinterpret(v.into_int_value()).into(),
                                 4 | 6 => self
                                     .builder
                                     .build_int_to_ptr(
@@ -653,7 +682,57 @@ impl<'ctx> Compiler<'ctx> {
                         let regloaded = self.builder.build_load(i64_type, reg, "v");
                         self.builder.build_store(var, regloaded);
                     }
-                    RegCode::Cast(_, _, _, _) => todo!(),
+                    RegCode::Cast(reg, t1, t2, res) => {
+                        let reg = registers[*reg as usize];
+                        let v = self.builder.build_load(i64_type, reg, "v");
+                        match (t1, t2) {
+                            (Type::Int, Type::Double) => {
+                                // cast (i64) v to (f64) v
+                                let resv = self.builder.build_cast(
+                                    InstructionOpcode::SIToFP,
+                                    v,
+                                    self.context.f64_type(),
+                                    "cast",
+                                );
+                                self.builder.build_store(registers[*res as usize], resv);
+                            }
+                            (Type::Double, Type::Int) => {
+                                // cast (f64) v to (i64) v
+                                let resv = self.builder.build_cast(
+                                    InstructionOpcode::FPToSI,
+                                    v,
+                                    self.context.i64_type(),
+                                    "cast",
+                                );
+                                self.builder.build_store(registers[*res as usize], resv);
+                            }
+                            (Type::Bool, Type::Int) => {
+                                let resv = self.builder.build_int_cast(
+                                    v.into_int_value(),
+                                    i64_type,
+                                    "cast",
+                                );
+                                self.builder.build_store(registers[*res as usize], resv);
+                            }
+                            (Type::Int, Type::Char) => {
+                                let resv = self.builder.build_int_cast(
+                                    v.into_int_value(),
+                                    i64_type,
+                                    "cast",
+                                );
+                                self.builder.build_store(registers[*res as usize], resv);
+                            }
+                            (Type::Char, Type::Int) => {
+                                let resv = self.builder.build_int_cast(
+                                    v.into_int_value(),
+                                    i64_type,
+                                    "cast",
+                                );
+                                self.builder.build_store(registers[*res as usize], resv);
+                            }
+                            _ => todo!(),
+                        };
+                    }
                     RegCode::Move(r1, r2) => {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
@@ -662,14 +741,32 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     RegCode::Return(reg) => {
                         let reg = registers[*reg as usize];
-                        let v = self.builder.build_load(i64_type, reg, "v");
-                        self.builder.build_return(Some(&v));
+                        let v = self.builder.build_load(i64_type, reg, "v").into_int_value();
+                        match *retty {
+                            Type::Double => {
+                                let v = self.int_to_float_reinterpret(v);
+                                self.builder.build_return(Some(&v));
+                            }
+                            _ => {
+                                self.builder.build_return(Some(&v));
+                            }
+                        }
                     }
-                    RegCode::Push(_) => {}
+                    RegCode::Push(r) => {
+                        let v = self
+                            .builder
+                            .build_load(i64_type, registers[*r as usize], "v");
+                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
+                        self.builder.build_call(
+                            self.module.get_function("append").unwrap(),
+                            &[stack.into(), v.into()],
+                            "ret",
+                        );
+                    }
                     RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
-                    RegCode::Pop(_) => {}
+                    RegCode::Pop(res) => {}
                     RegCode::StackMap(_) => {}
                     RegCode::Super(_) => {}
                     RegCode::CoroCall(_, _) => todo!(),
@@ -738,6 +835,21 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "append",
             self.create_func_type(&[Type::Int, Type::Int], Type::Void), // list, val
+            None,
+        );
+        self.module.add_function(
+            "pop",
+            self.create_func_type(&[Type::Int], Type::Int), // list
+            None,
+        );
+        self.module.add_function(
+            "make_list",
+            self.create_func_type(&[Type::Int], Type::Int), // len
+            None,
+        );
+        self.module.add_function(
+            "list",
+            self.create_func_type(&[Type::Int, Type::Int, Type::Int], Type::Void), // res, stack, len
             None,
         );
         self.module.add_function(

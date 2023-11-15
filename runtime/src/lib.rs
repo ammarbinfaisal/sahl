@@ -156,7 +156,6 @@ pub extern "C" fn bprint(x: bool) {
     }
 }
 
-
 #[no_mangle]
 pub extern "C" fn make_string(s: *const i8, len: usize) -> *mut Obj {
     let obj = Obj::new_string(s, len);
