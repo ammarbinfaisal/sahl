@@ -92,7 +92,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                         .with_code(3)
                         .with_message(format!("Semantic Check"))
                         .with_label(
-                            Label::new((f.clone(), e.0..e.2))
+                            Label::new((f, e.0..e.2))
                                 .with_message(e.1)
                                 .with_color(out),
                         )
