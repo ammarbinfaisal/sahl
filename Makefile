@@ -1,11 +1,11 @@
 .PHONY: vm
 
-all: codegen vm runtime
+all: codegen vm rts
 
 codegen:
 	cargo build --release
 
-runtime:
+rts:
 	cd runtime && cargo build --release
 
 vm: vm/*
