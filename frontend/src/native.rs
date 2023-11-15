@@ -495,28 +495,8 @@ impl<'ctx> Compiler<'ctx> {
                             .unwrap();
                         self.builder.build_store(val_reg, v.into_int_value());
                     }
-                    RegCode::List(len, reg, _) => {
-                        // pop from stack len regs
-                        let make = self.module.get_function("make_list").unwrap();
-                        let len = i64_type.const_int(*len as u64, false);
-                        let args = &[len.into()];
-                        let v = self
-                            .builder
-                            .build_call(make, args, "v")
-                            .try_as_basic_value()
-                            .left()
-                            .unwrap();
-                        let v = v.into_int_value();
-                        // list(res_of_make_list, stack, len)
-                        let list = self.module.get_function("list").unwrap();
-                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
-                        let args = &[v.into(), stack.into(), len.into()];
-                        let res = self.builder.build_call(list, args, "ret");
-                        let res = res.try_as_basic_value().left().unwrap();
-                        let res =
-                            self.builder
-                                .build_int_cast(res.into_int_value(), i64_type, "cast");
-                        self.builder.build_store(registers[*reg as usize], res);
+                    RegCode::List(..) => {
+                        unimplemented!("List instruction should be removed by now");
                     }
                     RegCode::TupleGet(_, _, _) => todo!(),
                     RegCode::Tuple(_, _, _) => todo!(),
