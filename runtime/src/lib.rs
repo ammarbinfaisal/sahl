@@ -139,15 +139,20 @@ pub extern "C" fn bprint(x: bool) {
     }
 }
 
+unsafe fn str_from_u8_nul_utf8_unchecked(utf8_src: &[u8]) -> &str {
+    let nul_range_end = utf8_src.iter()
+        .position(|&c| c == b'\0')
+        .unwrap_or(utf8_src.len()); // default to length if no `\0` present
+    ::std::str::from_utf8_unchecked(&utf8_src[0..nul_range_end])
+}
+
 #[no_mangle]
 pub extern "C" fn sprint(x: *const Obj) {
     let x = unsafe { &*x };
     match x.ty {
         ObjType::String => {
             let s = unsafe { &*x.data.s };
-            let s = unsafe { std::slice::from_raw_parts(s.s, s.len) };
-            let s = std::str::from_utf8(s).unwrap();
-            print!("{}", s);
+            print!("{}", unsafe { str_from_u8_nul_utf8_unchecked(std::slice::from_raw_parts(s.s, s.len)) });
         }
         ObjType::List => {
             println!("sprint called on list");
