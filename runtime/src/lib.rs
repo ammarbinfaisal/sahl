@@ -126,6 +126,20 @@ pub extern "C" fn fprint(x: f64) {
 }
 
 #[no_mangle]
+pub extern "C" fn cprint(x: u8) {
+    print!("{}", x as char);
+}
+
+#[no_mangle]
+pub extern "C" fn bprint(x: bool) {
+    if x {
+        print!("true");
+    } else {
+        print!("false");
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn sprint(x: *const Obj) {
     let x = unsafe { &*x };
     match x.ty {
@@ -139,20 +153,6 @@ pub extern "C" fn sprint(x: *const Obj) {
             println!("sprint called on list");
             exit(1);
         }
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn cprint(x: u8) {
-    print!("{}", x as char);
-}
-
-#[no_mangle]
-pub extern "C" fn bprint(x: bool) {
-    if x {
-        print!("true");
-    } else {
-        print!("false");
     }
 }
 
