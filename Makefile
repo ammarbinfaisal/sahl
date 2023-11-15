@@ -5,7 +5,7 @@ all: codegen vm runtime
 codegen:
 	cargo build --release
 
-runtime: runtime/*
+runtime:
 	cd runtime && cargo build --release
 
 vm: vm/*
