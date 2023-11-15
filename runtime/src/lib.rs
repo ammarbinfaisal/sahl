@@ -148,6 +148,16 @@ pub extern "C" fn cprint(x: u8) {
 }
 
 #[no_mangle]
+pub extern "C" fn bprint(x: bool) {
+    if x {
+        print!("true");
+    } else {
+        print!("false");
+    }
+}
+
+
+#[no_mangle]
 pub extern "C" fn make_string(s: *const i8, len: usize) -> *mut Obj {
     let obj = Obj::new_string(s, len);
     Box::into_raw(Box::new(obj))
