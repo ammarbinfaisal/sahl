@@ -20,22 +20,22 @@ fun applyRule110(left: int, middle: int, right: int) -> int {
 }
 
 fun rule110(input: [int]) -> [int] {
-    let currentList = make([int])
-    append(currentList, 0)
+    let currentList = make([int]);
+    append(currentList, 0);
     for number in input {
-        append(currentList, number)
+        append(currentList, number);
     }
-    append(currentList, 0)
+    append(currentList, 0);
 
-    let nextList = make([int])
-    let length = len(currentList) - 1
-    let i = 1
+    let nextList = make([int]);
+    let length = len(currentList) - 1;
+    let i = 1;
     while i < length {
-        let left = currentList[i - 1]
-        let middle = currentList[i]
-        let right = currentList[i + 1]
-        append(nextList, applyRule110(left, middle, right))
-        i = i + 1
+        let left = currentList[i - 1];
+        let middle = currentList[i];
+        let right = currentList[i + 1];
+        append(nextList, applyRule110(left, middle, right));
+        i = i + 1;
     }
 
     return nextList;
@@ -44,30 +44,30 @@ fun rule110(input: [int]) -> [int] {
 fun show(cells: [int]) {
     for cell in cells {
         if cell == 0 {
-            print(" ")
+            print(" ");
         } else {
-            print("*")
+            print("*");
         }
     }
-    print("\n")
+    print("\n");
 }
 
 fun main() {
-    let i = 0
-    let w = 35
-    let cells = make([int])
-    i = 0
+    let i = 0;
+    let w = 35;
+    let cells = make([int]);
+    i = 0;
     while i < w {
-        append(cells, 0)
-        i = i + 1
+        append(cells, 0);
+        i = i + 1;
     }    
-    append(cells, 1)
-    i = 0
+    append(cells, 1);
+    i = 0;
     while i < w {
-        show(cells)
-        cells = rule110(cells)
-        i = i + 1
+        show(cells);
+        cells = rule110(cells);
+        i = i + 1;
     }
-    show(cells)
+    show(cells);
 }
 
