@@ -62,8 +62,10 @@ def passed(file, mode):
     print(f"{file} passed")
 
 
-def failed(file, mode):
+def failed(file, mode, msg=""):
     print(f"{file} failed in {mode_to_str[mode]}")
+    if msg:
+        print(msg)
 
 
 def run_file(mode, file, only_rc_check=False):
@@ -73,10 +75,8 @@ def run_file(mode, file, only_rc_check=False):
     output, err = p.communicate(b"")
     # # dont check rc for aot
     rc = p.returncode
-    if mode == aot_mode:
-        rc = 0
     if rc != 0:
-        failed(file, mode)
+        failed(file, mode, err)
         return
     if only_rc_check:
         passed(file, mode)
