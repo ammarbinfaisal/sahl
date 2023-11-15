@@ -12,4 +12,4 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
-./target/release/sahl $1 -n 2>./exe.ll && clang -opaque-pointer -O3 ./exe.ll ./runtime/target/release/libruntime.so -o ./exe && ./exe
+./frontend/target/release/sahl $1 -n 2>./exe.ll && clang -opaque-pointer -O3 ./exe.ll ./runtime/target/release/libruntime.so -o ./exe && ./exe

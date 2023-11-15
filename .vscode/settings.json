@@ -4,6 +4,6 @@
     },
     "rust-analyzer.linkedProjects": [
         "./runtime/Cargo.toml",
-        "./Cargo.toml"
+        "./frontend/Cargo.toml"
     ]
 }

@@ -3,7 +3,7 @@
 all: codegen vm rts
 
 codegen:
-	cargo build --release
+	cd frontend && cargo build --release
 
 rts:
 	cd runtime && cargo build --release

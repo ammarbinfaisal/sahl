@@ -12,4 +12,4 @@ if [ ! -f $1 ]; then
     exit 1
 fi
 
-./target/release/sahl $1 -c && ./sahl exe.bin
+./frontend/target/release/sahl $1 -c && ./sahl exe.bin
