@@ -606,6 +606,7 @@ impl<'ctx> Compiler<'ctx> {
                                 self.builder.build_store(r, v);
                             }
                             Type::Str => {
+                                let len = const_val.1.len();
                                 let v = unsafe {
                                     self.builder.build_global_string(
                                         &String::from_utf8(const_val.1).unwrap(),
@@ -617,12 +618,22 @@ impl<'ctx> Compiler<'ctx> {
                                     self.context.i8_type().ptr_type(AddressSpace::from(0)),
                                     "str",
                                 );
-                                let v_int = self.builder.build_ptr_to_int(
-                                    v,
-                                    self.context.i64_type(),
-                                    "str",
+                                let str_obj = self.builder.build_call(
+                                    self.module.get_function("make_string").unwrap(),
+                                    &[
+                                        v.into(),
+                                        i64_type.const_int(len.try_into().unwrap(), false).into(),
+                                    ],
+                                    "str_obj",
                                 );
-                                self.builder.build_store(r, v_int);
+                                let str_obj = str_obj.try_as_basic_value().left().unwrap();
+                                // cast str_obj to i64
+                                let str_obj = self.builder.build_int_cast(
+                                    str_obj.into_int_value(),
+                                    i64_type,
+                                    "str_obj",
+                                );
+                                self.builder.build_store(r, str_obj);
                             }
                             _ => todo!(),
                         }
@@ -737,6 +748,11 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "make",
             self.create_func_type(&[Type::Int, Type::Int], Type::Int), // type, len
+            None,
+        );
+        self.module.add_function(
+            "make_string",
+            self.create_func_type(&[Type::Int], Type::Int), // len
             None,
         );
         self.module.add_function(

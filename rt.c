@@ -65,9 +65,9 @@ Obj *newobj(ObjType ty) {
     return obj;
 }
 
-Obj *newstr(char *ptr) {
+Obj *make_string(char *ptr, int len) {
     str_t *str = (str_t *)malloc(sizeof(str_t));
-    str->len = strlen(ptr);
+    str->len = len;
     str->ptr = ptr;
     str->constant = 1;
     Obj *obj = newobj(OBJ_STR);
@@ -79,8 +79,8 @@ Obj *newstr(char *ptr) {
     return obj;
 }
 
-void sprint(char *s) {
-    printf("%s", s);
+void sprint(Obj *o) {
+    printf("%s", o->str->ptr);
 }
 
 Obj *strcatt(Obj *aobj, Obj *bobj) {
