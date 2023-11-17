@@ -188,6 +188,15 @@ pub extern "C" fn append(obj: *mut Obj, val: usize) {
 }
 
 #[no_mangle]
+pub extern "C" fn pop(obj: *mut Obj) -> usize {
+    unsafe {
+        let list = &mut *obj;
+        let list = &mut *list.data.l;
+        list.elems.pop().unwrap()
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn listset(obj: *mut Obj, index: usize, val: usize) {
     unsafe {
         let list = &mut *obj;

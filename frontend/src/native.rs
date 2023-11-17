@@ -515,14 +515,9 @@ impl<'ctx> Compiler<'ctx> {
                         self.builder.build_store(res, v.into_int_value());
                     }
                     RegCode::Tuple(len, res, _tys) => {
-                        // pop len registers from self.stack
-                        let mut regs = Vec::new();
-                        for _ in 0..*len {
-                            regs.push(self.stack.pop().unwrap());
-                        }
                         // call make_tuple
                         let make_tuple = self.module.get_function("make_list").unwrap();
-                        let len = self
+                        let lenn = self
                             .builder
                             .build_int_cast(
                                 i64_type.const_int(*len as u64, false),
@@ -530,7 +525,7 @@ impl<'ctx> Compiler<'ctx> {
                                 "len",
                             )
                             .into();
-                        let args = &[len];
+                        let args = &[lenn];
                         let tuple = self
                             .builder
                             .build_call(make_tuple, args, "v")
@@ -539,13 +534,18 @@ impl<'ctx> Compiler<'ctx> {
                             .unwrap();
                         // call listset for each register
                         let listset = self.module.get_function("listset").unwrap();
-                        for (i, reg) in regs.iter().enumerate() {
-                            let reg = registers[*reg as usize];
-                            let v = self.builder.build_load(i64_type, reg, "v");
+                        let pop = self.module.get_function("pop").unwrap();
+                        for i in 0..(*len as usize) {
+                            let val = self
+                                .builder
+                                .build_call(pop, &[stack.into()], "val")
+                                .try_as_basic_value()
+                                .left()
+                                .unwrap();
                             let args = &[
                                 tuple.into(),
                                 i64_type.const_int(i as u64, false).into(),
-                                v.into(),
+                                val.into(),
                             ];
                             self.builder.build_call(listset, args, "ret");
                         }
@@ -791,7 +791,15 @@ impl<'ctx> Compiler<'ctx> {
                         }
                     }
                     RegCode::Push(r) => {
-                        self.stack.push(*r);
+                        let v = self
+                            .builder
+                            .build_load(i64_type, registers[*r as usize], "v");
+                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
+                        self.builder.build_call(
+                            self.module.get_function("append").unwrap(),
+                            &[stack.into(), v.into()],
+                            "ret",
+                        );
                     }
                     RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
