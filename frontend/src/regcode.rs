@@ -731,8 +731,8 @@ impl<'a> RegCodeGen<'a> {
             Expr::Subscr { expr, index, .. } => {
                 self.compile_expr(&expr);
                 self.compile_expr(&index);
-                let arg2 = self.stack_pop();
-                let arg1 = self.stack_pop();
+                let idx = self.stack_pop();
+                let ex = self.stack_pop();
                 let op = match expr.1.get_type() {
                     Type::List(_) => RegCode::ListGet,
                     Type::Map(_, _) => RegCode::MapGet,
@@ -741,7 +741,7 @@ impl<'a> RegCodeGen<'a> {
                     _ => unreachable!("Unknown type: {:?}", expr.1.get_type()),
                 };
                 let reg = self.get_reg();
-                self.code.push(op(arg1, arg2, reg));
+                self.code.push(op(ex, idx, reg));
                 self.stack_push(reg);
             }
             Expr::Assign { left, right } => {

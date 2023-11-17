@@ -126,8 +126,8 @@ pub extern "C" fn fprint(x: f64) {
 }
 
 #[no_mangle]
-pub extern "C" fn cprint(x: u8) {
-    print!("{}", x as char);
+pub extern "C" fn cprint(x: u64) {
+    print!("{}", x as u8 as char);
 }
 
 #[no_mangle]

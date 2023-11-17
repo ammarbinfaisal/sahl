@@ -498,8 +498,62 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::List(..) => {
                         unimplemented!("List instruction should be removed by now");
                     }
-                    RegCode::TupleGet(_, _, _) => todo!(),
-                    RegCode::Tuple(_, _, _) => todo!(),
+                    RegCode::TupleGet(ex, idx, res) => {
+                        let ex = registers[*ex as usize];
+                        let idx = registers[*idx as usize];
+                        let res = registers[*res as usize];
+                        let tupleget = self.module.get_function("listget").unwrap();
+                        let ex = self.builder.build_load(i64_type, ex, "ex");
+                        let idx = self.builder.build_load(i64_type, idx, "idx");
+                        let args = &[ex.into(), idx.into()];
+                        let v = self
+                            .builder
+                            .build_call(tupleget, args, "ret")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        self.builder.build_store(res, v.into_int_value());
+                    }
+                    RegCode::Tuple(len, res, _tys) => {
+                        // pop len registers from self.stack
+                        let mut regs = Vec::new();
+                        for _ in 0..*len {
+                            regs.push(self.stack.pop().unwrap());
+                        }
+                        // call make_tuple
+                        let make_tuple = self.module.get_function("make_list").unwrap();
+                        let len = self
+                            .builder
+                            .build_int_cast(
+                                i64_type.const_int(*len as u64, false),
+                                self.context.i64_type(),
+                                "len",
+                            )
+                            .into();
+                        let args = &[len];
+                        let tuple = self
+                            .builder
+                            .build_call(make_tuple, args, "v")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        // call listset for each register
+                        let listset = self.module.get_function("listset").unwrap();
+                        for (i, reg) in regs.iter().enumerate() {
+                            let reg = registers[*reg as usize];
+                            let v = self.builder.build_load(i64_type, reg, "v");
+                            let args = &[
+                                tuple.into(),
+                                i64_type.const_int(i as u64, false).into(),
+                                v.into(),
+                            ];
+                            self.builder.build_call(listset, args, "ret");
+                        }
+                        let tuple =
+                            self.builder
+                                .build_int_cast(tuple.into_int_value(), i64_type, "cast");
+                        self.builder.build_store(registers[*res as usize], tuple);
+                    }
                     RegCode::StrGet(_, _, _) => todo!(),
                     RegCode::MapGet(_, _, _) => todo!(),
                     RegCode::MapSet(_, _, _) => todo!(),
@@ -559,6 +613,10 @@ impl<'ctx> Compiler<'ctx> {
                             let v = self.builder.build_load(i64_type, r, "v");
                             let v_cast: BasicMetadataValueEnum = match fn_ix {
                                 1 => self.int_to_float_reinterpret(v.into_int_value()).into(),
+                                2 | 3 => self
+                                    .builder
+                                    .build_int_cast(v.into_int_value(), i64_type, "cast")
+                                    .into(),
                                 4 | 6 => self
                                     .builder
                                     .build_int_to_ptr(
@@ -733,20 +791,12 @@ impl<'ctx> Compiler<'ctx> {
                         }
                     }
                     RegCode::Push(r) => {
-                        let v = self
-                            .builder
-                            .build_load(i64_type, registers[*r as usize], "v");
-                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
-                        self.builder.build_call(
-                            self.module.get_function("append").unwrap(),
-                            &[stack.into(), v.into()],
-                            "ret",
-                        );
+                        self.stack.push(*r);
                     }
                     RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
-                    RegCode::Pop(res) => {}
+                    RegCode::Pop(_) => {}
                     RegCode::StackMap(_) => {}
                     RegCode::Super(_) => {}
                     RegCode::CoroCall(_, _) => todo!(),
