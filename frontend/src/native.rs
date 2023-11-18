@@ -428,10 +428,7 @@ impl<'ctx> Compiler<'ctx> {
                         let r1 = registers[*r1 as usize];
                         let r2 = registers[*r2 as usize];
 
-                        let v1 = self
-                            .builder
-                            .build_load(i64_type, r1, "v1")
-                            .into_int_value();
+                        let v1 = self.builder.build_load(i64_type, r1, "v1").into_int_value();
                         let v1 = self.int_to_float_reinterpret(v1);
 
                         let v2 = self.builder.build_float_neg(v1, "v2");

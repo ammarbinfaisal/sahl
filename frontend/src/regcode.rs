@@ -846,13 +846,17 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::StackMap(stackmap));
                 let len_reg = self.get_reg();
                 let const_ix = self.consts.len();
-                self.consts.push((Type::Int, exprs.len().to_le_bytes().to_vec()));
+                self.consts
+                    .push((Type::Int, exprs.len().to_le_bytes().to_vec()));
                 self.code.push(RegCode::Const(const_ix, len_reg));
                 for expr in exprs.iter().rev() {
                     self.compile_expr(&expr);
                 }
-                self.code
-                    .push(RegCode::Make(Type::List(Box::new(exprs[0].1.get_type())), reg, len_reg));
+                self.code.push(RegCode::Make(
+                    Type::List(Box::new(exprs[0].1.get_type())),
+                    reg,
+                    len_reg,
+                ));
                 for ix in 0..exprs.len() {
                     let vreg = self.stack_pop();
                     let const_ix = self.consts.len();

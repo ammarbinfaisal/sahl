@@ -178,16 +178,8 @@ impl<'a> Checker<'a> {
                 let start = expr.0;
                 let end = expr.2;
                 let t = match ex {
-                    Expr::Variable { name, .. } => {
-                        self.find_var(&name, start, end)?
-                    }
-                    _ => {
-                        return Err((
-                            start,
-                            Error::RefNonLValue,
-                            end,
-                        ))
-                    }
+                    Expr::Variable { name, .. } => self.find_var(&name, start, end)?,
+                    _ => return Err((start, Error::RefNonLValue, end)),
                 };
                 let typee = Type::Ref(Box::new(t));
                 *ty = Some(typee.clone());
@@ -195,27 +187,15 @@ impl<'a> Checker<'a> {
             }
             Expr::Deref { expr: deref_ex, ty } => {
                 let t = match *deref_ex.clone() {
-                    Expr::Variable { name, .. } => {
-                        self.find_var(&name, expr.0, expr.2)?
-                    }
-                    _ => {
-                        return Err((
-                            expr.0,
-                            Error::RefNonLValue,
-                            expr.2,
-                        ))
-                    }
+                    Expr::Variable { name, .. } => self.find_var(&name, expr.0, expr.2)?,
+                    _ => return Err((expr.0, Error::RefNonLValue, expr.2)),
                 };
                 if let Type::Ref(t) = t {
                     let typee = *t.clone();
                     *ty = Some(typee.clone());
                     Ok(typee)
                 } else {
-                    Err((
-                        expr.0,
-                        Error::RefNonLValue,
-                        expr.2,
-                    ))
+                    Err((expr.0, Error::RefNonLValue, expr.2))
                 }
             }
             Expr::Assign { left, right } => {

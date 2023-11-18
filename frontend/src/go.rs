@@ -446,16 +446,16 @@ impl GOCodegen {
             }
             Expr::Ref { expr, ty: _ } => {
                 let mut code = String::new();
-                    code.push_str("&");
+                code.push_str("&");
                 code.push_str(&self.compile_expr(expr));
                 code
-            },
+            }
             Expr::Deref { expr, ty: _ } => {
                 let mut code = String::new();
                 code.push_str("*");
                 code.push_str(&self.compile_expr(expr));
                 code
-            },
+            }
         }
     }
 
