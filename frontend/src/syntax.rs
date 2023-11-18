@@ -218,6 +218,7 @@ pub struct Func {
     pub args: Vec<Param>,
     pub body: Vec<Spanned<Stmt>>,
     pub retty: Type,
+    pub externed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -840,6 +840,9 @@ pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
     }
 
     for func in program.funcs.iter_mut() {
+        if func.externed {
+            continue;
+        }
         let mut checker = Checker::new(&func_env, func_env.get(&func.name).unwrap().1.clone());
         // add args to type env
         for arg in &func.args {

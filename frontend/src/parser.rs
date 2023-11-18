@@ -27,6 +27,7 @@ enum Token<'src> {
     Sahl,
     Break,
     Continue,
+    Extern,
     // Symbols
     Plus,
     Minus,
@@ -90,6 +91,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Sahl => write!(f, "sahl"),
             Token::Break => write!(f, "break"),
             Token::Continue => write!(f, "continue"),
+            Token::Extern => write!(f, "extern"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -289,6 +291,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "break" => Token::Break,
         "continue" => Token::Continue,
         "ref" => Token::Ref,
+        "extern" => Token::Extern,
         _ => Token::Ident(s),
     });
 
@@ -411,7 +414,11 @@ fn typee<'tokens, 'src: 'tokens>(
                 .map(|tys| Type::Tuple(tys))
                 .boxed();
 
-            reff.or(tuplety).or(mapty).or(chanty).or(listty).or(simplety)
+            reff.or(tuplety)
+                .or(mapty)
+                .or(chanty)
+                .or(listty)
+                .or(simplety)
         },
     )
 }
@@ -1151,7 +1158,7 @@ fn parse_function<'tokens, 'src: 'tokens>(
         .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
         .boxed();
 
-    just(Token::Fun)
+    let fun = just(Token::Fun)
         .then(ident())
         .then(
             just(Token::LeftParen)
@@ -1167,9 +1174,21 @@ fn parse_function<'tokens, 'src: 'tokens>(
                 name: name.to_string(),
                 args: params.unwrap_or_default(),
                 retty: retty.unwrap_or(Type::Void),
+                externed: false,
                 body,
             }
         })
+        .boxed();
+
+    just(Token::Extern)
+        .ignored()
+        .then(fun.clone())
+        .map(|(_, f)| {
+            let mut f = f;
+            f.externed = true;
+            f
+        })
+        .or(fun)
 }
 
 pub fn program(s: &str) -> Option<Program> {

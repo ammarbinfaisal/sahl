@@ -431,7 +431,8 @@ impl<'ctx> Compiler<'ctx> {
                         let v1 = self
                             .builder
                             .build_load(i64_type, r1, "v1")
-                            .into_float_value();
+                            .into_int_value();
+                        let v1 = self.int_to_float_reinterpret(v1);
 
                         let v2 = self.builder.build_float_neg(v1, "v2");
                         self.builder.build_store(r2, v2);
@@ -930,6 +931,9 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         for (i, func) in program.funcs.iter().zip(code.iter()).enumerate() {
+            if func.0.externed {
+                continue;
+            }
             self.compile_fn(&funcs[i], &func.0.retty, func.0.name == "main", func.1);
         }
 
