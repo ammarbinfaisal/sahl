@@ -150,7 +150,18 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         .from_str::<i64>()
         .unwrapped();
 
-    let frac = just('.').then(text::int(10)).map(|(_, s)| s);
+    let digits2 = text::int::<&str, char, Err<Rich<'a, char>>>(10)
+        .repeated()
+        .collect::<Vec<_>>()
+        .map(|v| {
+            let mut res = String::new();
+            for s in v {
+                res.push_str(&s);
+            }
+            res
+        });
+
+    let frac = just('.').then(digits2).map(|(_, s)| s);
 
     let exp = just('e')
         .or(just('E'))
