@@ -555,8 +555,29 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::StrGet(_, _, _) => todo!(),
                     RegCode::MapGet(_, _, _) => todo!(),
                     RegCode::MapSet(_, _, _) => todo!(),
-                    RegCode::ChanSend(_, _) => todo!(),
-                    RegCode::ChanRecv(_, _) => todo!(),
+                    RegCode::ChanSend(chan_var, var_reg) => {
+                        let chan_var = variables[*chan_var as usize];
+                        let var_reg = registers[*var_reg as usize];
+                        let chansend = self.module.get_function("chansend").unwrap();
+                        let chan = self.builder.build_load(i64_type, chan_var, "chan");
+                        let val = self.builder.build_load(i64_type, var_reg, "val");
+                        let args = &[chan.into(), val.into()];
+                        self.builder.build_call(chansend, args, "ret");
+                    }
+                    RegCode::ChanRecv(chan_var, var_reg) => {
+                        let chan_var = variables[*chan_var as usize];
+                        let var_reg = registers[*var_reg as usize];
+                        let chanrecv = self.module.get_function("chanrecv").unwrap();
+                        let chan = self.builder.build_load(i64_type, chan_var, "chan");
+                        let args = &[chan.into()];
+                        let v = self
+                            .builder
+                            .build_call(chanrecv, args, "ret")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        self.builder.build_store(var_reg, v.into_int_value());
+                    }
                     RegCode::Jmp(ix) => {
                         self.builder.build_unconditional_branch(bbs[*ix]);
                     }
@@ -911,6 +932,16 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "listget",
             self.create_func_type(&[Type::Int, Type::Int], Type::Int), // list, idx
+            None,
+        );
+        self.module.add_function(
+            "chansend",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Void), // chan, val
+            None,
+        );
+        self.module.add_function(
+            "chanrecv",
+            self.create_func_type(&[Type::Int], Type::Int), // chan
             None,
         );
 
