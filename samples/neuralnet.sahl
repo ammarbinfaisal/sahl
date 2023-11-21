@@ -205,7 +205,7 @@ fun main() {
     print("w1: ", w1, "\n");
     print("w2: ", w2, "\n");
     
-    let lr = 0.1;
+    let lr = 0.01;
 
     //training xor
     let _x = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]];
