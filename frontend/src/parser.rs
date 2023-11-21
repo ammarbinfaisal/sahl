@@ -152,6 +152,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
 
     let digits2 = text::int::<&str, char, Err<Rich<'a, char>>>(10)
         .repeated()
+        .at_least(1)
         .collect::<Vec<_>>()
         .map(|v| {
             let mut res = String::new();
