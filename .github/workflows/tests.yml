@@ -14,6 +14,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: 'true'
     - run: rustup toolchain install stable --profile minimal
     - uses: egor-tensin/setup-clang@v1.4
       with:
