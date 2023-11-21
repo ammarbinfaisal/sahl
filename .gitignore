@@ -3,8 +3,6 @@ target
 *.bin
 a.out
 sahl
-exe.ll
-exe.asm
-exe.o
-exe.bc
-exe
+*.ll
+*.o
+*.bc
