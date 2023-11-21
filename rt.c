@@ -150,6 +150,16 @@ void append(Obj *obj, int64_t val) {
     l->length++;
 }
 
+uint64_t pop(Obj *obj) {
+    list_t *l = obj->list;
+    if (l->length == 0) {
+        printf("list index out of range\n");
+        exit(1);
+    }
+    l->length--;
+    return l->data[l->length];
+}
+
 void listset(Obj *list, uint64_t index, int64_t val) {
     list_t *l = list->list;
     if (index >= l->length) {
