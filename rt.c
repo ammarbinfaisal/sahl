@@ -1,12 +1,11 @@
 #include <gc/gc.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-
-#define GROW_CAPACITY(cap) ((cap) < 8 ? 8 : (cap)*2)
 
 // #define DEBUG
 
@@ -17,6 +16,160 @@
 #endif
 
 void sahl_main();
+
+// List
+
+struct Node {
+    void *value;
+    struct Node *next;
+};
+
+typedef struct Node Node;
+
+struct LinkedList {
+    int size;
+    struct Node *head;
+    struct Node *tail;
+};
+
+typedef struct LinkedList LinkedList;
+
+LinkedList *new_list() {
+    LinkedList *q;
+    q = GC_malloc(sizeof(LinkedList));
+
+    if (q == NULL) {
+        return q;
+    }
+
+    q->size = 0;
+    q->head = NULL;
+    q->tail = NULL;
+
+    return q;
+}
+
+int enqueue(LinkedList *q, void *value) {
+    Node *node = GC_malloc(sizeof(Node));
+
+    if (node == NULL) {
+        return q->size;
+    }
+
+    node->value = value;
+    node->next = NULL;
+
+    if (q->head == NULL) {
+        q->head = node;
+        q->tail = node;
+        q->size = 1;
+
+        return q->size;
+    }
+
+    q->tail->next = node;
+    q->tail = node;
+    q->size += 1;
+
+    return q->size;
+}
+
+void *dequeue(LinkedList *q) {
+    if (q->size == 0) {
+        return NULL;
+    }
+
+    void *value = NULL;
+    struct Node *tmp = NULL;
+
+    value = q->head->value;
+    tmp = q->head;
+    q->head = q->head->next;
+    q->size -= 1;
+
+    GC_free(tmp);
+
+    return value;
+}
+
+void free_linkedlist(LinkedList *q) {
+    if (q == NULL) {
+        return;
+    }
+
+    while (q->head != NULL) {
+        Node *tmp = q->head;
+        q->head = q->head->next;
+        if (tmp->value != NULL) {
+            GC_free(tmp->value);
+        }
+
+        GC_free(tmp);
+    }
+
+    GC_free(q);
+}
+
+// Chan
+
+struct Chan {
+    LinkedList *q;
+    int len;
+    // channel properties
+    pthread_mutex_t m_mu;
+    pthread_cond_t r_cond;
+    pthread_cond_t w_cond;
+    int closed;
+    int r_waiting;
+    int cap;
+};
+
+typedef struct Chan chan_t;
+
+enum ChanStatus { CHAN_OK, CHAN_CLOSED };
+
+chan_t *new_chan(int capacity) {
+    chan_t *c = malloc(sizeof(chan_t));
+    c->q = new_list();
+    c->len = 0;
+    c->cap = capacity;
+
+    pthread_mutex_init(&c->m_mu, NULL);
+    pthread_cond_init(&c->r_cond, NULL);
+    pthread_cond_init(&c->w_cond, NULL);
+    c->closed = 0;
+    c->r_waiting = 0;
+
+    return c;
+}
+
+void close_chan(chan_t *c) {
+    pthread_mutex_lock(&c->m_mu);
+    c->closed = 1;
+    pthread_cond_broadcast(&c->r_cond);
+    pthread_cond_broadcast(&c->w_cond);
+    pthread_mutex_unlock(&c->m_mu);
+}
+
+static int chan_write(chan_t *chan, uint64_t v) {
+    if (chan->closed) {
+        return CHAN_CLOSED;
+    }
+    enqueue(chan->q, (void *)v);
+    chan->len++;
+    return CHAN_OK;
+}
+
+static int chan_read(chan_t *chan, uint64_t *v) {
+    if (chan->closed) {
+        return CHAN_CLOSED;
+    }
+    --chan->len;
+    *v = (uint64_t)dequeue(chan->q);
+    return CHAN_OK;
+}
+
+// Objects
 
 struct str_t {
     int64_t len;
@@ -34,7 +187,7 @@ struct list_t {
 
 typedef struct list_t list_t;
 
-enum ObjType { OBJ_STR, OBJ_LIST };
+enum ObjType { OBJ_STR, OBJ_LIST, OBJ_CHAN };
 
 typedef enum ObjType ObjType;
 
@@ -44,6 +197,7 @@ struct Obj {
     union {
         str_t *str;
         list_t *list;
+        chan_t *chan;
     };
 };
 
@@ -60,7 +214,6 @@ void bprint(int b) { printf("%s", b ? "true" : "false"); }
 void exit_with(int32_t code) { exit(code); }
 
 Obj *newobj(ObjType ty) {
-    DEBUG_printf("malloc %ld\n", sizeof(Obj));
     Obj *obj = (Obj *)GC_malloc(sizeof(Obj));
     obj->marked = 0;
     obj->type = ty;
@@ -68,7 +221,6 @@ Obj *newobj(ObjType ty) {
 }
 
 Obj *make_string(char *ptr, int len) {
-    DEBUG_printf("malloc %ld\n", sizeof(str_t));
     str_t *str = (str_t *)GC_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
@@ -91,12 +243,10 @@ Obj *strcatt(Obj *aobj, Obj *bobj) {
     str_t *astr = aobj->str;
     str_t *bstr = aobj->str;
     int64_t len = astr->len + bstr->len;
-    DEBUG_printf("malloc %ld\n", len + 1);
     char *ptr = (char *)GC_malloc(len + 1);
     memcpy(ptr, astr->ptr, astr->len);
     memcpy(ptr + astr->len, bstr->ptr, bstr->len);
     ptr[len] = '\0';
-    DEBUG_printf("malloc %ld\n", sizeof(str_t));
     str_t *str = (str_t *)GC_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
@@ -114,22 +264,26 @@ void str_free(str_t *str) {
 }
 
 Obj *make_list(size_t size) {
-    DEBUG_printf("malloc %ld\n", sizeof(list_t));
     list_t *list = (list_t *)GC_malloc(sizeof(list_t));
     list->cap = size;
     list->length = size;
-    DEBUG_printf("list size %ld\n", size);
     size_t newsize = size * sizeof(uint64_t);
-    DEBUG_printf("malloc list els %ld\n", newsize);
     list->data = (uint64_t *)GC_malloc(newsize);
     Obj *obj = newobj(OBJ_LIST);
     obj->list = list;
     return obj;
 }
 
+Obj *make_chan(size_t size) {
+    chan_t *chan = new_chan(size);
+    Obj *obj = newobj(OBJ_CHAN);
+    obj->chan = chan;
+    return obj;
+}
+
 typedef Obj *(*MakeFn)(size_t len);
 
-static MakeFn make_fns[] = {make_list};
+static MakeFn make_fns[] = {make_list, make_list, make_chan};
 
 Obj *make(int ty, size_t size) {
     // the first 5 types are primitives
@@ -143,7 +297,7 @@ void append(Obj *obj, int64_t val) {
     if (l->length + 1 > l->cap) {
         l->cap = l->cap == 0 ? 8 : l->cap * 2;
         size_t newsize = l->cap * sizeof(uint64_t);
-        DEBUG_printf("realloc %ld\n", newsize);
+
         l->data = (uint64_t *)GC_realloc(l->data, newsize);
     }
     l->data[l->length] = val;
@@ -191,6 +345,34 @@ void list_free(list_t *list) {
 }
 
 int len(Obj *list) { return list->list->length; }
+
+void chansend(Obj *chan, uint64_t val) {
+    chan_t *c = chan->chan;
+    pthread_mutex_lock(&c->m_mu);
+    while (c->len == c->cap) {
+        pthread_cond_wait(&c->w_cond, &c->m_mu);
+    }
+    chan_write(c, val);
+    pthread_cond_signal(&c->r_cond);
+    pthread_mutex_unlock(&c->m_mu);
+}
+
+uint64_t chanrecv(Obj *chan) {
+    chan_t *c = chan->chan;
+    pthread_mutex_lock(&c->m_mu);
+    while (c->len == 0) {
+        pthread_cond_wait(&c->r_cond, &c->m_mu);
+    }
+    uint64_t val;
+    int res = chan_read(c, &val);
+    pthread_cond_signal(&c->w_cond);
+    pthread_mutex_unlock(&c->m_mu);
+    if (res == CHAN_CLOSED) {
+        printf("channel closed\n");
+        exit(1);
+    }
+    return val;
+}
 
 int main() {
     GC_INIT();
