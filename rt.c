@@ -1,3 +1,5 @@
+#include <gc/gc.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +10,14 @@
 
 // #define DEBUG
 
+#ifdef DEBUG
+#define DEBUG_printf(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_printf(...)
+#endif
+
+void sahl_main();
+
 struct str_t {
     int64_t len;
     int constant;
@@ -17,10 +27,9 @@ struct str_t {
 typedef struct str_t str_t;
 
 struct list_t {
-    int cap;
-    int length;
-    int elemsize;
-    void *data;
+    size_t cap;
+    size_t length;
+    uint64_t *data;
 };
 
 typedef struct list_t list_t;
@@ -40,33 +49,27 @@ struct Obj {
 
 typedef struct Obj Obj;
 
-void iprint(int64_t i) {
-    printf("%ld", i);
-}
+void iprint(int64_t i) { printf("%ld", i); }
 
-void fprint(double f) {
-    printf("%lf", f);
-}
+void fprint(double f) { printf("%lf", f); }
 
-void cprint(char c) {
-    printf("%c", c);
-}
+void cprint(char c) { printf("%c", c); }
 
-void bprint(int b) {
-    printf("%s", b ? "true" : "false");
-}
+void bprint(int b) { printf("%s", b ? "true" : "false"); }
 
 void exit_with(int32_t code) { exit(code); }
 
 Obj *newobj(ObjType ty) {
-    Obj *obj = (Obj *)malloc(sizeof(Obj));
+    DEBUG_printf("malloc %ld\n", sizeof(Obj));
+    Obj *obj = (Obj *)GC_malloc(sizeof(Obj));
     obj->marked = 0;
     obj->type = ty;
     return obj;
 }
 
 Obj *make_string(char *ptr, int len) {
-    str_t *str = (str_t *)malloc(sizeof(str_t));
+    DEBUG_printf("malloc %ld\n", sizeof(str_t));
+    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
     str->constant = 1;
@@ -79,9 +82,7 @@ Obj *make_string(char *ptr, int len) {
     return obj;
 }
 
-void sprint(Obj *o) {
-    printf("%s", o->str->ptr);
-}
+void sprint(Obj *o) { printf("%s", o->str->ptr); }
 
 Obj *strcatt(Obj *aobj, Obj *bobj) {
 #ifdef DEBUG
@@ -90,11 +91,13 @@ Obj *strcatt(Obj *aobj, Obj *bobj) {
     str_t *astr = aobj->str;
     str_t *bstr = aobj->str;
     int64_t len = astr->len + bstr->len;
-    char *ptr = (char *)malloc(len + 1);
+    DEBUG_printf("malloc %ld\n", len + 1);
+    char *ptr = (char *)GC_malloc(len + 1);
     memcpy(ptr, astr->ptr, astr->len);
     memcpy(ptr + astr->len, bstr->ptr, bstr->len);
     ptr[len] = '\0';
-    str_t *str = (str_t *)malloc(sizeof(str_t));
+    DEBUG_printf("malloc %ld\n", sizeof(str_t));
+    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
     str->constant = 0;
@@ -105,52 +108,45 @@ Obj *strcatt(Obj *aobj, Obj *bobj) {
 
 void str_free(str_t *str) {
     if (!str->constant) {
-        free(str->ptr);
+        GC_free(str->ptr);
     }
-    free(str);
+    GC_free(str);
 }
 
-Obj *make_list(int size, int elemsize) {
-    list_t *list = (list_t *)malloc(sizeof(list_t));
+Obj *make_list(size_t size) {
+    DEBUG_printf("malloc %ld\n", sizeof(list_t));
+    list_t *list = (list_t *)GC_malloc(sizeof(list_t));
     list->cap = size;
     list->length = size;
-    list->elemsize = elemsize;
-    list->data = (uint64_t *)malloc(elemsize * size);
+    DEBUG_printf("list size %ld\n", size);
+    size_t newsize = size * sizeof(uint64_t);
+    DEBUG_printf("malloc list els %ld\n", newsize);
+    list->data = (uint64_t *)GC_malloc(newsize);
     Obj *obj = newobj(OBJ_LIST);
     obj->list = list;
     return obj;
 }
 
-typedef Obj* (*MakeFn)(int len, int elemsize);
+typedef Obj *(*MakeFn)(size_t len);
 
 static MakeFn make_fns[] = {make_list};
 
-Obj* make(int ty, int size) {
+Obj *make(int ty, size_t size) {
     // the first 5 types are primitives
-    // elemsize is set to 8 right now but it should be set to the size of the primitive
-    return make_fns[ty-5](size, 8); 
+    // elemsize is set to 8 right now but it should be set to the size of the
+    // primitive
+    return make_fns[ty - 5](size);
 }
 
 void append(Obj *obj, int64_t val) {
     list_t *l = obj->list;
     if (l->length + 1 > l->cap) {
         l->cap = l->cap == 0 ? 8 : l->cap * 2;
-        l->data = (uint64_t *)realloc(l->data, l->elemsize * l->cap);
+        size_t newsize = l->cap * sizeof(uint64_t);
+        DEBUG_printf("realloc %ld\n", newsize);
+        l->data = (uint64_t *)GC_realloc(l->data, newsize);
     }
-    switch (l->elemsize) {
-    case 1:
-        *(uint8_t *)(l->data + l->length * l->elemsize) = *(uint8_t *)&val;
-        break;
-    case 2:
-        *(uint16_t *)(l->data + l->length * l->elemsize) = *(uint16_t *)&val;
-        break;
-    case 4:
-        *(uint32_t *)(l->data + l->length * l->elemsize) = *(uint32_t *)&val;
-        break;
-    case 8:
-        *(uint64_t *)(l->data + l->length * l->elemsize) = *(uint64_t *)&val;
-        break;
-    }
+    l->data[l->length] = val;
     l->length++;
 }
 
@@ -160,20 +156,7 @@ void listset(Obj *list, uint64_t index, int64_t val) {
         printf("list index out of range\n");
         exit(1);
     }
-    switch (l->elemsize) {
-    case 1:
-        *(uint8_t *)(l->data + index * l->elemsize) = *(uint8_t *)&val;
-        break;
-    case 2:
-        *(uint16_t *)(l->data + index * l->elemsize) = *(uint16_t *)&val;
-        break;
-    case 4:
-        *(uint32_t *)(l->data + index * l->elemsize) = *(uint32_t *)&val;
-        break;
-    case 8:
-        *(uint64_t *)(l->data + index * l->elemsize) = *(uint64_t *)&val;
-        break;
-    }
+    l->data[index] = val;
 }
 
 int64_t listget(Obj *list, uint64_t index) {
@@ -182,29 +165,25 @@ int64_t listget(Obj *list, uint64_t index) {
         printf("list index out of range\n");
         exit(1);
     }
-    switch (l->elemsize) {
-    case 1:
-        return *(uint8_t *)(l->data + index * l->elemsize);
-    case 2:
-        return *(uint16_t *)(l->data + index * l->elemsize);
-    case 4:
-        return *(uint32_t *)(l->data + index * l->elemsize);
-    case 8:
-        return *(uint64_t *)(l->data + index * l->elemsize);
-    }
-    return 0;
+    return l->data[index];
 }
 
 void list_set_all(Obj *list, void *val) {
     list_t *l = list->list;
     for (int i = 0; i < l->length; i++) {
-        memcpy(l->data + i * l->elemsize, val, l->elemsize);
+        memcpy(l->data + i * sizeof(uint64_t), val, sizeof(uint64_t));
     }
 }
 
 void list_free(list_t *list) {
-    free(list->data);
-    free(list);
+    GC_free(list->data);
+    GC_free(list);
 }
 
 int len(Obj *list) { return list->list->length; }
+
+int main() {
+    GC_INIT();
+    sahl_main();
+    return 0;
+}

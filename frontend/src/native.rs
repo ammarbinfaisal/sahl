@@ -923,7 +923,11 @@ impl<'ctx> Compiler<'ctx> {
                 .collect::<Vec<_>>();
             self.fn_names.push(func.name.clone());
             let func_type = self.create_func_type(params.as_slice(), func.retty.clone());
-            let func = self.module.add_function(&func.name, func_type, None);
+            let func = if func.name == "main" {
+                self.module.add_function("sahl_main", func_type, None)
+            } else {
+                self.module.add_function(&func.name, func_type, None)
+            };
             funcs.push(func);
         }
 
