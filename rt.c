@@ -1,4 +1,4 @@
-#include <gc/gc.h>
+#include "bdwgc/include/gc.h"
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
