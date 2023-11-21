@@ -26,7 +26,9 @@ rt=./rt.c
 
 check $1
 
-clang -opaque-pointer -I ./bdwgc/include -O2 -lgc ./exe.ll ./bdwgc/.libs/libgc.a $rt  -o ./exe
+clang -opaque-pointer -O2 -c ./exe.ll -o ./exe.o || exit 1
+clang -O2 -c $rt -o ./rt.o || exit 1
+clang -O2 ./exe.o ./rt.o ./bdwgc/.libs/libgc.a -o ./exe
 
 check $1
 
