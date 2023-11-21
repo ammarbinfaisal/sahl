@@ -149,6 +149,7 @@ fun matmul(m1 : [[double]], m2 : [[double]]) -> [[double]] {
     return m;
 }
 
+// matmul with a constant
 fun matmulc(mat: [[double]], v: double) -> [[double]] {
     let r = len(mat);
     let c = len(mat[0]);
@@ -178,16 +179,6 @@ fun transpose(m : [[double]]) -> [[double]] {
         i = i + 1;
     }
     return m2;
-}
-
-fun copyarr(a : [double]) -> [double] {
-    let b = make([double]);
-    let i = 0;
-    while i < len(a) {
-        append(b, a[i]);
-        i = i + 1;
-    }
-    return b;
 }
 
 fun print_size(m : [[double]]) {
