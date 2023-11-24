@@ -506,10 +506,9 @@ impl<'ctx> Compiler<'ctx> {
                         self.builder.build_store(res, v.into_int_value());
                     }
                     RegCode::Tuple(len, res, _tys) => {
-                        let len = registers[*len as usize];
                         let res = registers[*res as usize];
                         let tuple = self.module.get_function("make_list").unwrap();
-                        let len = self.builder.build_load(i64_type, len, "len");
+                        let len = i64_type.const_int(*len as u64, false);
                         let args = &[len.into()];
                         let v = self
                             .builder
