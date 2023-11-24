@@ -27,7 +27,7 @@ rt=./rt.c
 check $1
 
 clang -opaque-pointer -O3 -c ./exe.ll -o ./exe.o || exit 1
-clang -O3 -c $rt -o ./rt.o || exit 1
+clang -O3 -Iinclude -c $rt -o ./rt.o || exit 1
 clang -O3 -c math.c -o ./math.o || exit 1
 clang -lm -O3 ./exe.o ./rt.o ./math.o ./libs/libgc.a -o ./exe
 
