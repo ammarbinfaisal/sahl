@@ -1,0 +1,12 @@
+fun recv(c: chan<int>) {
+    let x = <-c;
+    print(x, "\n");
+}
+
+fun main() {
+    let c = make(chan<int>, 1024);
+    for i in 0..10 {
+        c <- i;
+        recv(c);
+    }
+}
