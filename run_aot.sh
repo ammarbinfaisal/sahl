@@ -28,7 +28,7 @@ check $1
 
 clang -opaque-pointer -O2 -c ./exe.ll -o ./exe.o || exit 1
 clang -O2 -c $rt -o ./rt.o || exit 1
-clang -O2 ./exe.o ./rt.o ./bdwgc/.libs/libgc.a -o ./exe
+clang -O2 ./exe.o ./rt.o ./libs/libgc.a -o ./exe
 
 check $1
 
