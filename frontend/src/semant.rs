@@ -243,6 +243,19 @@ impl<'a> Checker<'a> {
                     ))
                 }
             }
+            Expr::BitNot { expr, ty: t } => {
+                let ty = self.check_expr(expr)?;
+                if ty == Type::Int {
+                    *t = Some(ty.clone());
+                    Ok(Type::Int)
+                } else {
+                    Err((
+                        expr.0,
+                        Error::TypeMismatch(vec![Type::Int], vec![ty]),
+                        expr.2,
+                    ))
+                }
+            }
             Expr::List { exprs, ty: t } => {
                 let tyex = self.check_expr(exprs.iter_mut().next().unwrap())?;
                 for elem in exprs.iter_mut().skip(1) {

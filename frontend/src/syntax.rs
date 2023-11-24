@@ -86,6 +86,10 @@ pub enum Expr {
         expr: Box<Spanned<Expr>>,
         ty: Option<Type>,
     },
+    BitNot {
+        expr: Box<Spanned<Expr>>,
+        ty: Option<Type>,
+    },
     Range {
         start: Box<Spanned<Expr>>,
         end: Box<Spanned<Expr>>,
@@ -166,6 +170,7 @@ impl Expr {
             Expr::Variable { ty, .. } => ty.clone().unwrap(),
             Expr::Neg { ty, .. } => ty.clone().unwrap(),
             Expr::Not { ty, .. } => ty.clone().unwrap(),
+            Expr::BitNot { ty, .. } => ty.clone().unwrap(),
             Expr::Range { .. } => Type::Range,
             Expr::Arith { ty, .. } => ty.clone().unwrap(),
             Expr::BoolOp { ty, .. } => ty.clone().unwrap(),

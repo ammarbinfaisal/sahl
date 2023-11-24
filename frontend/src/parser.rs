@@ -29,6 +29,7 @@ enum Token<'src> {
     Continue,
     Extern,
     // Symbols
+    Tilde,
     Plus,
     Minus,
     Star,
@@ -125,6 +126,7 @@ impl std::fmt::Display for Token<'_> {
             Token::LeftArrow => write!(f, "<-"),
             Token::RightArrow => write!(f, "->"),
             Token::Range => write!(f, ".."),
+            Token::Tilde => write!(f, "~"),
         }
     }
 }
@@ -330,6 +332,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
                 .or(string.map(Token::Str))
                 .or(bool)
                 .or(ident)
+                .or(just("~").to(Token::Tilde))
                 .or(just("<-").to(Token::LeftArrow))
                 .or(just("..").to(Token::Range))
                 .or(just("->").to(Token::RightArrow))
@@ -622,7 +625,7 @@ fn exp<'tokens, 'src: 'tokens>(
                 },
             );
 
-            let primm = one_of(vec![Token::Minus, Token::Not])
+            let primm = one_of(vec![Token::Minus, Token::Not, Token::Tilde])
                 .or_not()
                 .then(prim.clone().or(bracketed))
                 .map(|(op, e)| {
@@ -636,6 +639,10 @@ fn exp<'tokens, 'src: 'tokens>(
                                     ty: None,
                                 },
                                 Token::Not => Expr::Not {
+                                    expr: Box::new(e),
+                                    ty: None,
+                                },
+                                Token::Tilde => Expr::BitNot {
                                     expr: Box::new(e),
                                     ty: None,
                                 },

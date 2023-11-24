@@ -239,6 +239,12 @@ impl GOCodegen {
                 code.push_str(&self.compile_expr(&expr.1));
                 code
             }
+            Expr::BitNot { expr, .. } => {
+                let mut code = String::new();
+                code.push_str("~");
+                code.push_str(&self.compile_expr(&expr.1));
+                code
+            }
             Expr::Arith {
                 op,
                 left,

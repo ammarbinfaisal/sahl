@@ -667,6 +667,14 @@ impl<'a> RegCodeGen<'a> {
                 self.stack_push(reg);
                 self.free_reg(arg);
             }
+            Expr::BitNot { expr, .. } => {
+                self.compile_expr(&expr);
+                let arg = self.stack_unfree_pop();
+                let reg = self.get_reg();
+                self.code.push(RegCode::BNot(arg, reg));
+                self.stack_push(reg);
+                self.free_reg(arg);
+            }
             Expr::Call { name, args, ty } => {
                 for arg in args {
                     self.compile_expr(&arg);
