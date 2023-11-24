@@ -38,7 +38,7 @@ const INEG: u8 = 32;
 const MAKE: u8 = 33;
 const LISTSET: u8 = 34;
 const LISTGET: u8 = 35;
-const LIST: u8 = 36;
+// const LIST: u8 = 36; // MAKE is used instead
 const TUPLEGET: u8 = 37;
 const TUPLE: u8 = 38;
 const STRGET: u8 = 39;
@@ -58,12 +58,12 @@ const MOVE: u8 = 52;
 const RETURN: u8 = 53;
 const PUSH: u8 = 54;
 const POP: u8 = 55;
-const SPAWN: u8 = 56;
-const NOP: u8 = 57;
-const RET: u8 = 58;
+// const SPAWN: u8 = 56; // CORO_CALL is used instead
+// const NOP: u8 = 57;
+// const RET: u8 = 58;
 const STACKMAP: u8 = 59;
-const PRINTLOCK: u8 = 60;
-const PRINTUNLOCK: u8 = 61;
+// const PRINTLOCK: u8 = 60;
+// const PRINTUNLOCK: u8 = 61;
 const SUPERINST: u8 = 62;
 const CORO_CALL: u8 = 63;
 const REF: u8 = 64;
@@ -289,14 +289,14 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::ListGet(ls_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![LISTGET, *ls_reg, *idx_reg, *res_reg]);
             }
-            RegCode::List(len, res, ty) => {
-                let mut opcodes = vec![LIST];
-                opcodes.extend(len.to_le_bytes().iter());
-                let tyy = if ty.is_heap_type() { 1 } else { 0 };
-                opcodes.push(tyy);
-                opcodes.extend(vec![*res]);
-                bytes.extend(opcodes);
-            }
+            // RegCode::List(len, res, ty) => {
+            //     let mut opcodes = vec![LIST];
+            //     opcodes.extend(len.to_le_bytes().iter());
+            //     let tyy = if ty.is_heap_type() { 1 } else { 0 };
+            //     opcodes.push(tyy);
+            //     opcodes.extend(vec![*res]);
+            //     bytes.extend(opcodes);
+            // }
             RegCode::TupleGet(tup_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![TUPLEGET, *tup_reg, *idx_reg, *res_reg]);
             }
@@ -416,9 +416,6 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             }
             RegCode::Pop(r1) => {
                 bytes.extend(vec![POP, *r1]);
-            }
-            RegCode::Spawn => {
-                bytes.extend(vec![SPAWN]);
             }
             RegCode::StackMap(bitsets) => {
                 if bitsets.len() > 0 {

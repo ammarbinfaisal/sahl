@@ -9,7 +9,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::TargetTriple;
 use inkwell::types::{
-    BasicMetadataTypeEnum, BasicType, FloatType, FunctionType, IntType, PointerType,
+    BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType,
 };
 use inkwell::values::{
     BasicMetadataValueEnum, FloatValue, FunctionValue, InstructionOpcode, IntValue,
@@ -40,7 +40,6 @@ pub struct Compiler<'ctx> {
     builder: Builder<'ctx>,
     consts: Vec<(Type, Vec<u8>)>,
     fn_names: Vec<String>,
-    stack: Vec<u8>,
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -56,7 +55,6 @@ impl<'ctx> Compiler<'ctx> {
             builder,
             consts,
             fn_names: Vec::new(),
-            stack: Vec::new(),
         }
     }
 
@@ -493,9 +491,9 @@ impl<'ctx> Compiler<'ctx> {
                             .unwrap();
                         self.builder.build_store(val_reg, v.into_int_value());
                     }
-                    RegCode::List(..) => {
-                        unimplemented!("List instruction should be removed by now");
-                    }
+                    // RegCode::List(..) => {
+                    //     unimplemented!("List instruction should be removed by now");
+                    // }
                     RegCode::TupleGet(ex, idx, res) => {
                         let ex = registers[*ex as usize];
                         let idx = registers[*idx as usize];
@@ -820,7 +818,6 @@ impl<'ctx> Compiler<'ctx> {
                             "ret",
                         );
                     }
-                    RegCode::Spawn => todo!(),
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
                     RegCode::Pop(_) => {}

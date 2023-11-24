@@ -62,7 +62,6 @@ enum Token<'src> {
     LeftArrow,
     RightArrow,
     Range,
-    ForwSlashForwSlash,
     Ref,
 }
 
@@ -126,7 +125,6 @@ impl std::fmt::Display for Token<'_> {
             Token::LeftArrow => write!(f, "<-"),
             Token::RightArrow => write!(f, "->"),
             Token::Range => write!(f, ".."),
-            Token::ForwSlashForwSlash => write!(f, "//"),
         }
     }
 }

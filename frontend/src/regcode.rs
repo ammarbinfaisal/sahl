@@ -1,4 +1,4 @@
-use crate::{cfg::*, syntax::*, utils::extract_var_name};
+use crate::{syntax::*, utils::extract_var_name};
 use std::collections::HashMap;
 
 // highlevel enum for 3/4 address code
@@ -43,7 +43,7 @@ pub enum RegCode {
     // lists
     ListSet(u8, u8, u8),
     ListGet(u8, u8, u8),
-    List(usize, u8, Type), // length, reg
+    // List(usize, u8, Type), // length, reg - not needed as of now
     // tuples
     TupleGet(u8, u8, u8),
     Tuple(usize, u8, Vec<Type>), // length, reg
@@ -68,7 +68,6 @@ pub enum RegCode {
     Move(u8, u8),
     Return(u8),
     Push(u8),
-    Spawn,
     Nop,
     FreeRegs,
     Pop(u8),
@@ -240,9 +239,9 @@ pub struct RegCodeGen<'a> {
     pub func_code: Vec<Vec<RegCode>>,
     pub start_func_idx: usize,
     curr_func: usize,
-    opcode_span: HashMap<usize, (usize, usize)>,
+    // opcode_span: HashMap<usize, (usize, usize)>, // to be used for debugging
     span: (usize, usize),
-    source_name: String,
+    // source_name: String, // to be used for debugging
     pub consts: Vec<(Type, Vec<u8>)>,
     stack: Vec<u8>,
     free_regs: [bool; 256],
@@ -252,7 +251,7 @@ pub struct RegCodeGen<'a> {
 }
 
 impl<'a> RegCodeGen<'a> {
-    pub fn new(source_name: String) -> Self {
+    pub fn new(_source_name: String) -> Self {
         RegCodeGen {
             code: Vec::new(),
             locals: NestedEnv::new(),
@@ -262,10 +261,10 @@ impl<'a> RegCodeGen<'a> {
             loop_starts: Vec::new(),
             start_func_idx: 0,
             curr_func: 0,
-            opcode_span: HashMap::new(),
+            // opcode_span: HashMap::new(),
             consts: Vec::new(),
             span: (0, 0),
-            source_name,
+            // source_name,
             stack: Vec::new(),
             free_regs: [true; 256],
             breaks: Vec::new(),
@@ -1243,44 +1242,44 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
-    fn optimise(&self) {
-        let mut cfg = construct_cfg(&self.code);
-        // println!("CFG:");
-        // for (i, node) in cfg.iter().enumerate() {
-        //     println!("\t{}: {:?}", i, node);
-        // }
-        let succ_nodes = construct_succs_nodes(&cfg, cfg.len());
-        let rev_dom_tree = construct_revdom_tree(&cfg, &succ_nodes);
-        // println!("Rev Dominator Tree:");
-        // for (idx, dom) in rev_dom_tree.iter().enumerate() {
-        //     println!("\t{}: {:?}", idx, dom);
-        // }
-        let idoms = construct_idoms(&rev_dom_tree);
-        let dom_tree = construct_dom_tree(&idoms, &succ_nodes);
-        // println!("Dominator Tree:");
-        // for (idx, dom) in dom_tree.iter().enumerate() {
-        //     println!("\t{}: {:?}", idx, dom);
-        // }
-        // println!("idoms: ");
-        // for (i, j) in idoms.clone().into_iter().enumerate() {
-        //     println!("{} {}", i, j);
-        // }
-        // println!("Dominance Frontiers:");
-        let domf = construct_dominance_frontiers(&succ_nodes, &dom_tree, &idoms);
-        // for (idx, dom) in domf.iter().enumerate() {
-        //     println!("\t{}: {:?}", idx, dom);
-        // }
-        // println!("Phis inserted and variables renamed");
-        insert_phi_functions(&mut cfg, &domf, self.locals.prev_local);
-        let mut vmap = HashMap::new();
-        let mut visited = vec![false; cfg.len()];
-        for idx in 0..cfg.len() {
-            rename_variable(idx, &mut cfg, &dom_tree, &mut vmap, &mut visited)
-        }
-        // for (idx, node) in cfg.iter().enumerate() {
-        //     println!("\t{}: {:?}", idx, node);
-        // }
-    }
+    // fn optimise(&self) {
+    //     let mut cfg = construct_cfg(&self.code);
+    //     // println!("CFG:");
+    //     // for (i, node) in cfg.iter().enumerate() {
+    //     //     println!("\t{}: {:?}", i, node);
+    //     // }
+    //     let succ_nodes = construct_succs_nodes(&cfg, cfg.len());
+    //     let rev_dom_tree = construct_revdom_tree(&cfg, &succ_nodes);
+    //     // println!("Rev Dominator Tree:");
+    //     // for (idx, dom) in rev_dom_tree.iter().enumerate() {
+    //     //     println!("\t{}: {:?}", idx, dom);
+    //     // }
+    //     let idoms = construct_idoms(&rev_dom_tree);
+    //     let dom_tree = construct_dom_tree(&idoms, &succ_nodes);
+    //     // println!("Dominator Tree:");
+    //     // for (idx, dom) in dom_tree.iter().enumerate() {
+    //     //     println!("\t{}: {:?}", idx, dom);
+    //     // }
+    //     // println!("idoms: ");
+    //     // for (i, j) in idoms.clone().into_iter().enumerate() {
+    //     //     println!("{} {}", i, j);
+    //     // }
+    //     // println!("Dominance Frontiers:");
+    //     let domf = construct_dominance_frontiers(&succ_nodes, &dom_tree, &idoms);
+    //     // for (idx, dom) in domf.iter().enumerate() {
+    //     //     println!("\t{}: {:?}", idx, dom);
+    //     // }
+    //     // println!("Phis inserted and variables renamed");
+    //     insert_phi_functions(&mut cfg, &domf, self.locals.prev_local);
+    //     let mut vmap = HashMap::new();
+    //     let mut visited = vec![false; cfg.len()];
+    //     for idx in 0..cfg.len() {
+    //         rename_variable(idx, &mut cfg, &dom_tree, &mut vmap, &mut visited)
+    //     }
+    //     // for (idx, node) in cfg.iter().enumerate() {
+    //     //     println!("\t{}: {:?}", idx, node);
+    //     // }
+    // }
 
     fn compile_func(&mut self, func: &'a Func) {
         for arg in &func.args {
