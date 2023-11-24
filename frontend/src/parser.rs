@@ -28,6 +28,7 @@ enum Token<'src> {
     Break,
     Continue,
     Extern,
+    Typedef,
     // Symbols
     Tilde,
     Plus,
@@ -92,6 +93,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Break => write!(f, "break"),
             Token::Continue => write!(f, "continue"),
             Token::Extern => write!(f, "extern"),
+            Token::Typedef => write!(f, "typedef"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -313,6 +315,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "continue" => Token::Continue,
         "ref" => Token::Ref,
         "extern" => Token::Extern,
+        "typedef" => Token::Typedef,
         _ => Token::Ident(s),
     });
 
@@ -399,6 +402,7 @@ fn typee<'tokens, 'src: 'tokens>(
                 just(Token::Ident("string")).to(Type::Str),
                 just(Token::Ident("char")).to(Type::Char),
                 just(Token::Ident("double")).to(Type::Double),
+                ident().map(Type::Custom),
             ))
             .boxed();
 
@@ -1216,21 +1220,43 @@ fn parse_function<'tokens, 'src: 'tokens>(
         .or(fun)
 }
 
+fn parse_typdef<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel, Err<Rich<'tokens, Token<'src>, Span>>>
+{
+    let typedef = just(Token::Typedef)
+        .ignored()
+        .then(ident())
+        .then_ignore(just(Token::Assign))
+        .then(typee())
+        .then(just(Token::Semicolon))
+        .map(|(((_, name), ty), _)| TopLevel::Typedef(name.to_string(), ty))
+        .boxed();
+
+    typedef
+}
+
+fn parse_top_level<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel, Err<Rich<'tokens, Token<'src>, Span>>>
+{
+    parse_function().map(TopLevel::Func).or(parse_typdef())
+}
+
 pub fn program(s: &str) -> Option<Program> {
     let lex = lexer();
     let (tokens, errors) = lex.parse(s).into_output_errors();
-    let parser = parse_function()
+    let parser = parse_top_level()
         .repeated()
-        .collect()
-        .then_ignore(end())
-        .map(|funcs| Program { funcs });
+        .collect::<Vec<_>>()
+        .then_ignore(end());
     if let Some(tokens) = &tokens {
         let (res, errs) = parser
             .parse(tokens.as_slice().spanned((s.len()..s.len()).into()))
             .into_output_errors();
 
-        if let Some(prog) = res {
-            return Some(prog);
+        if let Some(top_levels) = res {
+            return Some(Program {
+                top_levels
+            });
         } else {
             handle_err(&errs, s);
         }

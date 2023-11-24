@@ -585,7 +585,20 @@ pub fn compile_program(program: &Program) -> String {
         print_count: 0,
         prints: Vec::new(),
     };
-    for stmt in &program.funcs {
+    let fns = &program
+        .top_levels
+        .iter()
+        .filter(|tl| match tl {
+            TopLevel::Func(_) => true,
+            _ => false,
+        })
+        .map(|tl| match tl {
+            TopLevel::Func(f) => f,
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    for stmt in fns {
         code.push_str(&gen.compile_func(stmt));
     }
     let mut res = String::new();

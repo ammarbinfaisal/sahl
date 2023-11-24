@@ -134,15 +134,17 @@ fn builtin_fn(name: &str, args: &[Type], start: usize, end: usize) -> Result<Typ
 struct Checker<'a> {
     type_env: TypeEnv,
     func_env: &'a FuncEnv,
+    typemap: &'a HashMap<String, Type>,
     loop_depth: usize,
     func_ret_type: Type,
     scope: usize,
 }
 
 impl<'a> Checker<'a> {
-    fn new(func_env: &'a FuncEnv, retty: Type) -> Self {
+    fn new(func_env: &'a FuncEnv, typemap: &'a HashMap<String, Type>, retty: Type) -> Self {
         Checker {
             func_env,
+            typemap,
             type_env: vec![HashMap::new()],
             func_ret_type: retty,
             loop_depth: 0,
@@ -157,6 +159,44 @@ impl<'a> Checker<'a> {
             }
         }
         Err((start, Error::UndefinedVariable(name.to_string()), end))
+    }
+
+    fn match_type(&self, ty1: &Type, ty2: &Type) -> bool {
+        if ty1 == ty2 {
+            return true;
+        }
+        match (ty1, ty2) {
+            (Type::Custom(name1), Type::Custom(name2)) => {
+                if let Some(ty1) = self.typemap.get(name1) {
+                    if let Some(ty2) = self.typemap.get(name2) {
+                        return self.match_type(ty1, ty2);
+                    }
+                }
+                false
+            }
+            (Type::List(ty1), Type::List(ty2)) => self.match_type(ty1, ty2),
+            (Type::Map(key1, val1), Type::Map(key2, val2)) => {
+                self.match_type(key1, key2) && self.match_type(val1, val2)
+            }
+            (Type::Tuple(tys1), Type::Tuple(tys2)) => {
+                if tys1.len() != tys2.len() {
+                    return false;
+                }
+                for (ty1, ty2) in tys1.iter().zip(tys2) {
+                    if !self.match_type(ty1, ty2) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Type::Custom(name), ty2) | (ty2, Type::Custom(name)) => {
+                if let Some(ty1) = self.typemap.get(name) {
+                    return self.match_type(ty1, ty2);
+                }
+                false
+            }
+            _ => false,
+        }
     }
 
     fn check_expr(&self, expr: &mut Spanned<Expr>) -> Result<Type, Spanned<Error>> {
@@ -208,7 +248,7 @@ impl<'a> Checker<'a> {
                 };
                 if correct_lhs {
                     let lhs_ty = self.check_expr(left)?;
-                    if ty == lhs_ty {
+                    if self.match_type(&lhs_ty, &ty) {
                         Ok(Type::Void)
                     } else {
                         Err((left.0, Error::TypeMismatch(vec![ty], vec![lhs_ty]), left.2))
@@ -219,7 +259,7 @@ impl<'a> Checker<'a> {
             }
             Expr::Neg { expr, ty: t } => {
                 let ty = self.check_expr(expr)?;
-                if ty == Type::Int || ty == Type::Double {
+                if self.match_type(&ty, &Type::Int) || self.match_type(&ty, &Type::Double) {
                     *t = Some(ty.clone());
                     Ok(ty)
                 } else {
@@ -232,7 +272,7 @@ impl<'a> Checker<'a> {
             }
             Expr::Not { expr, ty: t } => {
                 let ty = self.check_expr(expr)?;
-                if ty == Type::Bool {
+                if self.match_type(&ty, &Type::Bool) {
                     *t = Some(ty.clone());
                     Ok(Type::Bool)
                 } else {
@@ -245,7 +285,7 @@ impl<'a> Checker<'a> {
             }
             Expr::BitNot { expr, ty: t } => {
                 let ty = self.check_expr(expr)?;
-                if ty == Type::Int {
+                if self.match_type(&ty, &Type::Int) {
                     *t = Some(ty.clone());
                     Ok(Type::Int)
                 } else {
@@ -260,7 +300,7 @@ impl<'a> Checker<'a> {
                 let tyex = self.check_expr(exprs.iter_mut().next().unwrap())?;
                 for elem in exprs.iter_mut().skip(1) {
                     let tyex2 = self.check_expr(elem)?;
-                    if tyex2.clone() != tyex.clone() {
+                    if self.match_type(&tyex, &tyex2) {
                         return Err((elem.0, Error::TypeMismatch(vec![tyex], vec![tyex2]), elem.2));
                     }
                 }
@@ -689,7 +729,7 @@ impl<'a> Checker<'a> {
             }
             Stmt::Return(expr) => {
                 let ty = self.check_expr(expr)?;
-                if ty == self.func_ret_type {
+                if self.match_type(&self.func_ret_type, &ty) {
                     Ok(())
                 } else {
                     Err((
@@ -822,7 +862,40 @@ fn validate_cfg(cfg: &CFG) -> bool {
 
 pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
     let mut func_env: FuncEnv = HashMap::new();
-    for func in &program.funcs {
+
+    let typedefs = program
+        .top_levels
+        .iter()
+        .filter(|tl| match tl {
+            TopLevel::Typedef(_, _) => true,
+            _ => false,
+        })
+        .map(|tl| match tl {
+            TopLevel::Typedef(name, ty) => (name.clone(), ty.clone()),
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    let mut typemap = HashMap::new();
+
+    for (name, ty) in typedefs {
+        typemap.insert(name, ty);
+    }
+
+    let fns = program
+        .top_levels
+        .iter_mut()
+        .filter(|tl| match tl {
+            TopLevel::Func(_) => true,
+            _ => false,
+        })
+        .map(|tl| match tl {
+            TopLevel::Func(f) => f,
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
+    for func in fns.iter() {
         let args_ty = func
             .args
             .iter()
@@ -832,11 +905,15 @@ pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
         func_env.insert(func.name.clone(), (args_ty, ret_ty));
     }
 
-    for func in program.funcs.iter_mut() {
+    for func in fns {
         if func.externed {
             continue;
         }
-        let mut checker = Checker::new(&func_env, func_env.get(&func.name).unwrap().1.clone());
+        let mut checker = Checker::new(
+            &func_env,
+            &typemap,
+            func_env.get(&func.name).unwrap().1.clone(),
+        );
         // add args to type env
         for arg in &func.args {
             checker

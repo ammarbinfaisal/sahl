@@ -343,7 +343,7 @@ impl<'a> RegCodeGen<'a> {
             Type::Str => {
                 self.code.push(RegCode::NCall(4, vec![reg]));
             }
-            _ => panic!("invalid type for print"),
+            _ => {}
         }
     }
 
@@ -1312,7 +1312,19 @@ impl<'a> RegCodeGen<'a> {
     }
 
     pub fn compile_program(&mut self, prog: &'a Program, super_inst: bool) {
-        let fns = &prog.funcs;
+        let fns = &prog
+            .top_levels
+            .iter()
+            .filter(|tl| match tl {
+                TopLevel::Func(_) => true,
+                _ => false,
+            })
+            .map(|tl| match tl {
+                TopLevel::Func(f) => f,
+                _ => unreachable!(),
+            })
+            .collect::<Vec<_>>();
+
         let mut idx = 0;
         for func in fns {
             self.func_idx.insert(func.name.as_str(), idx);

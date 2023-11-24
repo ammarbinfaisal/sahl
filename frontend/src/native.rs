@@ -902,8 +902,22 @@ impl<'ctx> Compiler<'ctx> {
             None,
         );
 
+        let fns = &program
+            .top_levels
+            .iter()
+            .filter(|tl| match tl {
+                TopLevel::Func(_) => true,
+                _ => false,
+            })
+            .map(|tl| match tl {
+                TopLevel::Func(f) => f,
+                _ => unreachable!(),
+            })
+            .collect::<Vec<_>>();
+
+
         let mut funcs = Vec::new();
-        for func in program.funcs.iter() {
+        for func in fns.iter() {
             let params = func
                 .args
                 .iter()
@@ -919,7 +933,7 @@ impl<'ctx> Compiler<'ctx> {
             funcs.push(func);
         }
 
-        for (i, func) in program.funcs.iter().zip(code.iter()).enumerate() {
+        for (i, func) in fns.iter().zip(code.iter()).enumerate() {
             if func.0.externed {
                 continue;
             }

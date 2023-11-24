@@ -13,6 +13,7 @@ pub enum Type {
     Map(Box<Type>, Box<Type>),
     Range,
     Ref(Box<Type>),
+    Custom(String),
 }
 
 impl Type {
@@ -227,6 +228,12 @@ pub struct Func {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum TopLevel {
+    Func(Func),
+    Typedef(String, Type),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub funcs: Vec<Func>,
+    pub top_levels: Vec<TopLevel>,
 }
