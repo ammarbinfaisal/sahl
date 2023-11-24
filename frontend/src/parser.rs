@@ -170,7 +170,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
     let double = just('-')
         .or_not()
         .then(digits)
-        .then(frac)
+        .then(frac.or_not())
         .then(exp.or_not())
         .map(|(((sign, int), frac), exp)| {
             let mut s = String::new();
@@ -178,16 +178,25 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
                 s.push('-');
             }
             s.push_str(&int);
-            s.push('.');
-            s.push_str(&frac);
+            let mut is_double = false;
+            if let Some(frac) = frac {
+                s.push('.');
+                s.push_str(&frac);
+                is_double = true;
+            }
             if let Some(((_, sign), exp)) = exp {
                 s.push('e');
                 if sign.is_some() {
                     s.push('-');
                 }
                 s.push_str(&exp);
+                is_double = true;
             }
-            s.parse::<f64>().unwrap()
+            if is_double {
+                Token::Double(s.parse::<f64>().unwrap())
+            } else {
+                Token::Int(s.parse::<i64>().unwrap())
+            }
         });
 
     let hexint = just('-')
@@ -316,7 +325,6 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         .clone()
         .ignore_then(
             double
-                .map(Token::Double)
                 .or(int.map(Token::Int))
                 .or(char.map(Token::Char))
                 .or(string.map(Token::Str))
