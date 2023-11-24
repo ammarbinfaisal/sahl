@@ -1,5 +1,4 @@
 #include "gc.h"
-#include <gc/gc.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -287,9 +286,6 @@ typedef Obj *(*MakeFn)(size_t len);
 static MakeFn make_fns[] = {make_list, make_list, make_chan};
 
 Obj *make(int ty, size_t size) {
-    // the first 5 types are primitives
-    // elemsize is set to 8 right now but it should be set to the size of the
-    // primitive
     return make_fns[ty - 5](size);
 }
 
