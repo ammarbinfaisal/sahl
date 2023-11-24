@@ -46,6 +46,7 @@ pub enum RegCode {
     // List(usize, u8, Type), // length, reg - not needed as of now
     // tuples
     TupleGet(u8, u8, u8),
+    TupleSet(u8, u8, u8),
     Tuple(usize, u8, Vec<Type>), // length, reg
     // strings
     StrGet(u8, u8, u8),
@@ -768,6 +769,7 @@ impl<'a> RegCodeGen<'a> {
                         let op = match (*expr).1.get_type() {
                             Type::List(_) => RegCode::ListSet,
                             Type::Map(_, _) => RegCode::MapSet,
+                            Type::Tuple(_) => RegCode::TupleSet,
                             _ => unreachable!(),
                         };
                         self.code.push(op(ex_arg, ix_arg, arg));
@@ -827,16 +829,22 @@ impl<'a> RegCodeGen<'a> {
                 self.stack_push(reg);
             }
             Expr::Tuple { exprs, .. } => {
-                for expr in exprs {
-                    self.compile_expr(&expr);
-                    let reg = self.stack_pop();
-                    self.code.push(RegCode::Push(reg));
-                }
                 let reg = self.get_reg();
                 let stackmap = self.emit_stack_map();
                 self.code.push(RegCode::StackMap(stackmap));
                 let tys = exprs.iter().map(|e| e.1.get_type()).collect::<Vec<_>>();
                 self.code.push(RegCode::Tuple(exprs.len(), reg, tys));
+                for expr in exprs.iter().enumerate().rev() {
+                    self.compile_expr(&expr.1);
+                    let val_reg = self.stack_pop();
+                    let const_ix = self.consts.len();
+                    self.consts.push((Type::Int, expr.0.to_le_bytes().to_vec()));
+                    let const_reg = self.get_reg();
+                    self.code.push(RegCode::Const(const_ix, const_reg));
+                    self.code.push(RegCode::TupleSet(reg, const_reg, val_reg));
+                    self.free_reg(const_reg);
+                    self.free_reg(val_reg);
+                }
                 self.stack_push(reg);
             }
             Expr::List { exprs, .. } => {

@@ -8,9 +8,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::TargetTriple;
-use inkwell::types::{
-    BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType,
-};
+use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
 use inkwell::values::{
     BasicMetadataValueEnum, FloatValue, FunctionValue, InstructionOpcode, IntValue,
 };
@@ -154,20 +152,6 @@ impl<'ctx> Compiler<'ctx> {
             let var = self.builder.build_alloca(i64_type, &format!("var{}", i));
             variables.push(var);
         }
-
-        // make a stack
-        let stack = self.builder.build_call(
-            self.module.get_function("make_list").unwrap(),
-            &[i64_type.const_int(1024, false).into()],
-            "stack",
-        );
-
-        let stack = stack.try_as_basic_value().left().unwrap();
-        let stack = self
-            .builder
-            .build_int_cast(stack.into_int_value(), i64_type, "stack");
-        let stack_var = self.builder.build_alloca(i64_type, "stack_var");
-        self.builder.build_store(stack_var, stack);
 
         let cfg = cfg::construct_cfg(&code);
 
@@ -491,9 +475,20 @@ impl<'ctx> Compiler<'ctx> {
                             .unwrap();
                         self.builder.build_store(val_reg, v.into_int_value());
                     }
-                    // RegCode::List(..) => {
-                    //     unimplemented!("List instruction should be removed by now");
-                    // }
+                    RegCode::TupleSet(ex, idx, val) => {
+                        let ex = registers[*ex as usize];
+                        let idx = registers[*idx as usize];
+                        let val = registers[*val as usize];
+                        let tupleset = self.module.get_function("listset").unwrap();
+                        let ex = self.builder.build_load(i64_type, ex, "ex");
+                        let idx = self.builder.build_load(i64_type, idx, "idx");
+                        let val = self.builder.build_load(i64_type, val, "val");
+                        let val =
+                            self.builder
+                                .build_int_cast(val.into_int_value(), i64_type, "cast");
+                        let args = &[ex.into(), idx.into(), val.into()];
+                        self.builder.build_call(tupleset, args, "ret");
+                    }
                     RegCode::TupleGet(ex, idx, res) => {
                         let ex = registers[*ex as usize];
                         let idx = registers[*idx as usize];
@@ -511,44 +506,19 @@ impl<'ctx> Compiler<'ctx> {
                         self.builder.build_store(res, v.into_int_value());
                     }
                     RegCode::Tuple(len, res, _tys) => {
-                        // call make_tuple
-                        let make_tuple = self.module.get_function("make_list").unwrap();
-                        let lenn = self
+                        let len = registers[*len as usize];
+                        let res = registers[*res as usize];
+                        let tuple = self.module.get_function("make").unwrap();
+                        let len = self.builder.build_load(i64_type, len, "len");
+                        let ty = self.context.i64_type().const_int(0, false);
+                        let args = &[ty.into(), len.into()];
+                        let v = self
                             .builder
-                            .build_int_cast(
-                                i64_type.const_int(*len as u64, false),
-                                self.context.i64_type(),
-                                "len",
-                            )
-                            .into();
-                        let args = &[lenn];
-                        let tuple = self
-                            .builder
-                            .build_call(make_tuple, args, "v")
+                            .build_call(tuple, args, "ret")
                             .try_as_basic_value()
                             .left()
                             .unwrap();
-                        // call listset for each register
-                        let listset = self.module.get_function("listset").unwrap();
-                        let pop = self.module.get_function("pop").unwrap();
-                        for i in 0..(*len as usize) {
-                            let val = self
-                                .builder
-                                .build_call(pop, &[stack.into()], "val")
-                                .try_as_basic_value()
-                                .left()
-                                .unwrap();
-                            let args = &[
-                                tuple.into(),
-                                i64_type.const_int(i as u64, false).into(),
-                                val.into(),
-                            ];
-                            self.builder.build_call(listset, args, "ret");
-                        }
-                        let tuple =
-                            self.builder
-                                .build_int_cast(tuple.into_int_value(), i64_type, "cast");
-                        self.builder.build_store(registers[*res as usize], tuple);
+                        self.builder.build_store(res, v.into_int_value());
                     }
                     RegCode::StrGet(_, _, _) => todo!(),
                     RegCode::MapGet(_, _, _) => todo!(),
@@ -807,17 +777,7 @@ impl<'ctx> Compiler<'ctx> {
                             }
                         }
                     }
-                    RegCode::Push(r) => {
-                        let v = self
-                            .builder
-                            .build_load(i64_type, registers[*r as usize], "v");
-                        let stack = self.builder.build_load(i64_type, stack_var, "stack");
-                        self.builder.build_call(
-                            self.module.get_function("append").unwrap(),
-                            &[stack.into(), v.into()],
-                            "ret",
-                        );
-                    }
+                    RegCode::Push(_) => {}
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
                     RegCode::Pop(_) => {}
@@ -968,7 +928,7 @@ impl<'ctx> Compiler<'ctx> {
 
         // mem2reg - no passes working
         // let pass_manager = PassManager::create(());
-        // pass_manager.add_instruction_simplify_pass();
+        // pass_manager.add_promote_memory_to_register_pass();
         // pass_manager.run_on(&self.module);
 
         let triple = TargetTriple::create("x86_64-unknown-linux-gnu");

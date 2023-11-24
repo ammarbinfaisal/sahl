@@ -38,7 +38,7 @@ const INEG: u8 = 32;
 const MAKE: u8 = 33;
 const LISTSET: u8 = 34;
 const LISTGET: u8 = 35;
-// const LIST: u8 = 36; // MAKE is used instead
+const TUPLESET: u8 = 36;
 const TUPLEGET: u8 = 37;
 const TUPLE: u8 = 38;
 const STRGET: u8 = 39;
@@ -289,16 +289,11 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
             RegCode::ListGet(ls_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![LISTGET, *ls_reg, *idx_reg, *res_reg]);
             }
-            // RegCode::List(len, res, ty) => {
-            //     let mut opcodes = vec![LIST];
-            //     opcodes.extend(len.to_le_bytes().iter());
-            //     let tyy = if ty.is_heap_type() { 1 } else { 0 };
-            //     opcodes.push(tyy);
-            //     opcodes.extend(vec![*res]);
-            //     bytes.extend(opcodes);
-            // }
             RegCode::TupleGet(tup_reg, idx_reg, res_reg) => {
                 bytes.extend(vec![TUPLEGET, *tup_reg, *idx_reg, *res_reg]);
+            }
+            RegCode::TupleSet(tup_reg, idx_reg, val_reg) => {
+                bytes.extend(vec![TUPLESET, *tup_reg, *idx_reg, *val_reg]);
             }
             RegCode::Tuple(len, res, tys) => {
                 let mut opcodes = vec![TUPLE];
