@@ -1,4 +1,5 @@
 #include "gc.h"
+#include <gc/gc.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -376,6 +377,7 @@ uint64_t chanrecv(Obj *chan) {
 
 int main() {
     GC_INIT();
+    GC_expand_hp(1024 * 1024 * 1024);
     sahl_main();
     return 0;
 }
