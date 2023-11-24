@@ -508,10 +508,9 @@ impl<'ctx> Compiler<'ctx> {
                     RegCode::Tuple(len, res, _tys) => {
                         let len = registers[*len as usize];
                         let res = registers[*res as usize];
-                        let tuple = self.module.get_function("make").unwrap();
+                        let tuple = self.module.get_function("make_list").unwrap();
                         let len = self.builder.build_load(i64_type, len, "len");
-                        let ty = self.context.i64_type().const_int(0, false);
-                        let args = &[ty.into(), len.into()];
+                        let args = &[len.into()];
                         let v = self
                             .builder
                             .build_call(tuple, args, "ret")
@@ -914,7 +913,6 @@ impl<'ctx> Compiler<'ctx> {
                 _ => unreachable!(),
             })
             .collect::<Vec<_>>();
-
 
         let mut funcs = Vec::new();
         for func in fns.iter() {
