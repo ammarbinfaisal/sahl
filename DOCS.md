@@ -1,4 +1,6 @@
-# Documention
+# Sahl Documentation
+
+Welcome to the documentation for the Sahl programming language. Below, you'll find detailed information about the language features and syntax.
 
 ## Table of Contents
 
@@ -9,8 +11,11 @@
 - [Statements](#statements)
 - [Expressions](#expressions)
 - [Channels](#channels)
+- [Examples](#examples)
 
 ## Hello World
+
+Let's start with the traditional "Hello World" program:
 
 ```kt
 fun main() {
@@ -18,7 +23,11 @@ fun main() {
 }
 ```
 
+This basic program defines a `main` function and prints the classic greeting.
+
 ## Functions
+
+Functions are fundamental in Sahl. Here's an example of a function adding two integers:
 
 ```kt
 fun add(a: int, b: int) -> int {
@@ -26,9 +35,11 @@ fun add(a: int, b: int) -> int {
 }
 ```
 
-If the return type is not specified it is assumed to be `void`.
+If the return type is unspecified, it defaults to `void`.
 
 ## Variables
+
+Variables store and manipulate data. Check this example:
 
 ```kt
 fun main() {
@@ -39,41 +50,51 @@ fun main() {
 }
 ```
 
-The type of the variable is inferred from the value assigned to it.
+Variable types are inferred from assigned values.
 
 ## Types
 
-### Basic Types
-
-- `int`
-- `double`
-- `bool`
-- `string`
-- `char`
+Sahl supports various types, including basic ones like `int`, `double`, `bool`, `string`, and `char`. It also includes more complex types like arrays, tuples, maps, and channels.
 
 ### Arrays
 
-- `[T]` - array of type `T`
-- for example `[int]` is an array of integers and `[[double]]` is an array of arrays of doubles
+```kt
+let a = [1, 2, 3];
+```
 
 ### Tuple
 
-- `(T1, T2, ..., Tn)` - tuple of types `T1, T2, ..., Tn`
-- for example `(int, double)` is a tuple of an integer and a double
+```kt
+let myTuple = (10, "Hello");
+```
 
 ### Map
 
-- `map<K, V>` - map with keys of type `K` and values of type `V`
-- for example `map<int, string>` is a map with keys of type `int` and values of type `string`
+```kt
+let myMap = map<int, string>;
+```
 
 ### Chan
 
-- `chan<T>` - channel of type `T`
-- check [channels](#channels)
+```kt
+let myChannel = chan<int>;
+```
+
+### Type Declaration
+
+```kt
+type Tree = (int, [Tree]);
+
+fun makeTree() -> Tree {
+    return (10, [(20, []), (30, [])]);
+}
+```
 
 ## Statements
 
-#### `if`
+Essential statements include `if`, `while`, `for`, `break`, `continue`, and `return`. Let's explore a few:
+
+### `if`
 
 ```kt
 if a > 0 {
@@ -81,7 +102,7 @@ if a > 0 {
 }
 ```
 
-#### `while`
+### `while`
 
 ```kt
 while a > 0 {
@@ -89,7 +110,7 @@ while a > 0 {
 }
 ```
 
-#### `for`
+### `for`
 
 ```kt
 for i in 0..10 {
@@ -97,81 +118,77 @@ for i in 0..10 {
 }
 ```
 
-or the range can be have `=` like `0..=10` which means `0, 1, 2, ..., 10` otherwise it is `0, 1, 2, ..., 9`
+### `break` and `continue`
 
-#### `break` and `continue`
+Used inside loops for exiting or continuing to the next iteration.
 
-used inside `while` and `for` loops to break out of the loop or continue to the next iteration
+### `return`
 
-#### `return`
-
-used inside functions to return a value
-
+Used inside functions to return a value.
 
 ## Expressions
 
+Expressions involve operators, function calls, array access, and more.
 
 ### Operators
 
-- the math operators are `+`, `-`, `*`, `/`, `%` 
-- the comparison operators are `==`, `!=`, `>`, `<`, `>=`, `<=`
-- the logical operators are `&&`, `||`, `!`
-- the bitwise operators are `&`, `|`, `^`, `<<`, `>>`
-- the assignment operators is only `=` for now
+Math operators: `+`, `-`, `*`, `/`, `%`. Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`. Logical and bitwise operators are also supported.
+The precedence of operators is listed below, from highest to lowest:
+
+| Operator | Description |
+| --- | --- |
+| `()` | Parentheses |
+| `[]` | Array access |
+| `!`, `~`, `-` | Logical NOT, bitwise NOT, unary minus |
+| `*`, `/`, `%` | Multiplication, division, remainder |
+| `+`, `-` | Addition, subtraction |
+| `<<`, `>>` | Bitwise shift left, bitwise shift right |
+| `&` | Bitwise AND |
+| `^` | Bitwise XOR |
+| `\|` | Bitwise OR |
+| `&&` | Logical AND |
+| `\|\|` | Logical OR |
+| `==`, `!=` | Equality, inequality |
+| `<`, `<=`, `>`, `>=` | Comparison |
+| `=` | Assignment |
+
 
 ### Function Calls
 
 ```kt
-fun add(a: int, b: int) -> int {
-    return a + b;
-}
-
-fun main() {
-    let a = add(10, 20);
-    print(a, "\n");
-}
+let result = add(10, 20);
 ```
 
 ### Array Access
 
 ```kt
-fun main() {
-    let a = [1, 2, 3];
-    print(a[0], "\n");
-}
+let value = a[0];
 ```
 
 ### Make
 
 ```kt
-fun main() {
-    let a = make([int], 10);
-    print(a[0], "\n");
-}
+let newArray = make([int], 10);
 ```
 
-make is used to create arrays, maps and channels
-
+`make` is used for creating arrays, maps, and channels.
 
 ### Chan Recv/Send
 
 ```kt
-fun main() {
-    let c = make(chan<int>);
-    c <- 10;
-    let a = <-c;
-    print(a, "\n");
-}
+let c = make(chan<int>);
+c <- 10;
+let value = <-c;
 ```
 
-check [channels](#channels)
-
+Check [Channels](#channels).
 
 ## Channels
 
+Channels facilitate communication between coroutines. Example:
 
 ```kt
-fun sendvals(c: chan<int>, count: int, id: int) {
+fun sendVals(c: chan<int>, count: int, id: int) {
     let i = 0;
     while i < count {
         c <- i;
@@ -179,7 +196,7 @@ fun sendvals(c: chan<int>, count: int, id: int) {
     }
 }
 
-fun recvvals(c: chan<int>, count: int, id: int) {
+fun recvVals(c: chan<int>, count: int, id: int) {
     let i = 0;
     while i < count {
         print(<-c, " - ", id, "\n");
@@ -191,16 +208,15 @@ fun main() {
     let i = 0;
     while i < 100 {
         let a = make(chan<int>, 1000);
-        sahl sendvals(a, 10000, i);
-        sahl recvvals(a, 10000, i);
+        sahl sendVals(a, 10000, i);
+        sahl recvVals(a, 10000, i);
         i = i + 1;
     }
 }
 ```
 
-The `sahl` keyword is used to run a function in a new coroutine.
+The `sahl` keyword runs a function in a new coroutine.
 
-### Examples
+## Examples
 
-check [samples](samples/) folder
-
+Explore more examples in the [samples](samples/) folder. Happy coding in Sahl!
