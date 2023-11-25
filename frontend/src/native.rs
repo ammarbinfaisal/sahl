@@ -66,6 +66,9 @@ impl<'ctx> Compiler<'ctx> {
             Type::Str => LLVMTy::Str(self.context.i8_type().ptr_type(AddressSpace::from(0))),
             Type::Double => LLVMTy::Float(self.context.f64_type()),
             Type::Custom(_) => LLVMTy::Int(self.context.i64_type()),
+            Type::List(_) => LLVMTy::Int(self.context.i64_type()),
+            Type::Tuple(_) => LLVMTy::Int(self.context.i64_type()),
+            Type::Map(_, _) => LLVMTy::Int(self.context.i64_type()),
             _ => LLVMTy::Void,
         }
     }
