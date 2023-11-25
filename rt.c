@@ -343,6 +343,23 @@ void list_free(list_t *list) {
 
 int len(Obj *list) { return list->list->length; }
 
+Obj* concat(Obj *a, Obj *b) {
+    str_t *astr = a->str;
+    str_t *bstr = b->str;
+    int64_t len = astr->len + bstr->len;
+    char *ptr = (char *)GC_malloc(len + 1);
+    memcpy(ptr, astr->ptr, astr->len);
+    memcpy(ptr + astr->len, bstr->ptr, bstr->len);
+    ptr[len] = '\0';
+    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
+    str->len = len;
+    str->ptr = ptr;
+    str->constant = 0;
+    Obj *obj = newobj(OBJ_STR);
+    obj->str = str;
+    return obj;
+}
+
 void chansend(Obj *chan, uint64_t val) {
     chan_t *c = chan->chan;
     pthread_mutex_lock(&c->m_mu);

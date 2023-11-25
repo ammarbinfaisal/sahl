@@ -1,0 +1,44 @@
+extern fun concat(s1: string, s2: string) -> string {}
+
+typedef Tree = (int, [Tree]);
+
+fun makeTree(n: int) -> Tree {
+    if (n > 0) {
+        let ts = make([Tree], n);
+        let i = 0;
+        while i < n {
+            let t = makeTree(n - 1);
+            t[0] = i;
+            ts[i] = t;
+            i = i + 1;
+        }
+        return (n, ts,);
+    }
+    return (0, make([Tree]),);
+}
+
+fun bfsPrint(t: Tree) {
+    let q = make([Tree]);
+    append(q, t);
+    let depth = t[0];
+    while len(q) > 0 {
+        let t = pop(q);
+        let n = t[0];
+        let ts = t[1];
+        let curr_depth = depth - n;
+        for i in 0..curr_depth {
+            print("    ");
+        }
+        print("\u001b[", (n % 7 + 31), "m");
+        
+        print(n, "\n");
+        for i in 0..n {
+            append(q, ts[i]);
+        }
+    }
+}
+
+fun main() {
+    let t = makeTree(5);
+    bfsPrint(t);
+}
