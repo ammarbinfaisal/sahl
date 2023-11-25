@@ -39,13 +39,16 @@ fun main() {
     let x = 0;
     let y = 0;
     let code = ['*', 'b', 'b', '+', 'a', 'b'];
-    print("P5\n1600 900\n255\n");
-    while y < 900 {
+    let width = 180;
+    let height = 200;
+    let w_float = cast(width, double);
+    let h_float = cast(height, double);
+    while y < height {
         x = 0;
-        let line = make([char], 1600);
-        while x < 1600 {
-            registers[0][0] = 2.0 * 1.6 * (cast(x, double) / 1600.0 - 0.5);
-            registers[0][1] = 2.0 * 0.9 * (cast(y, double) / 900.0 - 0.5);
+        let line = make([char], width);
+        while x < width {
+            registers[0][0] = 2.0 * (h_float / 100.0) * (cast(x, double) / h_float - 0.5);
+            registers[0][1] = 2.0 * (w_float / 100.0) * (cast(y, double) / w_float - 0.5);
             i = 1;
             while i < 4 {
                 registers[i][0] = 0.0;
@@ -61,8 +64,12 @@ fun main() {
             x = x + 1;
         }
         for c in line {
-            print(c);
+            let c_int = cast(c, int);
+            // pinkish
+            let color = 12 + (c_int % 12);
+            print("\u001b[38;5;", color, "m", "o");
         }
+        print("\u001b[0m\n");
         y = y + 1;
     }
 }
