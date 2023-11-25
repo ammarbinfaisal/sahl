@@ -1,6 +1,6 @@
 extern fun concat(s1: string, s2: string) -> string {}
 
-typedef Tree = (int, [Tree]);
+type Tree = (int, [Tree]);
 
 fun makeTree(n: int) -> Tree {
     if (n > 0) {

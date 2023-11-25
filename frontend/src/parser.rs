@@ -93,7 +93,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Break => write!(f, "break"),
             Token::Continue => write!(f, "continue"),
             Token::Extern => write!(f, "extern"),
-            Token::Typedef => write!(f, "typedef"),
+            Token::Typedef => write!(f, "type"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -315,7 +315,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "continue" => Token::Continue,
         "ref" => Token::Ref,
         "extern" => Token::Extern,
-        "typedef" => Token::Typedef,
+        "type" => Token::Typedef,
         _ => Token::Ident(s),
     });
 
@@ -1023,28 +1023,6 @@ fn statement<'tokens, 'src: 'tokens>(
                 .collect::<Vec<_>>()
                 .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
                 .boxed();
-
-            // recursive(|if_| {
-            //     just(Token::If)
-            //         .ignore_then(expr.clone())
-            //         .then(block.clone())
-            //         .then(
-            //             just(Token::Else)
-            //                 .ignore_then(block.clone().or(if_))
-            //                 .or_not(),
-            //         )
-            //         .map_with_span(|((cond, a), b), span: Span| {
-            //             (
-            //                 Expr::If(
-            //                     Box::new(cond),
-            //                     Box::new(a),
-            //                     // If an `if` expression has no trailing `else` block, we magic up one that just produces null
-            //                     Box::new(b.unwrap_or_else(|| (Expr::Value(Value::Null), span.clone()))),
-            //                 ),
-            //                 span,
-            //             )
-            //         })
-            // });
 
             let ifstmt = recursive(|if_| {
                 just(Token::If)
