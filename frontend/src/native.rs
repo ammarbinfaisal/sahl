@@ -752,17 +752,19 @@ impl<'ctx> Compiler<'ctx> {
                                 self.builder.build_store(registers[*res as usize], resv);
                             }
                             (Type::Int, Type::Char) => {
-                                let resv = self.builder.build_int_cast(
+                                // basically do x & 0xFF
+                                let resv = self.builder.build_and(
                                     v.into_int_value(),
-                                    i64_type,
+                                    i64_type.const_int(0xFF, false),
                                     "cast",
                                 );
                                 self.builder.build_store(registers[*res as usize], resv);
                             }
                             (Type::Char, Type::Int) => {
-                                let resv = self.builder.build_int_cast(
+                                // basically do x & 0xFF
+                                let resv = self.builder.build_and(
                                     v.into_int_value(),
-                                    i64_type,
+                                    i64_type.const_int(0xFF, false),
                                     "cast",
                                 );
                                 self.builder.build_store(registers[*res as usize], resv);
