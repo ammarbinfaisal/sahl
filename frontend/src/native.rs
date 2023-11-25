@@ -583,7 +583,7 @@ impl<'ctx> Compiler<'ctx> {
                                     self.builder.build_store(registers[0 as usize], reinp);
                                 }
                                 _ => {
-                                    self.builder.build_store(registers[0 as usize], res.into_int_value());
+                                    self.builder.build_store(registers[0 as usize], res);
                                 }
                             },
                             None => {}
