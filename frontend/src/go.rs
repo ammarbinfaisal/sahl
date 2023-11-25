@@ -526,7 +526,9 @@ impl GOCodegen {
             Stmt::Return(expr) => {
                 let mut code = String::new();
                 code.push_str("return ");
-                code.push_str(&self.compile_expr(&expr.1));
+                if let Some(expr) = *expr.clone() {
+                    code.push_str(&self.compile_expr(&expr.1));
+                }
                 code.push_str("\n");
                 code
             }

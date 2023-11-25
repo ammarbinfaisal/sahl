@@ -406,6 +406,9 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                 opcodes.extend(r1.to_le_bytes().iter());
                 bytes.extend(opcodes);
             }
+            RegCode::VoidReturn => {
+                bytes.push(RETURN);
+            }
             RegCode::Push(r1) => {
                 bytes.extend(vec![PUSH, *r1]);
             }

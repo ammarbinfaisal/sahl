@@ -742,15 +742,28 @@ impl<'a> Checker<'a> {
                 Ok(())
             }
             Stmt::Return(expr) => {
-                let ty = self.check_expr(expr)?;
-                if self.match_type(&self.func_ret_type, &ty) {
-                    Ok(())
+                let ex = &mut **expr;
+                if let Some(ex) = ex {
+                    let ty = self.check_expr(ex)?;
+                    if self.match_type(&ty, &self.func_ret_type) {
+                        Ok(())
+                    } else {
+                        Err((
+                            ex.0,
+                            Error::TypeMismatch(vec![self.func_ret_type.clone()], vec![ty]),
+                            ex.2,
+                        ))
+                    }
                 } else {
-                    Err((
-                        expr.0,
-                        Error::TypeMismatch(vec![self.func_ret_type.clone()], vec![ty]),
-                        expr.2,
-                    ))
+                    if self.func_ret_type == Type::Void {
+                        Ok(())
+                    } else {
+                        Err((
+                            stmt.0,
+                            Error::TypeMismatch(vec![self.func_ret_type.clone()], vec![Type::Void]),
+                            stmt.2,
+                        ))
+                    }
                 }
             }
             Stmt::Break => {

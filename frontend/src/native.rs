@@ -19,6 +19,7 @@ enum LLVMTy<'ctx> {
     Float(FloatType<'ctx>),
     Bool(IntType<'ctx>),
     Str(PointerType<'ctx>),
+    Void,
 }
 
 impl<'ctx> LLVMTy<'ctx> {
@@ -28,6 +29,7 @@ impl<'ctx> LLVMTy<'ctx> {
             LLVMTy::Float(t) => BasicMetadataTypeEnum::FloatType(*t),
             LLVMTy::Bool(t) => BasicMetadataTypeEnum::IntType(*t),
             LLVMTy::Str(t) => BasicMetadataTypeEnum::PointerType(*t),
+            LLVMTy::Void => unreachable!("This path should not be reached"),
         }
     }
 }
@@ -63,7 +65,8 @@ impl<'ctx> Compiler<'ctx> {
             Type::Char => LLVMTy::Int(self.context.i8_type()),
             Type::Str => LLVMTy::Str(self.context.i8_type().ptr_type(AddressSpace::from(0))),
             Type::Double => LLVMTy::Float(self.context.f64_type()),
-            _ => LLVMTy::Int(self.context.i64_type()),
+            Type::Custom(_) => LLVMTy::Int(self.context.i64_type()),
+            _ => LLVMTy::Void,
         }
     }
 
@@ -104,6 +107,10 @@ impl<'ctx> Compiler<'ctx> {
             }
             LLVMTy::Str(t) => {
                 let func_type = t.fn_type(params.as_slice(), false);
+                func_type
+            }
+            LLVMTy::Void => {
+                let func_type = self.context.void_type().fn_type(params.as_slice(), false);
                 func_type
             }
         }
@@ -568,16 +575,18 @@ impl<'ctx> Compiler<'ctx> {
                             args.push(v);
                         }
                         let res = self.builder.build_call(fn_ptr, args.as_slice(), "ret");
-                        let res = res.try_as_basic_value().left().unwrap().into();
+                        let res = res.try_as_basic_value().left();
                         match res {
-                            BasicMetadataValueEnum::IntValue(v) => {
-                                self.builder.build_store(registers[0 as usize], v);
-                            }
-                            BasicMetadataValueEnum::FloatValue(v) => {
-                                let reinp = self.float_to_int_reinterpret(v);
-                                self.builder.build_store(registers[0 as usize], reinp);
-                            }
-                            _ => todo!(),
+                            Some(res) => match res.into() {
+                                BasicMetadataValueEnum::FloatValue(v) => {
+                                    let reinp = self.float_to_int_reinterpret(v);
+                                    self.builder.build_store(registers[0 as usize], reinp);
+                                }
+                                _ => {
+                                    self.builder.build_store(registers[0 as usize], res.into_int_value());
+                                }
+                            },
+                            None => {}
                         }
                     }
                     RegCode::NCall(fn_ix, regs) => {
@@ -615,10 +624,11 @@ impl<'ctx> Compiler<'ctx> {
                             args.push(v_cast);
                         }
                         let res = self.builder.build_call(fn_ptr, args.as_slice(), "ret");
-                        self.builder.build_store(
-                            registers[0 as usize],
-                            res.try_as_basic_value().left().unwrap().into_int_value(),
-                        );
+                        let res = res.try_as_basic_value().left();
+                        if let Some(res) = res {
+                            let res = res.into_int_value();
+                            self.builder.build_store(registers[0 as usize], res);
+                        }
                     }
                     RegCode::Const(const_ix, r) => {
                         let const_val = self.consts[*const_ix as usize].clone();
@@ -775,6 +785,9 @@ impl<'ctx> Compiler<'ctx> {
                             }
                         }
                     }
+                    RegCode::VoidReturn => {
+                        self.builder.build_return(None);
+                    }
                     RegCode::Push(_) => {}
                     RegCode::Nop => {}
                     RegCode::FreeRegs => {}
@@ -808,8 +821,7 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         if *retty == Type::Void {
-            self.builder
-                .build_return(Some(&i64_type.const_int(0, false)));
+            self.builder.build_return(None);
         }
     }
 

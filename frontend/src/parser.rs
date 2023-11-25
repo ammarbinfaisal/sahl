@@ -1096,7 +1096,7 @@ fn statement<'tokens, 'src: 'tokens>(
 
             let returnstmt = just(Token::Return)
                 .ignored()
-                .then(exp())
+                .then(exp().or_not())
                 .then(just(Token::Semicolon))
                 .map(|((_, expr), _)| Stmt::Return(Box::new(expr)))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));

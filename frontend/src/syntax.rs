@@ -202,7 +202,7 @@ pub enum Stmt {
         Vec<Spanned<Stmt>>,
         Option<Vec<Spanned<Stmt>>>,
     ),
-    Return(Box<Spanned<Expr>>),
+    Return(Box<Option<Spanned<Expr>>>),
     Coroutine(Spanned<Expr>),
     ChanWrite(String, Box<Spanned<Expr>>),
     Block(Vec<Spanned<Stmt>>),

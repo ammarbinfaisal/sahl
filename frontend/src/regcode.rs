@@ -68,6 +68,7 @@ pub enum RegCode {
     Cast(u8, Type, Type, u8),
     Move(u8, u8),
     Return(u8),
+    VoidReturn,
     Push(u8),
     Nop,
     FreeRegs,
@@ -1131,9 +1132,14 @@ impl<'a> RegCodeGen<'a> {
                 self.free_reg(arg);
             }
             Stmt::Return(expr) => {
-                self.compile_expr(&expr);
-                let arg = self.stack_pop();
-                self.code.push(RegCode::Return(arg));
+                let ex = *expr.clone();
+                if let Some(ex) = ex {
+                    self.compile_expr(&ex);
+                    let arg = self.stack_pop();
+                    self.code.push(RegCode::Return(arg));
+                } else {
+                    self.code.push(RegCode::VoidReturn);
+                }
             }
             Stmt::Break => {
                 let jmp_ix = self.code.len();
