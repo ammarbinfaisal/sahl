@@ -598,6 +598,7 @@ impl<'ctx> Compiler<'ctx> {
                             4 => "sprint",
                             5 => "append",
                             6 => "len",
+                            7 => "pop",
                             _ => todo!(),
                         };
                         let fn_ptr = self.module.get_function(&fn_name).unwrap();
@@ -773,6 +774,10 @@ impl<'ctx> Compiler<'ctx> {
                         self.builder.build_store(r1, v1);
                     }
                     RegCode::Return(reg) => {
+                        if *retty == Type::Void {
+                            self.builder.build_return(None);
+                            continue;
+                        }
                         let reg = registers[*reg as usize];
                         let v = self.builder.build_load(i64_type, reg, "v").into_int_value();
                         match *retty {

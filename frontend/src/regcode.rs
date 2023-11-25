@@ -306,7 +306,7 @@ impl<'a> RegCodeGen<'a> {
         match name {
             "append" => Some((5, 2, false)),
             "len" => Some((6, 1, true)),
-            "map_to_list" => Some((7, 1, true)),
+            "pop" => Some((7, 1, true)),
             _ => None,
         }
     }

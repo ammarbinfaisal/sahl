@@ -192,6 +192,26 @@ impl<'a> Checker<'a> {
                     Err((start, Error::ArityMismatch(1, args.len()), end))
                 }
             }
+            "pop" => {
+                if args.len() == 1 {
+                    match &args[0] {
+                        Type::List(t) => {
+                            let ty = *(t.clone());
+                            Ok(ty)
+                        }
+                        _ => Err((
+                            start,
+                            Error::TypeMismatch(
+                                vec![Type::List(Box::new(Type::Void))],
+                                vec![args[0].clone()],
+                            ),
+                            end,
+                        )),
+                    }
+                } else {
+                    Err((start, Error::ArityMismatch(1, args.len()), end))
+                }
+            }
             _ => Err((start, Error::UndefinedFunction(name.to_string()), end)),
         }
     }
