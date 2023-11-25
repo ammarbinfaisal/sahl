@@ -218,7 +218,7 @@ impl GOCodegen {
                         code.push_str(&format!("{}", b));
                     }
                     Lit::Str(s) => {
-                        let string = String::from_utf8_lossy(s);
+                        let string = String::from_iter(s.iter());
                         let string = unescape(&string);
                         code.push_str(&format!("\"{}\"", string));
                     }

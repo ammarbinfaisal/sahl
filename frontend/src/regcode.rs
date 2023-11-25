@@ -539,9 +539,16 @@ impl<'a> RegCodeGen<'a> {
                         }
                     }
                     Lit::Str(s) => {
-                        let mut s = s.clone();
-                        s.push(0);
-                        self.consts.push((Type::Str, s.clone()));
+                        // encode as utf8
+                        let mut bytes = vec![];
+                        for c in s.iter() {
+                            let mut buf = [0u8; 4];
+                            let len = c.encode_utf8(&mut buf).len();
+                            for i in 0..len {
+                                bytes.push(buf[i]);
+                            }
+                        }
+                        self.consts.push((Type::Str, bytes));
                     }
                 }
                 let const_idx = self.consts.len() - 1;

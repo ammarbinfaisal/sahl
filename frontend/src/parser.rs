@@ -599,9 +599,7 @@ fn exp<'tokens, 'src: 'tokens>(
                     };
 
                     let string = select! {
-                        Token::Str(s) => Expr::Literal { lit: Lit::Str(s.into_iter().map(|c| {
-                            c as u8
-                        }).collect()), ty: Type::Str }
+                        Token::Str(s) => Expr::Literal { lit: Lit::Str(s), ty: Type::Str }
                     };
 
                     let double = select! {

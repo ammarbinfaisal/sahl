@@ -31,7 +31,7 @@ pub enum Lit {
     Int(i64),
     Char(u8),
     Bool(bool),
-    Str(Vec<u8>),
+    Str(Vec<char>),
     Double(f64),
 }
 
