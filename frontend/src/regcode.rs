@@ -237,6 +237,7 @@ pub struct RegCodeGen<'a> {
     locals: NestedEnv,
     func_idx: HashMap<&'a str, usize>,
     func_args_len: Vec<u32>,
+    typemap: HashMap<String, Type>,
     pub func_code: Vec<Vec<RegCode>>,
     pub start_func_idx: usize,
     curr_func: usize,
@@ -252,7 +253,7 @@ pub struct RegCodeGen<'a> {
 }
 
 impl<'a> RegCodeGen<'a> {
-    pub fn new(_source_name: String) -> Self {
+    pub fn new(_source_name: String, typemap: HashMap<String, Type>) -> Self {
         RegCodeGen {
             code: Vec::new(),
             locals: NestedEnv::new(),
@@ -270,6 +271,7 @@ impl<'a> RegCodeGen<'a> {
             free_regs: [true; 256],
             breaks: Vec::new(),
             coro_call: false,
+            typemap,
         }
     }
 
@@ -347,7 +349,17 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
-    fn compile_complex_print(&mut self, reg: u8, arg_ty: Type) {
+    fn compile_complex_print(&mut self, reg: u8, arg_ty: Type, recur: usize) {
+        if recur > 5 {
+            // print ...
+            let const_ellipses = self.consts.len();
+            self.consts.push((Type::Str, b"...".to_vec()));
+            let const_reg = self.get_reg();
+            self.code.push(RegCode::Const(const_ellipses, const_reg));
+            self.code.push(RegCode::NCall(4, vec![const_reg]));
+            self.free_reg(const_reg);
+            return;
+        }
         match arg_ty {
             Type::List(ty) => {
                 // compile into a loop
@@ -388,7 +400,7 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Nop);
                 let el_reg = self.get_reg();
                 self.code.push(RegCode::ListGet(reg, ix_reg, el_reg));
-                self.compile_complex_print(el_reg, *ty);
+                self.compile_complex_print(el_reg, *ty, recur + 1);
                 // print , if not last
                 let is_last_cond_reg = self.get_reg();
                 let len_minus_1_reg = self.get_reg();
@@ -451,14 +463,13 @@ impl<'a> RegCodeGen<'a> {
                     // compile_complex_print
                     let el_reg = self.get_reg();
                     let const_ix = self.consts.len();
+                    let const_reg = self.get_reg();
                     self.consts.push((Type::Int, i.to_le_bytes().to_vec()));
-                    self.code.push(RegCode::Const(const_ix, el_reg));
-                    self.code.push(RegCode::TupleGet(reg, el_reg, el_reg));
-                    self.compile_print(el_reg, ty.clone());
-                    // print , if not last
-                    if i != tys.len() - 1 {
-                        self.code.push(RegCode::NCall(4, vec![comma_reg]));
-                    }
+                    self.code.push(RegCode::Const(const_ix, const_reg));
+                    self.code.push(RegCode::TupleGet(reg, const_reg, el_reg));
+                    self.compile_complex_print(el_reg, ty.clone(), recur + 1);
+                    self.code.push(RegCode::NCall(4, vec![comma_reg]));
+                    self.free_reg(const_reg);
                     self.free_reg(el_reg);
                 }
                 // print )
@@ -467,6 +478,14 @@ impl<'a> RegCodeGen<'a> {
                 self.free_reg(comma_reg);
                 self.free_reg(open_reg);
                 self.free_reg(close_reg);
+            }
+            Type::Custom(tyname) => {
+                let actual_ret_type = self.typemap.get(&tyname);
+                if actual_ret_type.is_some() {
+                    self.compile_complex_print(reg, actual_ret_type.unwrap().clone(), recur + 1);
+                } else {
+                    panic!("Unknown type: {}", tyname);
+                }
             }
             ty => {
                 self.compile_print(reg, ty);
@@ -693,7 +712,7 @@ impl<'a> RegCodeGen<'a> {
                         let argtys = args.iter().map(|e| e.1.get_type());
                         // self.code.push(RegCode::PrintLock);
                         for arg in arg_regs.iter().zip(argtys) {
-                            self.compile_complex_print(*arg.0, arg.1);
+                            self.compile_complex_print(*arg.0, arg.1, 0);
                         }
                         // self.code.push(RegCode::PrintUnlock);
                         return;
@@ -844,10 +863,10 @@ impl<'a> RegCodeGen<'a> {
                 self.code.push(RegCode::Tuple(exprs.len(), reg, tys));
                 for expr in exprs.iter().enumerate().rev() {
                     self.compile_expr(&expr.1);
+                    let const_reg = self.get_reg();
                     let val_reg = self.stack_pop();
                     let const_ix = self.consts.len();
                     self.consts.push((Type::Int, expr.0.to_le_bytes().to_vec()));
-                    let const_reg = self.get_reg();
                     self.code.push(RegCode::Const(const_ix, const_reg));
                     self.code.push(RegCode::TupleSet(reg, const_reg, val_reg));
                     self.free_reg(const_reg);

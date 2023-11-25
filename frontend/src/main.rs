@@ -38,7 +38,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
             let res2 = check_program(&mut p);
 
             match res2 {
-                Ok(_env) => {
+                Ok((_env, typemap)) => {
                     if verbose {
                         println!("Program is well-typed");
                     }
@@ -47,7 +47,7 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
                         println!("{}", res)
                     } else {
                         // println!("CFG:");
-                        let mut gen = RegCodeGen::new(f.to_string());
+                        let mut gen = RegCodeGen::new(f.to_string(), typemap);
                         gen.compile_program(&p, to_compile);
                         if verbose {
                             for funcs in gen.func_code.iter() {

@@ -128,11 +128,12 @@ int print_opcode(uint8_t *code, int i) {
         printf("listget %d, %d - %d\n", code[i + 1], code[i + 2], code[i + 3]);
         return i + 4;
         break;
-    case OP_LIST: {
-        uint64_t len = read_u64(code, i + 1);
-        uint8_t res = code[i + 9];
-        printf("list %ld - %d\n", len, res);
-        return i + 10;
+    case OP_TUPLESET: {
+        uint8_t tup_reg = code[i + 1];
+        uint8_t idx_reg = code[i + 2];
+        uint8_t res_reg = code[i + 3];
+        printf("tupleset %d %d - %d\n", tup_reg, idx_reg, res_reg);
+        return i + 4;
     }
     case OP_TUPLEGET: {
         uint8_t tup_reg = code[i + 1];

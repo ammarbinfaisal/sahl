@@ -455,11 +455,21 @@ void handle_tuple(VM *vm) {
     Obj *newobj = new_obj(vm, OBJ_TUPLE);
     newobj->tuple.length = len;
     newobj->tuple.items = malloc(sizeof(Value) * len);
-    for (int i = 0; i < len; ++i) {
-        newobj->tuple.items[i] = pop(vm);
-    }
+    // now, tupleset will be used to set the values
+    // for (int i = 0; i < len; ++i) {
+    //     newobj->tuple.items[i] = pop(vm);
+    // }
     newobj->tuple.boxed_items = bitsets;
     vm->regs[res].i = (uint64_t)newobj;
+}
+
+void handle_tupleset(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int tuple = code[++vm->call_frame->ip];
+    int index = code[++vm->call_frame->ip];
+    int reg = code[++vm->call_frame->ip];
+    Obj *obj = vm->regs[tuple].o;
+    obj->tuple.items[vm->regs[index].i] = vm->regs[reg].i;
 }
 
 void handle_tupleget(VM *vm) {
@@ -1012,7 +1022,7 @@ static OpcodeHandler opcode_handlers[] = {
     handle_lor,         handle_lnot,     handle_bshl,
     handle_bshr,        handle_fneg,     handle_ineg,
     handle_make,        handle_listset,  handle_listget,
-    handle_list,        handle_tupleget, handle_tuple,
+    handle_tupleset,    handle_tupleget, handle_tuple,
     handle_strget,      handle_mapget,   handle_mapset,
     handle_chansend,    handle_chanrecv, handle_jmp,
     handle_jmpifnot,    handle_call,     handle_ncall,

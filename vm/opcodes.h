@@ -38,7 +38,7 @@
 #define OP_MAKE 33
 #define OP_LISTSET 34
 #define OP_LISTGET 35
-#define OP_LIST 36
+#define OP_TUPLESET 36
 #define OP_TUPLEGET 37
 #define OP_TUPLE 38
 #define OP_STRGET 39

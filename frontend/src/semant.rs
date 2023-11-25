@@ -80,57 +80,6 @@ impl std::fmt::Display for Error {
 type TypeEnv = Vec<HashMap<String, Type>>;
 pub type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
 
-fn builtin_fn(name: &str, args: &[Type], start: usize, end: usize) -> Result<Type, Spanned<Error>> {
-    match name {
-        "print" => Ok(Type::Void),
-        "append" => {
-            if args.len() == 2 {
-                match &args[0] {
-                    Type::List(t) => {
-                        let ty = *(t.clone());
-                        if ty == args[1] {
-                            Ok(Type::List(Box::new(ty)))
-                        } else {
-                            Err((
-                                start,
-                                Error::TypeMismatch(vec![ty.clone()], vec![args[1].clone()]),
-                                end,
-                            ))
-                        }
-                    }
-                    _ => Err((
-                        start,
-                        Error::TypeMismatch(
-                            vec![Type::List(Box::new(Type::Void))],
-                            vec![args[0].clone()],
-                        ),
-                        end,
-                    )),
-                }
-            } else {
-                Err((start, Error::ArityMismatch(2, args.len()), end))
-            }
-        }
-        "len" => {
-            if args.len() == 1 {
-                // match &args[0] {
-                //     Type::List(_) => Ok(Type::Int),
-                //     _ => Err(Error::TypeMismatch(
-                //         vec![Type::List(Box::new(Type::Void))],
-                //         vec![args[0].clone()],
-                //     )),
-                // }
-
-                // arg can be either a list or a string
-                Ok(Type::Int)
-            } else {
-                Err((start, Error::ArityMismatch(1, args.len()), end))
-            }
-        }
-        _ => Err((start, Error::UndefinedFunction(name.to_string()), end)),
-    }
-}
-
 struct Checker<'a> {
     type_env: TypeEnv,
     func_env: &'a FuncEnv,
@@ -199,6 +148,67 @@ impl<'a> Checker<'a> {
         }
     }
 
+    fn builtin_fn(
+        &self,
+        name: &str,
+        args: &[Type],
+        start: usize,
+        end: usize,
+    ) -> Result<Type, Spanned<Error>> {
+        match name {
+            "print" => Ok(Type::Void),
+            "append" => {
+                if args.len() == 2 {
+                    match &args[0] {
+                        Type::List(t) => {
+                            let ty = *(t.clone());
+                            if self.match_type(&ty, &args[1]) {
+                                Ok(Type::List(Box::new(ty)))
+                            } else {
+                                Err((
+                                    start,
+                                    Error::TypeMismatch(vec![ty.clone()], vec![args[1].clone()]),
+                                    end,
+                                ))
+                            }
+                        }
+                        _ => Err((
+                            start,
+                            Error::TypeMismatch(
+                                vec![Type::List(Box::new(Type::Void))],
+                                vec![args[0].clone()],
+                            ),
+                            end,
+                        )),
+                    }
+                } else {
+                    Err((start, Error::ArityMismatch(2, args.len()), end))
+                }
+            }
+            "len" => {
+                if args.len() == 1 {
+                    Ok(Type::Int)
+                } else {
+                    Err((start, Error::ArityMismatch(1, args.len()), end))
+                }
+            }
+            _ => Err((start, Error::UndefinedFunction(name.to_string()), end)),
+        }
+    }
+
+    fn actual_type(&self, ty: &Type) -> Type {
+        match ty {
+            Type::Custom(name) => {
+                if let Some(ty) = self.typemap.get(name) {
+                    self.actual_type(ty)
+                } else {
+                    ty.clone()
+                }
+            }
+            _ => ty.clone(),
+        }
+    }
+
     fn check_expr(&self, expr: &mut Spanned<Expr>) -> Result<Type, Spanned<Error>> {
         // println!("Checking expr: {:?}", expr);
         let immut_expr = expr.1.clone();
@@ -209,6 +219,7 @@ impl<'a> Checker<'a> {
                     Ok(t.clone())
                 } else {
                     let t = self.find_var(name, expr.0, expr.2)?;
+                    let t = self.actual_type(&t);
                     *ty = Some(t.clone());
                     Ok(t)
                 }
@@ -300,10 +311,11 @@ impl<'a> Checker<'a> {
                 let tyex = self.check_expr(exprs.iter_mut().next().unwrap())?;
                 for elem in exprs.iter_mut().skip(1) {
                     let tyex2 = self.check_expr(elem)?;
-                    if self.match_type(&tyex, &tyex2) {
+                    if !self.match_type(&tyex, &tyex2) {
                         return Err((elem.0, Error::TypeMismatch(vec![tyex], vec![tyex2]), elem.2));
                     }
                 }
+                let tyex = self.actual_type(&tyex);
                 *t = Some(Type::List(Box::new(tyex.clone())));
                 Ok(Type::List(Box::new(tyex)))
             }
@@ -408,7 +420,7 @@ impl<'a> Checker<'a> {
                     unimplemented!("Cannot compile call using a complex expression");
                 }
                 let name = name.unwrap();
-                let res = builtin_fn(
+                let res = self.builtin_fn(
                     &name,
                     argsty
                         .iter()
@@ -443,7 +455,7 @@ impl<'a> Checker<'a> {
                 }
 
                 for (argty, formal_type) in argsty.iter().zip(formal_types) {
-                    if argty != formal_type {
+                    if !self.match_type(argty, formal_type) {
                         return Err((
                             expr.0,
                             Error::TypeMismatch(vec![argty.clone()], vec![formal_type.clone()]),
@@ -451,8 +463,9 @@ impl<'a> Checker<'a> {
                         ));
                     }
                 }
-                *t = Some(ret_type.clone());
-                Ok(ret_type.clone())
+                let actual_ret_type = self.actual_type(ret_type);
+                *t = Some(actual_ret_type.clone());
+                Ok(actual_ret_type.clone())
             }
             Expr::Cast { expr, ty } => {
                 let tyex = self.check_expr(expr)?;
@@ -468,8 +481,9 @@ impl<'a> Checker<'a> {
             }
             Expr::Subscr { expr, index, ty: t } => {
                 let ty = self.check_expr(expr)?;
+                let actual_ty = self.actual_type(&ty);
                 let index_ty = self.check_expr(index)?;
-                match ty.clone() {
+                match actual_ty {
                     Type::List(tyy) => {
                         if index_ty == Type::Int {
                             *t = Some(*tyy.clone());
@@ -539,7 +553,7 @@ impl<'a> Checker<'a> {
                         expr.0,
                         Error::TypeMismatch(
                             vec![Type::List(Box::new(Type::Void))],
-                            vec![ty.clone()],
+                            vec![actual_ty.clone()],
                         ),
                         expr.2,
                     )),
@@ -860,7 +874,9 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
-pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
+pub fn check_program(
+    program: &mut Program,
+) -> Result<(FuncEnv, HashMap<String, Type>), Spanned<Error>> {
     let mut func_env: FuncEnv = HashMap::new();
 
     let typedefs = program
@@ -901,7 +917,15 @@ pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
             .iter()
             .map(|arg| arg.ty.clone())
             .collect::<Vec<_>>();
-        let ret_ty = func.retty.clone();
+        let ret_ty = if let Type::Custom(tyname) = &func.retty {
+            if let Some(ty) = typemap.get(tyname) {
+                ty.clone()
+            } else {
+                func.retty.clone()
+            }
+        } else {
+            func.retty.clone()
+        };
         func_env.insert(func.name.clone(), (args_ty, ret_ty));
     }
 
@@ -956,5 +980,5 @@ pub fn check_program(program: &mut Program) -> Result<FuncEnv, Spanned<Error>> {
     if mainfn.1 != Type::Void {
         return Err((0, Error::MainNotVoid, 0));
     }
-    Ok(func_env)
+    Ok((func_env, typemap))
 }
