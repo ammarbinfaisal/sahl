@@ -38,16 +38,20 @@ fn exec(source: &str, f: &str, to_go: bool, to_compile: bool, verbose: bool) {
             let res2 = check_program(&mut p);
 
             match res2 {
-                Ok((_env, typemap)) => {
+                Ok((_env, typemap, variants)) => {
                     if verbose {
                         println!("Program is well-typed");
+                        println!("Type map:");
+                        for (k, v) in typemap.iter() {
+                            println!("{}: {:?}", k, v);
+                        }
                     }
                     if to_go {
                         let res = go::compile_program(&p);
                         println!("{}", res)
                     } else {
                         // println!("CFG:");
-                        let mut gen = RegCodeGen::new(f.to_string(), typemap);
+                        let mut gen = RegCodeGen::new(f.to_string(), typemap, variants);
                         gen.compile_program(&p, to_compile);
                         if verbose {
                             for funcs in gen.func_code.iter() {

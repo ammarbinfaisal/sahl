@@ -29,6 +29,7 @@ enum Token<'src> {
     Continue,
     Extern,
     Typedef,
+    Is,
     // Symbols
     Tilde,
     Plus,
@@ -94,6 +95,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Continue => write!(f, "continue"),
             Token::Extern => write!(f, "extern"),
             Token::Typedef => write!(f, "type"),
+            Token::Is => write!(f, "is"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -316,6 +318,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "ref" => Token::Ref,
         "extern" => Token::Extern,
         "type" => Token::Typedef,
+        "is" => Token::Is,
         _ => Token::Ident(s),
     });
 
@@ -921,6 +924,22 @@ fn exp<'tokens, 'src: 'tokens>(
 
             let aexp = logicor;
 
+            let is = aexp
+                .clone()
+                .then(just(Token::Is).ignore_then(typee()).or_not())
+                .map(|(e, ty)| {
+                    if let Some(ty) = ty {
+                        Expr::Is {
+                            expr: Box::new(e),
+                            ix: None,
+                            ty,
+                        }
+                    } else {
+                        e.1
+                    }
+                })
+                .boxed();
+
             // [expr, expr, expr]
             let list = just(Token::LeftBracket)
                 .ignored()
@@ -994,7 +1013,7 @@ fn exp<'tokens, 'src: 'tokens>(
                 .or(list)
                 .or(range)
                 .or(assignment)
-                .or(aexp.map(|(_, e, _)| e))
+                .or(is)
                 .or(chanread)
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
         },
@@ -1199,11 +1218,36 @@ fn parse_function<'tokens, 'src: 'tokens>(
 fn parse_typdef<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel, Err<Rich<'tokens, Token<'src>, Span>>>
 {
+    let variant_param = just(Token::LeftParen)
+        .ignored()
+        .then(typee())
+        .then_ignore(just(Token::RightParen));
+
+    let variant = ident().then(variant_param.or_not()).boxed();
+
+    let variants = variant
+        .separated_by(just(Token::Pipe))
+        .collect::<Vec<_>>()
+        .map(|vars| {
+            let variant = Type::Variant(
+                vars.into_iter()
+                    .map(|(name, ty)| {
+                        let mut optty = Type::Void;
+                        if let Some((_, ty2)) = ty {
+                            optty = ty2;
+                        }
+                        (name, optty)
+                    })
+                    .collect(),
+            );
+            variant
+        });
+
     let typedef = just(Token::Typedef)
         .ignored()
         .then(ident())
         .then_ignore(just(Token::Assign))
-        .then(typee())
+        .then(variants)
         .then(just(Token::Semicolon))
         .map(|(((_, name), ty), _)| TopLevel::Typedef(name.to_string(), ty))
         .boxed();
@@ -1230,9 +1274,7 @@ pub fn program(s: &str) -> Option<Program> {
             .into_output_errors();
 
         if let Some(top_levels) = res {
-            return Some(Program {
-                top_levels
-            });
+            return Some(Program { top_levels });
         } else {
             handle_err(&errs, s);
         }

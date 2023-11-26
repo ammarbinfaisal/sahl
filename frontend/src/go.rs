@@ -462,6 +462,7 @@ impl GOCodegen {
                 code.push_str(&self.compile_expr(expr));
                 code
             }
+            _ => unimplemented!("compile_expr: {:?}", expr),
         }
     }
 

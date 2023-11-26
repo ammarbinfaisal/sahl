@@ -239,6 +239,7 @@ pub struct RegCodeGen<'a> {
     func_idx: HashMap<&'a str, usize>,
     func_args_len: Vec<u32>,
     typemap: HashMap<String, Type>,
+    variants: HashMap<String, (Type, String, usize)>,
     pub func_code: Vec<Vec<RegCode>>,
     pub start_func_idx: usize,
     curr_func: usize,
@@ -254,7 +255,11 @@ pub struct RegCodeGen<'a> {
 }
 
 impl<'a> RegCodeGen<'a> {
-    pub fn new(_source_name: String, typemap: HashMap<String, Type>) -> Self {
+    pub fn new(
+        _source_name: String,
+        typemap: HashMap<String, Type>,
+        variants: HashMap<String, (Type, String, usize)>,
+    ) -> Self {
         RegCodeGen {
             code: Vec::new(),
             locals: NestedEnv::new(),
@@ -272,6 +277,7 @@ impl<'a> RegCodeGen<'a> {
             free_regs: [true; 256],
             breaks: Vec::new(),
             coro_call: false,
+            variants,
             typemap,
         }
     }
@@ -565,7 +571,24 @@ impl<'a> RegCodeGen<'a> {
                     // println!("{:?}", self.code);
                     self.stack_push(reg);
                 } else {
-                    panic!("Unknown variable: {}", name);
+                    // it is variant
+                    let ty = self.variants.get(name);
+                    if ty.is_some() {
+                        // find variant ix
+                        let variant_ix = ty.unwrap().2;
+                        let varreg = self.get_reg();
+                        let const_reg = self.get_reg();
+                        let const_ix = self.consts.len();
+                        self.consts
+                            .push((Type::Int, variant_ix.to_le_bytes().to_vec()));
+                        self.code.push(RegCode::Const(const_ix, const_reg));
+                        self.code.push(RegCode::NCall(8, vec![0, const_reg]));
+                        self.free_reg(const_reg);
+                        self.code.push(RegCode::Move(varreg, 0));
+                        self.stack_push(varreg);
+                    } else {
+                        panic!("Unknown variable: {}", name);
+                    }
                 }
             }
             Expr::Arith {
@@ -734,6 +757,38 @@ impl<'a> RegCodeGen<'a> {
                         return;
                     }
                     let reg = self.get_reg();
+
+                    if let Some(ty) = self.variants.get(&name) {
+                        // check which variant it is
+                        let mut variant_ix = 0;
+                        let tyname = name;
+                        let actual_ty = self.typemap.get(&ty.1);
+                        if let Some(actual_ty) = actual_ty {
+                            if let Type::Variant(variants) = actual_ty {
+                                // check whcih variant is being checked
+                                for (i, variant) in variants.iter().enumerate() {
+                                    if variant.0 == *tyname {
+                                        variant_ix = i;
+                                    }
+                                }
+                            }
+                        }
+                        // NCall(8, [reg, variant_ix])
+                        let varreg = self.get_reg();
+                        let variant_ix_reg = self.get_reg();
+                        let const_variant_ix = self.consts.len();
+                        self.consts
+                            .push((Type::Int, variant_ix.to_le_bytes().to_vec()));
+                        self.code
+                            .push(RegCode::Const(const_variant_ix, variant_ix_reg));
+                        self.code
+                            .push(RegCode::NCall(8, vec![arg_regs[0], variant_ix_reg]));
+                        self.code.push(RegCode::Move(varreg, 0));
+                        self.free_reg(variant_ix_reg);
+                        self.stack_push(varreg);
+                        return;
+                    }
+
                     let func = self.func_idx.get(name.as_str());
                     if func.is_some() {
                         let func = *func.unwrap();
@@ -832,6 +887,19 @@ impl<'a> RegCodeGen<'a> {
                     _ => unreachable!(),
                 }
                 self.free_reg(arg);
+            }
+            Expr::Is { expr, ix, .. } => {
+                self.compile_expr(&expr);
+                let arg = self.stack_unfree_pop();
+                let reg = self.get_reg();
+                let const_ix = self.consts.len();
+                self.consts
+                    .push((Type::Int, (*ix).unwrap().to_le_bytes().to_vec()));
+                self.code.push(RegCode::Const(const_ix, reg));
+                self.code.push(RegCode::NCall(9, vec![arg, reg]));
+                self.code.push(RegCode::Move(reg, 0));
+                self.free_reg(arg);
+                self.stack_push(reg);
             }
             Expr::Make { ty, expr: size } => {
                 let reg = self.get_reg();

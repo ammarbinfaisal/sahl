@@ -602,6 +602,8 @@ impl<'ctx> Compiler<'ctx> {
                             5 => "append",
                             6 => "len",
                             7 => "pop",
+                            8 => "make_variant",
+                            9 => "is_variant",
                             _ => todo!(),
                         };
                         let fn_ptr = self.module.get_function(&fn_name).unwrap();
@@ -919,6 +921,16 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "chanrecv",
             self.create_func_type(&[Type::Int], Type::Int), // chan
+            None,
+        );
+        self.module.add_function(
+            "make_variant",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // val, tag
+            None,
+        );
+        self.module.add_function(
+            "is_variant",
+            self.create_func_type(&[Type::Int, Type::Int], Type::Bool), // val, tag
             None,
         );
 

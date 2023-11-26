@@ -2,21 +2,22 @@ use crate::{syntax::*, utils::extract_var_name};
 use std::{collections::HashMap, vec};
 
 pub enum Error {
-    TypeMismatch(Vec<Type>, Vec<Type>),
-    ArityMismatch(usize, usize),
+    BreakOutsideLoop,
+    ContinueOutsideLoop,
+    CoroutineNotFunction,
     UndefinedVariable(String),
     UndefinedFunction(String),
-    CoroutineNotFunction,
-    ContinueOutsideLoop,
-    BreakOutsideLoop,
+    ArityMismatch(usize, usize),
+    TypeMismatch(Vec<Type>, Vec<Type>),
+    TupleIndexOutOfBounds(usize, usize),
+    DuplicateVariant(String, String),
+    CastError(Type, Type),
     IncorrectLHS(Expr),
     NoReturn(String),
-    NoMain,
-    MainArgs,
-    MainNotVoid,
-    TupleIndexOutOfBounds(usize, usize),
-    CastError(Type, Type),
     RefNonLValue,
+    MainNotVoid,
+    MainArgs,
+    NoMain,
 }
 
 impl std::fmt::Display for Error {
@@ -73,6 +74,9 @@ impl std::fmt::Display for Error {
             Error::RefNonLValue => {
                 write!(f, "Cannot take reference of non-lvalue")
             }
+            Error::DuplicateVariant(name, parent) => {
+                write!(f, "Duplicate variant {} in {}", name, parent)
+            }
         }
     }
 }
@@ -84,17 +88,24 @@ struct Checker<'a> {
     type_env: TypeEnv,
     func_env: &'a FuncEnv,
     typemap: &'a HashMap<String, Type>,
+    variants: &'a HashMap<String, (Type, String, usize)>,
     loop_depth: usize,
     func_ret_type: Type,
     scope: usize,
 }
 
 impl<'a> Checker<'a> {
-    fn new(func_env: &'a FuncEnv, typemap: &'a HashMap<String, Type>, retty: Type) -> Self {
+    fn new(
+        func_env: &'a FuncEnv,
+        typemap: &'a HashMap<String, Type>,
+        variants: &'a HashMap<String, (Type, String, usize)>,
+        retty: Type,
+    ) -> Self {
         Checker {
             func_env,
             typemap,
             type_env: vec![HashMap::new()],
+            variants,
             func_ret_type: retty,
             loop_depth: 0,
             scope: 1,
@@ -107,6 +118,10 @@ impl<'a> Checker<'a> {
                 return Ok(ty.clone());
             }
         }
+        // check if it is a variant
+        if let Some((_, parent, _)) = self.variants.get(name) {
+            return Ok(self.typemap.get(parent).unwrap().clone());
+        }
         Err((start, Error::UndefinedVariable(name.to_string()), end))
     }
 
@@ -115,13 +130,19 @@ impl<'a> Checker<'a> {
             return true;
         }
         match (ty1, ty2) {
-            (Type::Custom(name1), Type::Custom(name2)) => {
-                if let Some(ty1) = self.typemap.get(name1) {
-                    if let Some(ty2) = self.typemap.get(name2) {
-                        return self.match_type(ty1, ty2);
+            (Type::Variant(variants1), Type::Variant(variants2)) => {
+                if variants1.len() != variants2.len() {
+                    return false;
+                }
+                for (variant1, variant2) in variants1.iter().zip(variants2) {
+                    if !self.match_type(&variant1.1, &variant2.1) {
+                        return false;
                     }
                 }
-                false
+                true
+            }
+            (Type::Custom(name1), Type::Custom(name2)) => {
+                return name1 == name2;
             }
             (Type::List(ty1), Type::List(ty2)) => self.match_type(ty1, ty2),
             (Type::Map(key1, val1), Type::Map(key2, val2)) => {
@@ -220,7 +241,7 @@ impl<'a> Checker<'a> {
         match ty {
             Type::Custom(name) => {
                 if let Some(ty) = self.typemap.get(name) {
-                    self.actual_type(ty)
+                    ty.clone()
                 } else {
                     ty.clone()
                 }
@@ -235,6 +256,12 @@ impl<'a> Checker<'a> {
         match &mut expr.1 {
             Expr::Literal { lit: _, ty } => Ok(ty.clone()),
             Expr::Variable { name, ty } => {
+                // if is a variant, return the type of the variant
+                if let Some((_, parent, _)) = self.variants.get(name) {
+                    let parentty = self.typemap.get(parent).unwrap().clone();
+                    *ty = Some(parentty.clone());
+                    return Ok(parentty);
+                }
                 if let Some(t) = ty {
                     Ok(t.clone())
                 } else {
@@ -243,6 +270,27 @@ impl<'a> Checker<'a> {
                     *ty = Some(t.clone());
                     Ok(t)
                 }
+            }
+            Expr::Is { ty, ix, expr } => {
+                let exty = self.check_expr(expr)?;
+                let actual_ty = self.actual_type(&exty);
+                if let Type::Variant(variants) = actual_ty {
+                    if let Type::Custom(name) = ty {
+                        // find name in variants
+                        for (i, variant) in variants.iter().enumerate() {
+                            if variant.0 == *name {
+                                *ix = Some(i);
+                                return Ok(Type::Bool);
+                            }
+                        }
+                    }
+                }
+                // FIXME: this is a bogus error
+                Err((
+                    expr.0,
+                    Error::UndefinedVariable("Variant is not defined".to_string()),
+                    expr.2,
+                ))
             }
             Expr::Ref { expr: ref_ex, ty } => {
                 let ex = *ref_ex.clone();
@@ -440,6 +488,13 @@ impl<'a> Checker<'a> {
                     unimplemented!("Cannot compile call using a complex expression");
                 }
                 let name = name.unwrap();
+
+                if let Some((_, parent, _)) = self.variants.get(&name) {
+                    let ty = self.typemap.get(parent).unwrap().clone();
+                    *t = Some(ty.clone());
+                    return Ok(ty);
+                }
+
                 let res = self.builtin_fn(
                     &name,
                     argsty
@@ -909,7 +964,14 @@ fn validate_cfg(cfg: &CFG) -> bool {
 
 pub fn check_program(
     program: &mut Program,
-) -> Result<(FuncEnv, HashMap<String, Type>), Spanned<Error>> {
+) -> Result<
+    (
+        FuncEnv,
+        HashMap<String, Type>,
+        HashMap<String, (Type, String, usize)>,
+    ),
+    Spanned<Error>,
+> {
     let mut func_env: FuncEnv = HashMap::new();
 
     let typedefs = program
@@ -930,6 +992,26 @@ pub fn check_program(
     for (name, ty) in typedefs {
         typemap.insert(name, ty);
     }
+
+    let variants = typemap
+        .iter()
+        .filter(|(_, ty)| match ty {
+            Type::Variant(_) => true,
+            _ => false,
+        })
+        .map(|(name, ty)| {
+            if let Type::Variant(variants) = ty {
+                variants
+                    .iter()
+                    .enumerate()
+                    .map(move |(ix, variant)| (variant.0.clone(), (ty.clone(), name.clone(), ix)))
+                    .collect::<Vec<_>>()
+            } else {
+                unreachable!()
+            }
+        })
+        .flatten()
+        .collect::<HashMap<_, _>>();
 
     let fns = program
         .top_levels
@@ -969,6 +1051,7 @@ pub fn check_program(
         let mut checker = Checker::new(
             &func_env,
             &typemap,
+            &variants,
             func_env.get(&func.name).unwrap().1.clone(),
         );
         // add args to type env
@@ -1013,5 +1096,5 @@ pub fn check_program(
     if mainfn.1 != Type::Void {
         return Err((0, Error::MainNotVoid, 0));
     }
-    Ok((func_env, typemap))
+    Ok((func_env, typemap, variants))
 }

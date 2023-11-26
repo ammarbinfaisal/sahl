@@ -14,6 +14,7 @@ pub enum Type {
     Range,
     Ref(Box<Type>),
     Custom(String),
+    Variant(Vec<(String, Type)>),
 }
 
 impl Type {
@@ -162,6 +163,11 @@ pub enum Expr {
         expr: Box<Expr>,
         ty: Option<Type>,
     },
+    Is {
+        expr: Box<Spanned<Expr>>,
+        ix: Option<usize>,
+        ty: Type,
+    },
 }
 
 impl Expr {
@@ -187,6 +193,7 @@ impl Expr {
             Expr::Cast { ty, .. } => ty.clone(),
             Expr::Ref { ty, .. } => ty.clone().unwrap(),
             Expr::Deref { expr: _, ty } => ty.clone().unwrap(),
+            Expr::Is { .. } => Type::Bool,
         }
     }
 }
