@@ -36,9 +36,7 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
             leaders.insert(i + 1);
         }
         if leaders.contains(&i) && !block.is_empty() {
-            cfg.push(BasicBlock {
-                code: block,
-            });
+            cfg.push(BasicBlock { code: block });
             block = Vec::new();
         }
         block.push(code.clone());
@@ -46,9 +44,7 @@ pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
     }
 
     if !block.is_empty() {
-        cfg.push(BasicBlock {
-            code: block,
-        });
+        cfg.push(BasicBlock { code: block });
     }
 
     // patching jmps
