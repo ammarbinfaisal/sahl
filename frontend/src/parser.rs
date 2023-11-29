@@ -1,4 +1,6 @@
-use crate::syntax::*;
+use std::process;
+
+use crate::{syntax::*, utils::extract_var_name};
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{extra::Err, input::SpannedInput, prelude::*, Parser};
 
@@ -30,6 +32,7 @@ enum Token<'src> {
     Extern,
     Typedef,
     Is,
+    Match,
     // Symbols
     Tilde,
     Plus,
@@ -96,6 +99,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Extern => write!(f, "extern"),
             Token::Typedef => write!(f, "type"),
             Token::Is => write!(f, "is"),
+            Token::Match => write!(f, "match"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -319,6 +323,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "extern" => Token::Extern,
         "type" => Token::Typedef,
         "is" => Token::Is,
+        "match" => Token::Match,
         _ => Token::Ident(s),
     });
 
@@ -1041,6 +1046,142 @@ fn statement<'tokens, 'src: 'tokens>(
                 .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
                 .boxed();
 
+            let matchcases = exp()
+                .then_ignore(just(Token::RightArrow))
+                .then(block.clone())
+                .map(|(expr, stmts)| (expr, stmts));
+
+            let matchst = just(Token::Match)
+                .ignored()
+                .then(exp())
+                .then_ignore(just(Token::LeftBrace))
+                .then(matchcases.repeated().collect::<Vec<_>>())
+                .then_ignore(just(Token::RightBrace))
+                .map(|res| {
+                    let ((_, expr), stmts) = res;
+                    // compile to if-else chain
+
+                    // like this:
+
+                    // type ADT = A | B | C;
+
+                    // match expr {
+                    //     A => {
+                    //         ...
+                    //     }
+                    //     else -> {
+                    //        ...
+                    //     }
+                    // }
+
+                    // becomes:
+
+                    // if expr is A {
+                    //     ...
+                    // } else {
+                    // ...
+                    // }
+
+                    let mut res: Vec<(Expr, Vec<Spanned<Stmt>>)> = Vec::new();
+                    let mut else_block = Vec::new();
+                    for (case, stmts) in stmts {
+                        match case.1 {
+                            Expr::Variable { name, .. } => {
+                                if name == "else" {
+                                    else_block = stmts;
+                                    continue;
+                                } else {
+                                    // variant
+                                    let ex = Expr::Is {
+                                        expr: Box::new(expr.clone()),
+                                        ty: Type::Custom(name.to_string()),
+                                        ix: None,
+                                    };
+                                    res.push((ex, stmts));
+                                }
+                            }
+                            Expr::Literal {  .. } => {
+                                // literal
+                                let ex = Expr::CmpOp {
+                                    op: CmpOp::Eq,
+                                    left: Box::new(expr.clone()),
+                                    right: Box::new((0, case.1, 0)),
+                                    ty: None,
+                                };
+                                res.push((ex, stmts));
+                            }
+                            Expr::Call { name, args, .. } => {
+                                // function call
+                                if let Some(name) = extract_var_name(&name) {
+                                    let ex = Expr::Is {
+                                        expr: Box::new(expr.clone()),
+                                        ty: Type::Custom(name.to_string()),
+                                        ix: None,
+                                    };
+                                    // case L1(x) -> {
+                                    //
+                                    // }
+
+                                    // becomes:
+                                    // if expr is L1 {
+                                    //     let x = expr;
+                                    //     ...
+                                    // }
+                                    let mut stmts = stmts;
+                                    // add subscription to expr
+                                    let expr = Expr::Subscr {
+                                        expr: Box::new(expr.clone()),
+                                        index: Box::new((
+                                            0,
+                                            Expr::Literal {
+                                                lit: Lit::Int(0),
+                                                ty: Type::Int,
+                                            },
+                                            0,
+                                        )),
+                                        ty: None,
+                                    };
+                                    if let Some(arg) = args.get(0) {
+                                        let name = match &arg.1 {
+                                            Expr::Variable { name, .. } => name,
+                                            _ => {
+                                                println!("expected variable in match case");
+                                                process::exit(1);
+                                            }
+                                        };
+                                        stmts.insert(
+                                            0,
+                                            (0, Stmt::Decl(name.to_string(), Box::new((0, expr, 0))), 0),
+                                        );
+                                    }
+                                    res.push((ex, stmts));
+                                } else {
+                                    println!("match case is not a variable");
+                                    process::exit(1);
+                                }
+                            }
+                            _ => {
+                                println!("match case: {:?}", case);
+                                process::exit(1);
+                            }
+                        }
+                    }
+                    let res =
+                        res.into_iter()
+                            .rev()
+                            .fold(else_block, |else_block, (expr, stmts)| {
+                                let start = stmts[0].0;
+                                let end = stmts[stmts.len() - 1].2;
+                                let if_ =
+                                    Stmt::IfElse(Box::new((start, expr, end)), stmts, Some(else_block));
+                                vec![(start, if_, end)]
+                            });
+
+                    res[0].1.clone()
+                })
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+                .boxed();
+
             let ifstmt = recursive(|if_| {
                 just(Token::If)
                     .ignored()
@@ -1138,6 +1279,7 @@ fn statement<'tokens, 'src: 'tokens>(
 
             let finall: Boxed<'_, '_, _, Spanned<Stmt>, _> = ifstmt
                 .or(whilestmt)
+                .or(matchst)
                 .or(forstmt)
                 .or(returnstmt)
                 .or(letstmt)

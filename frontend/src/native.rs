@@ -604,6 +604,7 @@ impl<'ctx> Compiler<'ctx> {
                             7 => "pop",
                             8 => "make_variant",
                             9 => "is_variant",
+                            10 => "get_variant",
                             _ => todo!(),
                         };
                         let fn_ptr = self.module.get_function(&fn_name).unwrap();
@@ -931,6 +932,11 @@ impl<'ctx> Compiler<'ctx> {
         self.module.add_function(
             "is_variant",
             self.create_func_type(&[Type::Int, Type::Int], Type::Bool), // val, tag
+            None,
+        );
+        self.module.add_function(
+            "get_variant",
+            self.create_func_type(&[Type::Int], Type::Int), // val
             None,
         );
 

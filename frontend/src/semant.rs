@@ -272,19 +272,14 @@ impl<'a> Checker<'a> {
                 }
             }
             Expr::Is { ty, ix, expr } => {
-                let exty = self.check_expr(expr)?;
-                let actual_ty = self.actual_type(&exty);
-                if let Type::Variant(variants) = actual_ty {
-                    if let Type::Custom(name) = ty {
-                        // find name in variants
-                        for (i, variant) in variants.iter().enumerate() {
-                            if variant.0 == *name {
-                                *ix = Some(i);
-                                return Ok(Type::Bool);
-                            }
-                        }
+                self.check_expr(expr)?;
+                if let Type::Custom(t) = ty {
+                    if let Some((_, _, i)) = self.variants.get(t) {
+                        *ix = Some(*i);
+                        return Ok(Type::Bool);
                     }
                 }
+                
                 // FIXME: this is a bogus error
                 Err((
                     expr.0,
@@ -623,6 +618,10 @@ impl<'a> Checker<'a> {
                                 expr.2,
                             ))
                         }
+                    }
+                    Type::Variant(_) => {
+                        *t = Some(actual_ty.clone());
+                        Ok(actual_ty.clone())
                     }
                     _ => Err((
                         expr.0,

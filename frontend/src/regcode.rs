@@ -760,19 +760,7 @@ impl<'a> RegCodeGen<'a> {
 
                     if let Some(ty) = self.variants.get(&name) {
                         // check which variant it is
-                        let mut variant_ix = 0;
-                        let tyname = name;
-                        let actual_ty = self.typemap.get(&ty.1);
-                        if let Some(actual_ty) = actual_ty {
-                            if let Type::Variant(variants) = actual_ty {
-                                // check whcih variant is being checked
-                                for (i, variant) in variants.iter().enumerate() {
-                                    if variant.0 == *tyname {
-                                        variant_ix = i;
-                                    }
-                                }
-                            }
-                        }
+                        let variant_ix = ty.2;
                         // NCall(8, [reg, variant_ix])
                         let varreg = self.get_reg();
                         let variant_ix_reg = self.get_reg();
@@ -828,6 +816,16 @@ impl<'a> RegCodeGen<'a> {
                     Type::Map(_, _) => RegCode::MapGet,
                     Type::Str => RegCode::StrGet,
                     Type::Tuple(_) => RegCode::TupleGet,
+                    Type::Variant(_) => {
+                        // NCall(10, [ex])
+                        self.code.push(RegCode::NCall(10, vec![ex]));
+                        let reg = self.get_reg();
+                        self.code.push(RegCode::Move(reg, 0));
+                        self.stack_push(reg);
+                        self.free_reg(ex);
+                        self.free_reg(idx);
+                        return;
+                    },
                     _ => unreachable!("Unknown type: {:?}", expr.1.get_type()),
                 };
                 let reg = self.get_reg();
@@ -892,14 +890,16 @@ impl<'a> RegCodeGen<'a> {
                 self.compile_expr(&expr);
                 let arg = self.stack_unfree_pop();
                 let reg = self.get_reg();
+                let is_res = self.get_reg();
                 let const_ix = self.consts.len();
                 self.consts
                     .push((Type::Int, (*ix).unwrap().to_le_bytes().to_vec()));
                 self.code.push(RegCode::Const(const_ix, reg));
                 self.code.push(RegCode::NCall(9, vec![arg, reg]));
-                self.code.push(RegCode::Move(reg, 0));
+                self.code.push(RegCode::Move(is_res, 0));
                 self.free_reg(arg);
-                self.stack_push(reg);
+                self.free_reg(reg);
+                self.stack_push(is_res);
             }
             Expr::Make { ty, expr: size } => {
                 let reg = self.get_reg();
