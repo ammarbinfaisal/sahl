@@ -839,106 +839,33 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub fn compile_program(&mut self, program: &Program, code: Vec<Vec<RegCode>>) {
-        self.module.add_function(
-            "iprint",
-            self.create_func_type(&[Type::Int], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "fprint",
-            self.create_func_type(&[Type::Double], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "cprint",
-            self.create_func_type(&[Type::Char], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "bprint",
-            self.create_func_type(&[Type::Bool], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "sprint",
-            self.create_func_type(&[Type::Str], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "exit",
-            self.create_func_type(&[Type::Int], Type::Void),
-            None,
-        );
-        self.module.add_function(
-            "append",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Void), // list, val
-            None,
-        );
-        self.module.add_function(
-            "pop",
-            self.create_func_type(&[Type::Int], Type::Int), // list
-            None,
-        );
-        self.module.add_function(
-            "make_list",
-            self.create_func_type(&[Type::Int], Type::Int), // len
-            None,
-        );
-        self.module.add_function(
-            "list",
-            self.create_func_type(&[Type::Int, Type::Int, Type::Int], Type::Void), // res, stack, len
-            None,
-        );
-        self.module.add_function(
-            "len",
-            self.create_func_type(&[Type::Int], Type::Int), // list
-            None,
-        );
-        self.module.add_function(
-            "make",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // type, len
-            None,
-        );
-        self.module.add_function(
-            "make_string",
-            self.create_func_type(&[Type::Int], Type::Int), // len
-            None,
-        );
-        self.module.add_function(
-            "listset",
-            self.create_func_type(&[Type::Int, Type::Int, Type::Int], Type::Void), // list, idx, val
-            None,
-        );
-        self.module.add_function(
-            "listget",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // list, idx
-            None,
-        );
-        self.module.add_function(
-            "chansend",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Void), // chan, val
-            None,
-        );
-        self.module.add_function(
-            "chanrecv",
-            self.create_func_type(&[Type::Int], Type::Int), // chan
-            None,
-        );
-        self.module.add_function(
-            "make_variant",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Int), // val, tag
-            None,
-        );
-        self.module.add_function(
-            "is_variant",
-            self.create_func_type(&[Type::Int, Type::Int], Type::Bool), // val, tag
-            None,
-        );
-        self.module.add_function(
-            "get_variant",
-            self.create_func_type(&[Type::Int], Type::Int), // val
-            None,
-        );
+        let functions = [
+            ("iprint", vec![Type::Int], Type::Void),
+            ("fprint", vec![Type::Double], Type::Void),
+            ("cprint", vec![Type::Char], Type::Void),
+            ("bprint", vec![Type::Bool], Type::Void),
+            ("sprint", vec![Type::Str], Type::Void),
+            ("exit", vec![Type::Int], Type::Void),
+            ("append", vec![Type::Int, Type::Int], Type::Void),
+            ("pop", vec![Type::Int], Type::Int),
+            ("make_list", vec![Type::Int], Type::Int),
+            ("list", vec![Type::Int, Type::Int, Type::Int], Type::Void),
+            ("len", vec![Type::Int], Type::Int),
+            ("make", vec![Type::Int, Type::Int], Type::Int),
+            ("make_string", vec![Type::Int], Type::Int),
+            ("listset", vec![Type::Int, Type::Int, Type::Int], Type::Void),
+            ("listget", vec![Type::Int, Type::Int], Type::Int),
+            ("chansend", vec![Type::Int, Type::Int], Type::Void),
+            ("chanrecv", vec![Type::Int], Type::Int),
+            ("make_variant", vec![Type::Int, Type::Int], Type::Int),
+            ("is_variant", vec![Type::Int, Type::Int], Type::Bool),
+            ("get_variant", vec![Type::Int], Type::Int),
+        ];
+
+        for (name, params, retty) in functions.iter() {
+            let func_type = self.create_func_type(params.as_slice(), retty.clone());
+            self.module.add_function(name, func_type, None);
+        }
 
         let fns = &program
             .top_levels
