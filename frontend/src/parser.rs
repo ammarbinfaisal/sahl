@@ -633,7 +633,8 @@ fn exp<'tokens, 'src: 'tokens>(
 
                     prim
                 },
-            );
+            )
+            .boxed();
 
             let primm = one_of(vec![Token::Minus, Token::Not, Token::Tilde])
                 .or_not()
@@ -1004,8 +1005,11 @@ fn exp<'tokens, 'src: 'tokens>(
                 .boxed();
 
             // ensure that prim is only a variable or a subscript
-            let assignment = primm
+            let assignment = prim
                 .clone()
+                .or(tuple
+                    .clone()
+                    .map_with_span(|e, span| (span.start, e, span.end)))
                 .then(just(Token::Assign))
                 .then(p_exp.clone())
                 .map(|((left, _), right)| Expr::Assign {
@@ -1014,10 +1018,11 @@ fn exp<'tokens, 'src: 'tokens>(
                 })
                 .boxed();
 
-            make.or(tuple)
+            assignment
+                .or(make)
+                .or(tuple)
                 .or(list)
                 .or(range)
-                .or(assignment)
                 .or(is)
                 .or(chanread)
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
@@ -1100,7 +1105,7 @@ fn statement<'tokens, 'src: 'tokens>(
                                     res.push((ex, stmts));
                                 }
                             }
-                            Expr::Literal {  .. } => {
+                            Expr::Literal { .. } => {
                                 // literal
                                 let ex = Expr::CmpOp {
                                     op: CmpOp::Eq,
@@ -1129,13 +1134,17 @@ fn statement<'tokens, 'src: 'tokens>(
                                     // }
                                     let mut stmts = stmts;
                                     // add subscription to expr
+                                    let mut name_vec  = Vec::new();
+                                    for n in name.chars() {
+                                        name_vec.push(n);
+                                    }
                                     let expr = Expr::Subscr {
                                         expr: Box::new(expr.clone()),
                                         index: Box::new((
                                             0,
                                             Expr::Literal {
-                                                lit: Lit::Int(0),
-                                                ty: Type::Int,
+                                                lit: Lit::Str(name_vec),
+                                                ty: Type::Str,
                                             },
                                             0,
                                         )),
@@ -1149,9 +1158,18 @@ fn statement<'tokens, 'src: 'tokens>(
                                                 process::exit(1);
                                             }
                                         };
+                                        let name = Expr::Variable {
+                                            name: name.clone(),
+                                            ty: None,
+                                        };
+                                        let spanned_name = (arg.0, name, arg.2);
                                         stmts.insert(
                                             0,
-                                            (0, Stmt::Decl(name.to_string(), Box::new((0, expr, 0))), 0),
+                                            (
+                                                0,
+                                                Stmt::Decl(spanned_name, Box::new((0, expr, 0))),
+                                                0,
+                                            ),
                                         );
                                     }
                                     res.push((ex, stmts));
@@ -1172,8 +1190,11 @@ fn statement<'tokens, 'src: 'tokens>(
                             .fold(else_block, |else_block, (expr, stmts)| {
                                 let start = stmts[0].0;
                                 let end = stmts[stmts.len() - 1].2;
-                                let if_ =
-                                    Stmt::IfElse(Box::new((start, expr, end)), stmts, Some(else_block));
+                                let if_ = Stmt::IfElse(
+                                    Box::new((start, expr, end)),
+                                    stmts,
+                                    Some(else_block),
+                                );
                                 vec![(start, if_, end)]
                             });
 
@@ -1239,13 +1260,17 @@ fn statement<'tokens, 'src: 'tokens>(
 
             let letstmt = just(Token::Let)
                 .ignored()
-                .then(ident())
-                .then_ignore(just(Token::Assign))
                 .then(exp())
                 .then(just(Token::Semicolon))
                 .map(|res| {
-                    let (((_, name), expr), _) = res;
-                    Stmt::Decl(name.to_string(), Box::new(expr))
+                    let ((_, expr), _) = res;
+                    let (lhs, rhs) = match expr.1 {
+                        Expr::Assign { left, right } => (*left, *right),
+                        _ => {
+                            return Stmt::Expr(Box::new(expr.clone()));
+                        }
+                    };
+                    Stmt::Decl(lhs, Box::new(rhs))
                 })
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 

@@ -201,7 +201,7 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Expr(Box<Spanned<Expr>>),
-    Decl(String, Box<Spanned<Expr>>),
+    Decl(Spanned<Expr>, Box<Spanned<Expr>>),
     For(String, Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
     While(Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
     IfElse(

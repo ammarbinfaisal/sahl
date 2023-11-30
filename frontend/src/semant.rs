@@ -619,9 +619,24 @@ impl<'a> Checker<'a> {
                             ))
                         }
                     }
-                    Type::Variant(_) => {
-                        *t = Some(actual_ty.clone());
-                        Ok(actual_ty.clone())
+                    Type::Variant(tys) => {
+                        // can only have integer literals as index
+                        if let Expr::Literal { lit, ty: _ } = index.1.clone() {
+                            if let Lit::Str(n) = lit {
+                                let name = n.iter().collect::<String>();
+                                for (variant_name, variant_ty) in tys {
+                                    if variant_name == name {
+                                        *t = Some(variant_ty.clone());
+                                        return Ok(variant_ty.clone());
+                                    }
+                                }
+                            }
+                        }
+                        Err((
+                            expr.0,
+                            Error::TypeMismatch(vec![Type::Int], vec![index_ty]),
+                            expr.2,
+                        ))
                     }
                     _ => Err((
                         expr.0,
@@ -798,8 +813,8 @@ impl<'a> Checker<'a> {
                 }
             }
             Stmt::Decl(var, ex) => {
-                let ty = self.check_expr(ex)?;
-                match ty {
+                let typee = self.check_expr(ex)?;
+                match typee {
                     Type::Void => {
                         return Err((
                             ex.0,
@@ -809,7 +824,37 @@ impl<'a> Checker<'a> {
                     }
                     _ => {
                         if let Some(scope_env) = self.type_env.last_mut() {
-                            scope_env.insert(var.clone(), ty.clone());
+                            match &mut (*var).1 {
+                                Expr::Variable { name, ty } => {
+                                    *ty = Some(typee.clone());
+                                    scope_env.insert(name.clone(), typee);
+                                }
+                                Expr::Tuple { exprs, .. } => {
+                                    if let Type::Tuple(tys) = typee {
+                                        for (expr, ty) in exprs.iter_mut().zip(tys) {
+                                            if let Expr::Variable { name, ty: optty } = &mut expr.1
+                                            {
+                                                *optty = Some(ty.clone());
+                                                scope_env.insert(name.clone(), ty);
+                                            }
+                                        }
+                                        return Ok(());
+                                    }
+                                    return Err((
+                                        ex.0,
+                                        Error::TypeMismatch(
+                                            vec![Type::Tuple(vec![Type::Any])],
+                                            vec![typee],
+                                        ),
+                                        ex.2,
+                                    ));
+                                }
+                                _ => {
+                                    unreachable!(
+                                        "Cannot compile declaration using a complex expression"
+                                    );
+                                }
+                            }
                         }
                     }
                 }

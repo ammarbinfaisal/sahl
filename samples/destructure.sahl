@@ -1,0 +1,5 @@
+fun main() {
+    let tuple = (1, 2, 3,);
+    let (a, b, c,) = tuple;
+    print(a, b, c);
+}

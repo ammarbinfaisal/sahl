@@ -1,5 +1,5 @@
 use crate::{syntax::*, utils::extract_var_name};
-use std::collections::HashMap;
+use std::{collections::HashMap, process::exit};
 
 // highlevel enum for 3/4 address code
 #[derive(Debug, Clone)]
@@ -825,7 +825,7 @@ impl<'a> RegCodeGen<'a> {
                         self.free_reg(ex);
                         self.free_reg(idx);
                         return;
-                    },
+                    }
                     _ => unreachable!("Unknown type: {:?}", expr.1.get_type()),
                 };
                 let reg = self.get_reg();
@@ -1062,12 +1062,49 @@ impl<'a> RegCodeGen<'a> {
             }
             Stmt::Decl(var, expr) => {
                 self.compile_expr(&expr);
-                let lcl = self.add_local(var.as_str());
-                let arg = self.stack_pop();
-                self.code.push(RegCode::Store(lcl, arg, 0));
-                let ty = expr.1.get_type();
-                if ty.is_heap_type() {
-                    self.locals.set_live_var(lcl);
+                match &(*var).1 {
+                    Expr::Variable { name, ty } => {
+                        let lcl = self.add_local(&name);
+                        let reg = self.stack_pop();
+                        if let Some(ty) = ty {
+                            if ty.is_heap_type() {
+                                self.locals.set_live_var(lcl);
+                            }
+                        }
+                        self.code.push(RegCode::Store(lcl, reg, 0));
+                        self.free_reg(reg);
+                    }
+                    Expr::Tuple { exprs, .. } => {
+                        let tuple_val = self.stack_unfree_pop();
+                        for expr in exprs.iter().enumerate() {
+                            let const_reg = self.get_reg();
+                            let const_ix = self.consts.len();
+                            self.consts.push((Type::Int, expr.0.to_le_bytes().to_vec()));
+                            self.code.push(RegCode::Const(const_ix, const_reg));
+                            match &expr.1 .1 {
+                                Expr::Variable { name, ty } => {
+                                    let lcl = self.add_local(&name);
+                                    if let Some(ty) = ty {
+                                        if ty.is_heap_type() {
+                                            self.locals.set_live_var(lcl);
+                                        }
+                                    }
+                                    let reg = self.get_reg();
+                                    self.code.push(RegCode::TupleGet(tuple_val, const_reg, reg));
+                                    self.code.push(RegCode::Store(lcl, reg, 0));
+                                    self.free_reg(reg);
+                                }
+                                _ => {
+                                    unimplemented!("Cannot destructure {:?}", expr.1);
+                                }
+                            }
+                        }
+                        self.free_reg(tuple_val);
+                    }
+                    _ => {
+                        println!("cannot destructure {:?}", var);
+                        exit(1);
+                    }
                 }
             }
             Stmt::For(var, expr, body) => {

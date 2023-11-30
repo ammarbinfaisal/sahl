@@ -476,13 +476,20 @@ impl GOCodegen {
             }
             Stmt::Decl(lhs, rhs) => {
                 let mut code = String::new();
-                code.push_str(lhs);
-                code.push_str(" := ");
-                code.push_str(&self.ty_to_go(&rhs.1.get_type()));
-                code.push_str("(");
-                code.push_str(&self.compile_expr(&rhs.1));
-                code.push_str(")\n");
-                code
+                match (*lhs).1.clone() {
+                    Expr::Variable { name, .. } => {
+                        code.push_str(&name);
+                        code.push_str(" := ");
+                        code.push_str(&self.ty_to_go(&rhs.1.get_type()));
+                        code.push_str("(");
+                        code.push_str(&self.compile_expr(&rhs.1));
+                        code.push_str(")\n");
+                        code
+                    }
+                    _ => {
+                        unimplemented!("compile_stmt: {:?}", stmt);
+                    }
+                }
             }
             Stmt::IfElse(cond, then, els) => {
                 let mut code = String::new();
