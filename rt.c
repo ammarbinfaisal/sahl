@@ -203,6 +203,13 @@ struct Obj {
 
 typedef struct Obj Obj;
 
+struct variant_t {
+    uint64_t tag;
+    uint64_t val;
+};
+
+typedef struct variant_t variant_t;
+
 void iprint(int64_t i) { printf("%ld", i); }
 
 void fprint(double f) { printf("%lf", f); }
@@ -212,6 +219,17 @@ void cprint(char c) { printf("%c", c); }
 void bprint(int b) { printf("%s", b ? "true" : "false"); }
 
 void exit_with(int32_t code) { exit(code); }
+
+variant_t *make_variant(uint64_t val, uint64_t tag) {
+    variant_t *v = (variant_t *)GC_malloc(sizeof(variant_t));
+    v->tag = tag;
+    v->val = val;
+    return v;
+}
+
+int is_variant(variant_t *v, uint64_t tag) { return v->tag == tag; }
+
+int64_t get_variant(variant_t *v) { return v->val; }
 
 Obj *newobj(ObjType ty) {
     Obj *obj = (Obj *)GC_malloc(sizeof(Obj));
@@ -285,9 +303,7 @@ typedef Obj *(*MakeFn)(size_t len);
 
 static MakeFn make_fns[] = {make_list, make_list, make_chan};
 
-Obj *make(int ty, size_t size) {
-    return make_fns[ty - 5](size);
-}
+Obj *make(int ty, size_t size) { return make_fns[ty - 5](size); }
 
 void append(Obj *obj, int64_t val) {
     list_t *l = obj->list;
@@ -343,7 +359,7 @@ void list_free(list_t *list) {
 
 int len(Obj *list) { return list->list->length; }
 
-Obj* concat(Obj *a, Obj *b) {
+Obj *concat(Obj *a, Obj *b) {
     str_t *astr = a->str;
     str_t *bstr = b->str;
     int64_t len = astr->len + bstr->len;
