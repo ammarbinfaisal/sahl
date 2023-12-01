@@ -858,7 +858,7 @@ impl<'ctx> Compiler<'ctx> {
             ("chansend", vec![Type::Int, Type::Int], Type::Void),
             ("chanrecv", vec![Type::Int], Type::Int),
             ("make_variant", vec![Type::Int, Type::Int], Type::Int),
-            ("is_variant", vec![Type::Int, Type::Int], Type::Bool),
+            ("is_variant", vec![Type::Int, Type::Int], Type::Int),
             ("get_variant", vec![Type::Int], Type::Int),
         ];
 
