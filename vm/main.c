@@ -692,9 +692,54 @@ void native_list_len(VM *vm) {
     vm->regs[0].i = obj->list.length;
 }
 
+void native_pop(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int list = code[vm->call_frame->ip];
+    Obj *obj = vm->regs[list].o;
+    vm->regs[0].i = obj->list.items[obj->list.length];
+    obj->list.length--;
+    obj->list.items =
+        realloc(obj->list.items, sizeof(Value) * obj->list.length);
+}
+
+void native_make_variant(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int reg = code[vm->call_frame->ip];
+    int variant = code[++vm->call_frame->ip];
+    Obj *obj = new_obj(vm, OBJ_VARIANT);
+    obj->variant.tag = vm->regs[variant].i;
+    obj->variant.value = vm->regs[reg].i;
+    vm->regs[0].i = (uint64_t)obj;
+}
+
+void native_is_variant(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int variant = code[vm->call_frame->ip];
+    int reg = code[++vm->call_frame->ip];
+    Obj *obj = vm->regs[variant].o;
+    vm->regs[0].i = obj->variant.tag == vm->regs[reg].i;
+}
+
+void native_get_variant(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int argc = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 8;
+    int variant = code[vm->call_frame->ip];
+    Obj *obj = vm->regs[variant].o;
+    vm->regs[0].i = obj->variant.value;
+}
+
 static native_fn_t native_functions[] = {
-    native_print_int, native_print_float, native_print_char, native_print_bool,
-    native_print_str, native_append,      native_list_len};
+    native_print_int,  native_print_float, native_print_char,
+    native_print_bool, native_print_str,   native_append,
+    native_list_len,   native_pop,         native_make_variant,
+    native_is_variant, native_get_variant};
 
 void handle_ncall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;

@@ -17,9 +17,8 @@
 #define UNSAFE
 #define MAX_THREADS 16
 #define USE_GC
-#define DEBUGGC
 
-#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity)*1.5)
+#define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 1.5)
 
 #define AS_DOUBLE(x) *(double *)&x
 
@@ -97,7 +96,15 @@ struct RBNode {
 
 typedef struct RBNode RBNode;
 
-enum ObjType { OBJ_STRING, OBJ_LIST, OBJ_TUPLE, OBJ_CHAN, OBJ_MAP, OBJ_REF };
+enum ObjType {
+    OBJ_STRING,
+    OBJ_LIST,
+    OBJ_TUPLE,
+    OBJ_CHAN,
+    OBJ_MAP,
+    OBJ_REF,
+    OBJ_VARIANT
+};
 
 typedef enum ObjType ObjType;
 
@@ -119,7 +126,7 @@ struct Obj {
         struct {
             uint64_t length;
             Value *items;
-            uint64_t* boxed_items;
+            uint64_t *boxed_items;
         } tuple;
         struct {
             CallFrame *frame;
@@ -137,6 +144,10 @@ struct Obj {
             CallFrame *frame;
             int local_ix;
         } ref;
+        struct {
+            int tag;
+            Value value;
+        } variant;
     };
 };
 
