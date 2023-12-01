@@ -28,6 +28,7 @@ files_all_checks = [
     "map",
     "seive",
     "adt",
+    "tree",
 ]
 files_retcode_check = [
     "chan",
