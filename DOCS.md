@@ -65,7 +65,7 @@ let a = [1, 2, 3];
 ### Tuple
 
 ```kt
-let myTuple = (10, "Hello");
+let myTuple = (10, "Hello",); // trailing comma is nessesary
 ```
 
 ### Map
@@ -80,14 +80,11 @@ let myMap = map<int, string>;
 let myChannel = chan<int>;
 ```
 
-### Type Declaration
+### Type Constructors
 
-```kt
-type Tree = (int, [Tree]);
 
-fun makeTree() -> Tree {
-    return (10, [(20, []), (30, [])]);
-}
+```rs
+type Person = PersonS(string) | PersonI(int);
 ```
 
 ## Statements
@@ -116,6 +113,37 @@ while a > 0 {
 for i in 0..10 {
     print(i, "\n");
 }
+```
+
+### `match`
+
+Works for types with constructors.
+
+```rs
+type Person = PersonS(string) | PersonI(int);
+
+fun main() {
+    let p1 = PersonS("John");
+    let p2 = PersonI(20);
+    let arr_p = [p1, p2];
+    for p in arr_p {
+        match p {
+            PersonS(name) -> {
+                print(name, "\n");
+            }
+            PersonI(age) -> {
+                print(age, "\n");
+            }
+        }
+    } 
+}
+```
+
+### destructuring
+
+```rs
+let tuple = (10, 20,);
+let (a, b,) = tuple;
 ```
 
 ### `break` and `continue`
