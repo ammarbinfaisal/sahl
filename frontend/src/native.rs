@@ -69,6 +69,7 @@ impl<'ctx> Compiler<'ctx> {
             Type::List(_) => LLVMTy::Int(self.context.i64_type()),
             Type::Tuple(_) => LLVMTy::Int(self.context.i64_type()),
             Type::Map(_, _) => LLVMTy::Int(self.context.i64_type()),
+            Type::Chan(_) => LLVMTy::Int(self.context.i64_type()),
             _ => LLVMTy::Void,
         }
     }
