@@ -1,0 +1,20 @@
+type Person = PersonS(string) | PersonI(int);
+
+fun main() {
+    let p1 = PersonS("John");
+    let p2 = PersonI(20);
+    let arr_p = [p1, p2];
+    for p in arr_p {
+        if p is PersonI {
+            print("PersonI\n");
+        } else if p is PersonS {
+            print("PersonS\n");
+        }
+
+        match p {
+            PersonS(name) -> { print(name, "\n"); }
+            PersonI(age) -> { print(age, "\n"); }
+        }
+    } 
+}
+
