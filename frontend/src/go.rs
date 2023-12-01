@@ -199,7 +199,7 @@ impl GOCodegen {
                 let ty = self.ty_to_go(ty);
                 format!("*{}", ty)
             }
-            _ => unreachable!("ty_to_go: {:?}", tyy),
+            _ => unimplemented!("ty_to_go: {:?}", tyy),
         }
     }
 
