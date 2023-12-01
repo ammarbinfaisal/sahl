@@ -377,6 +377,12 @@ void handle_listset(VM *vm) {
     int value = code[++vm->call_frame->ip];
     Obj *obj = vm->regs[list].o;
     int idx = vm->regs[index].i;
+    if (idx >= obj->list.length) {
+        char msg[100];
+        sprintf(msg, "Index %d out of bounds for list of length %ld", idx,
+                obj->list.length);
+        error(vm, msg);
+    }
     obj->list.items[idx] = vm->regs[value].i;
 }
 
