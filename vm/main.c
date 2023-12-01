@@ -393,6 +393,12 @@ void handle_listget(VM *vm) {
     int res = code[++vm->call_frame->ip];
     Obj *obj = vm->regs[list].o;
     int idx = vm->regs[index].i;
+    if (idx >= obj->list.length) {
+        char msg[100];
+        sprintf(msg, "Index %d out of bounds for list of length %ld", idx,
+                obj->list.length);
+        error(vm, msg);
+    }
     vm->regs[res].i = obj->list.items[idx];
 }
 
