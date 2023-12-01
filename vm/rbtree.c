@@ -7,7 +7,7 @@
 // algo taken from GFG
 
 RBNode *new_rb_node(Value key) {
-    RBNode *node = malloc(sizeof(RBNode));
+    RBNode *node = checked_malloc(sizeof(RBNode));
     node->key = key;
     node->value = 0;
     node->color = RED;
@@ -169,7 +169,7 @@ LinkedListRB *rb_to_ll(RBNode *root) {
     if (root == NULL) {
         return NULL;
     }
-    LinkedListRB *node = malloc(sizeof(LinkedListRB));
+    LinkedListRB *node = checked_malloc(sizeof(LinkedListRB));
     node->key = root->key;
     node->value = root->value;
     node->next = NULL;

@@ -9,17 +9,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gc.h"
 
 VM *new_vm(uint8_t *code, int code_length) {
-    VM *vm = malloc(sizeof(struct VM));
+    VM *vm = checked_malloc(sizeof(struct VM));
     int offset = 0;
     vm->start_func = read_u64(code, offset);
     vm->consts_count = read_u64(code, offset + 8);
-    vm->consts = malloc(sizeof(char *) * vm->consts_count);
+    vm->consts = checked_malloc(sizeof(char *) * vm->consts_count);
     offset += 16;
 
-    CheneyState *cheney_state = malloc(sizeof(CheneyState));
-    void *mem = malloc(1024 * 256 * sizeof(Obj));
+    CheneyState *cheney_state = checked_malloc(sizeof(CheneyState));
+    void *mem = checked_malloc(1024 * 256 * sizeof(Obj));
     cheney_state->from_space = mem;
     cheney_state->from_top = mem;
     cheney_state->from_space_size = 1024 * 128 * sizeof(Obj);
@@ -42,7 +43,7 @@ VM *new_vm(uint8_t *code, int code_length) {
             int len = read_u64(code, offset);
             offset += 8;
             char *str = read_string(code, offset, len);
-            Obj *obj = malloc(sizeof(Obj));
+            Obj *obj = checked_malloc(sizeof(Obj));
             obj->type = OBJ_STRING;
             obj->marked = false;
             obj->string.data = str;
@@ -55,7 +56,7 @@ VM *new_vm(uint8_t *code, int code_length) {
 
     int func_count = read_u64(code, offset);
     offset += 8;
-    vm->funcs = malloc(sizeof(Func) * func_count);
+    vm->funcs = checked_malloc(sizeof(Func) * func_count);
     vm->funcs_count = func_count;
     for (int i = 0; i < func_count; ++i) {
         uint64_t func_length = read_u64(code, offset);
@@ -68,12 +69,12 @@ VM *new_vm(uint8_t *code, int code_length) {
         offset += func_length;
     }
     vm->stack_size = 0;
-    vm->stack = malloc(sizeof(Value) * 1024);
-    vm->regs = malloc(sizeof(Value) * 256);
+    vm->stack = checked_malloc(sizeof(Value) * 1024);
+    vm->regs = checked_malloc(sizeof(Value) * 256);
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
     vm->call_frame->locals_count = 0;
     vm->call_frame->locals_capacity = 8;
-    vm->call_frame->locals = malloc(sizeof(Value) * 8);
+    vm->call_frame->locals = checked_malloc(sizeof(Value) * 8);
 
     // garbage collection
     vm->call_frame->stackmap = NULL;
@@ -87,7 +88,7 @@ VM *new_vm(uint8_t *code, int code_length) {
 }
 
 VM *coro_vm(VM *curr, int start_func) {
-    VM *vm = malloc(sizeof(struct VM));
+    VM *vm = checked_malloc(sizeof(struct VM));
     vm->start_func = start_func;
     vm->string_count = curr->string_count;
     vm->consts = curr->consts;
@@ -95,18 +96,18 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->funcs = curr->funcs;
     vm->funcs_count = curr->funcs_count;
     vm->stack_size = 0;
-    vm->stack = malloc(sizeof(Value) * 1024);
-    vm->regs = malloc(sizeof(Value) * 256);
+    vm->stack = checked_malloc(sizeof(Value) * 1024);
+    vm->regs = checked_malloc(sizeof(Value) * 256);
 
     // callframe
     vm->call_frame = NULL;
 
     // stackmap
     if (curr->call_frame->stackmap) {
-        vm->call_frame->stackmap = malloc(sizeof(StackMap));
+        vm->call_frame->stackmap = checked_malloc(sizeof(StackMap));
         vm->call_frame->stackmap->len = curr->call_frame->stackmap->len;
         vm->call_frame->stackmap->bits =
-            malloc(sizeof(uint8_t) * vm->call_frame->stackmap->len);
+            checked_malloc(sizeof(uint8_t) * vm->call_frame->stackmap->len);
         memcpy(vm->call_frame->stackmap->bits, curr->call_frame->stackmap->bits,
                sizeof(uint8_t) * vm->call_frame->stackmap->len);
     }

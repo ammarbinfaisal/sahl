@@ -3,15 +3,15 @@
 #include "list.h"
 
 Queue *new_queue(int capacity) {
-    Queue *q = malloc(sizeof(Queue));
+    Queue *q = checked_malloc(sizeof(Queue));
     q->capacity = capacity;
     q->length = 0;
-    q->items = malloc(sizeof(Value) * capacity);
+    q->items = checked_malloc(sizeof(Value) * capacity);
     return q;
 }
 
 Chan *new_chan(int capacity) {
-    Chan *c = malloc(sizeof(Chan));
+    Chan *c = checked_malloc(sizeof(Chan));
     c->q = new_list();
     c->len = 0;
     c->cap = capacity;
@@ -47,11 +47,11 @@ Value rbuf_read(RingBuffer *rb) {
 }
 
 RingBuffer *new_ring_buffer(int capacity) {
-    RingBuffer *rb = malloc(sizeof(RingBuffer));
+    RingBuffer *rb = checked_malloc(sizeof(RingBuffer));
     rb->capacity = capacity;
     rb->length = 0;
     rb->head = 0;
     rb->tail = 0;
-    rb->items = malloc(sizeof(Value) * capacity);
+    rb->items = checked_malloc(sizeof(Value) * capacity);
     return rb;
 }

@@ -1,7 +1,8 @@
 #include "func.h"
+#include "gc.h"
 
 CallFrame *new_call_frame(Func *func, CallFrame *prev) {
-    CallFrame *frame = malloc(sizeof(CallFrame));
+    CallFrame *frame = checked_malloc(sizeof(CallFrame));
     frame->ip = 0;
     frame->func = func;
     frame->prev = prev;

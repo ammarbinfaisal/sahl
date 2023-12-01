@@ -338,7 +338,7 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = malloc(sizeof(Value) * cap);
+    obj->list.items = checked_malloc(sizeof(Value) * cap);
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
@@ -430,7 +430,7 @@ void handle_list(VM *vm) {
     Obj *newobj = new_obj(vm, OBJ_LIST);
     newobj->list.length = len;
     newobj->list.capacity = len;
-    newobj->list.items = malloc(sizeof(Value) * len);
+    newobj->list.items = checked_malloc(sizeof(Value) * len);
     newobj->list.boxed_items = heap_alloced;
     for (int i = 0; i < len; ++i) {
         newobj->list.items[i] = pop(vm);
@@ -444,7 +444,7 @@ void handle_tuple(VM *vm) {
     vm->call_frame->ip += 8;
     uint64_t bitsets_count = read_u64(code, vm->call_frame->ip);
     vm->call_frame->ip += 8;
-    uint64_t *bitsets = malloc(sizeof(uint64_t) * bitsets_count + 1);
+    uint64_t *bitsets = checked_malloc(sizeof(uint64_t) * bitsets_count + 1);
     *bitsets = bitsets_count; // store count in first element
     for (int i = 0; i < bitsets_count; ++i) {
         bitsets[i + 1] = read_u64(code, vm->call_frame->ip);
@@ -454,7 +454,7 @@ void handle_tuple(VM *vm) {
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_TUPLE);
     newobj->tuple.length = len;
-    newobj->tuple.items = malloc(sizeof(Value) * len);
+    newobj->tuple.items = checked_malloc(sizeof(Value) * len);
     // now, tupleset will be used to set the values
     // for (int i = 0; i < len; ++i) {
     //     newobj->tuple.items[i] = pop(vm);
@@ -573,7 +573,7 @@ void handle_call(VM *vm) {
     cf = new_call_frame(vm->funcs + func, vm->call_frame);
     cf->locals_count = nargs;
     cf->locals_capacity = GROW_CAPACITY(nargs);
-    cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
+    cf->locals = checked_malloc(sizeof(Value) * cf->locals_capacity);
     for (int i = 0; i < nargs; ++i) {
         int reg = code[vm->call_frame->ip + 17 + i];
         cf->locals[i] = vm->regs[reg].i;
@@ -594,7 +594,7 @@ void handle_corocall(VM *vm) {
     vmm->call_frame = cf;
     cf->locals_count = nargs;
     cf->locals_capacity = GROW_CAPACITY(nargs);
-    cf->locals = malloc(sizeof(Value) * cf->locals_capacity);
+    cf->locals = checked_malloc(sizeof(Value) * cf->locals_capacity);
     for (int i = 0; i < nargs; ++i) {
         int reg = code[vm->call_frame->ip + 17 + i];
         cf->locals[i] = vm->regs[reg].i;
@@ -866,9 +866,9 @@ void handle_stack_map(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
-    StackMap *stmap = malloc(sizeof(StackMap));
+    StackMap *stmap = checked_malloc(sizeof(StackMap));
     stmap->len = len;
-    stmap->bits = malloc(len * sizeof(uint64_t));
+    stmap->bits = checked_malloc(len * sizeof(uint64_t));
     uint64_t *bitptr = stmap->bits;
     while (len--) {
         *bitptr = read_u64(code, vm->call_frame->ip);
@@ -1150,7 +1150,7 @@ void *poll_spawn(void *i) {
 }
 
 void scheduler_init() {
-    scheduler = malloc(sizeof(Scheduler));
+    scheduler = checked_malloc(sizeof(Scheduler));
     scheduler->coro_queue = new_list();
     scheduler->coro_running = 0;
     pthread_mutex_init(&scheduler->vmq_mu, NULL);
@@ -1173,7 +1173,7 @@ int main(int argc, char **argv) {
     // puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
     scheduler_init();
-    pthread_t *threads = malloc(sizeof(pthread_t) * MAX_THREADS);
+    pthread_t *threads = checked_malloc(sizeof(pthread_t) * MAX_THREADS);
     pthread_t mainn;
     vm->coro_id = MAIN_ID;
     pthread_create(&mainn, NULL, main_run, (void *)vm);

@@ -1,4 +1,5 @@
 #include "debug.h"
+#include "gc.h"
 #include "opcodes.h"
 #include "read.h"
 #include <stdint.h>
@@ -264,7 +265,7 @@ int print_opcode(uint8_t *code, int i) {
         uint64_t len = read_u64(code, i + 1);
         i += 9;
         printf("stackmap %ld\n", len);
-        uint64_t *bitptr = malloc(sizeof(uint64_t) * len);
+        uint64_t *bitptr = checked_malloc(sizeof(uint64_t) * len);
         while (len--) {
             *bitptr = read_u64(code, i);
             i += 8;
@@ -281,14 +282,14 @@ int print_opcode(uint8_t *code, int i) {
         printf("printunlock\n");
         return i + 1;
     }
-    case OP_REF: 
-    case OP_DEREF: 
+    case OP_REF:
+    case OP_DEREF:
     case OP_DEREF_ASSIGN: {
-        uint64_t var  = read_u64(code, i + 1);
+        uint64_t var = read_u64(code, i + 1);
         uint8_t res = code[i + 9];
         if (code[i] == OP_REF) {
             printf("ref");
-        } else  if (code[i] == OP_DEREF_ASSIGN) {
+        } else if (code[i] == OP_DEREF_ASSIGN) {
             printf("deref assgn");
         } else {
             printf("deref");

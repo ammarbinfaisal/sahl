@@ -19,6 +19,15 @@
         }                                                                      \
     } while (0);
 
+void *checked_malloc(size_t size) {
+    void *ptr = malloc(size);
+    if (ptr == NULL) {
+        printf("out of memory\n");
+        exit(1);
+    }
+    return ptr;
+}
+
 Obj *cheney_allocate(VM *vm, int count) {
     CheneyState *cheney_state = vm->cheney_state;
     pthread_mutex_lock(&cheney_state->lock);

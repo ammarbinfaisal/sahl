@@ -1,9 +1,10 @@
 #include "list.h"
+#include "gc.h"
 #include <stdlib.h>
 
 LinkedList *new_list() {
     LinkedList *q;
-    q = malloc(sizeof(LinkedList));
+    q = checked_malloc(sizeof(LinkedList));
 
     if (q == NULL) {
         return q;
@@ -17,7 +18,7 @@ LinkedList *new_list() {
 }
 
 int enqueue(LinkedList *q, void *value) {
-    Node *node = malloc(sizeof(Node));
+    Node *node = checked_malloc(sizeof(Node));
 
     if (node == NULL) {
         return q->size;
