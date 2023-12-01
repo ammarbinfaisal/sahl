@@ -12,6 +12,7 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 ## usage
 
+- install rust, llvm, clang
 - `make` to build the frontend and the virtual machine
 - then either use existing scripts **"run_aot.sh"/"run_byte.sh".**
 - or use the following commands:
@@ -27,6 +28,14 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 - `clang -o exe rt.c exe.ll ./libs/libgc.a` to link the generated code with the runtime and the garbage collector
 - `./exe` to run the native code
 
+## features
+
+- type inference
+- garbage collected
+- green threads (only in vm)
+- channels (only in vm)
+- haskellesque type constructors
+
 ## docs
 
 [DOCS.md](DOCS.md)
@@ -35,16 +44,9 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## features
-
-- statically typed
-- garbage collected
-- threads and channels
-
 ## history
 
 Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. Recently, I started writing `sahl_aot.go` to convert the bytecode to assembly but stopped. Right now there is a virtual machine, <s>x86_64 native code generation</s> and transpilation to go.
-
 
 ### future plans
 
