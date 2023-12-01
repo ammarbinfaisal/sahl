@@ -25,7 +25,7 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 ### native
 
 - `./target/release/sahl <file.sahl> -n` to compile to native code
-- `clang -o exe rt.c exe.ll ./libs/libgc.a` to link the generated code with the runtime and the garbage collector
+- `clang -o exe rt.c exe.ll ./libs/libgc.a` to compile the llvm ir
 - `./exe` to run the native code
 
 ## features
