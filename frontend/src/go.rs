@@ -176,9 +176,7 @@ impl GOCodegen {
                                 print_code.push_str(&format!("fmt.Printf(%v, v.f{})\n", i));
                             }
                         }
-                        if i != tys.len() - 1 {
-                            print_code.push_str("fmt.Print(\", \")\n");
-                        }
+                        print_code.push_str("fmt.Print(\", \")\n");
                     }
                     print_code.push_str("fmt.Print(\")\")\n");
                     print_code.push_str("}\n");
