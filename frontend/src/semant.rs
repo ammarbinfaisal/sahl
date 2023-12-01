@@ -279,7 +279,7 @@ impl<'a> Checker<'a> {
                         return Ok(Type::Bool);
                     }
                 }
-                
+
                 // FIXME: this is a bogus error
                 Err((
                     expr.0,
@@ -1037,7 +1037,7 @@ pub fn check_program(
         typemap.insert(name, ty);
     }
 
-    let variants = typemap
+    let variants_iter = typemap
         .iter()
         .filter(|(_, ty)| match ty {
             Type::Variant(_) => true,
@@ -1053,9 +1053,17 @@ pub fn check_program(
             } else {
                 unreachable!()
             }
-        })
-        .flatten()
-        .collect::<HashMap<_, _>>();
+        });
+
+    let mut variants = HashMap::new();
+    for variant in variants_iter {
+        for (name, variant) in variant {
+            if variants.contains_key(&name) {
+                return Err((0, Error::DuplicateVariant(name, variant.1), 0));
+            }
+            variants.insert(name, variant);
+        }
+    }
 
     let fns = program
         .top_levels
