@@ -29,6 +29,7 @@ files_all_checks = [
     "seive",
     "adt",
     "tree",
+    "syncchan",
 ]
 files_retcode_check = [
     "chan",
