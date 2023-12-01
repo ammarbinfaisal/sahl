@@ -20,12 +20,12 @@ fun tree_of(n: int) -> BinaryTree {
     if (n == 0) {
         return Leaf;
     }
-    let left = tree_of(n - 1) ;
-    let right = tree_of(n - 1) ;
+    let left = tree_of(n - 1);
+    let right = tree_of(n - 1);
     return BinaryTree((n, left, right,));
 }
 
 fun main() {
-    let tree = tree_of(5);
+    let tree = tree_of(2);
     printTree(tree);
 }
