@@ -33,7 +33,7 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 - type inference
 - garbage collected
 - green threads (only in vm)
-- channels (only in vm)
+- channels
 - haskellesque type constructors
 
 ## docs
