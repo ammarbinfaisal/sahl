@@ -529,7 +529,22 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                             .unwrap();
                         self.builder.build_store(res, v.into_int_value());
                     }
-                    RegCode::StrGet(_, _, _) => todo!(),
+                    RegCode::StrGet(str_reg, idx_reg, val_reg) => {
+                        let str_reg = registers[*str_reg as usize];
+                        let idx_reg = registers[*idx_reg as usize];
+                        let val_reg = registers[*val_reg as usize];
+                        let strget = self.module.get_function("strget").unwrap();
+                        let str = self.builder.build_load(i64_type, str_reg, "str");
+                        let idx = self.builder.build_load(i64_type, idx_reg, "idx");
+                        let args = &[str.into(), idx.into()];
+                        let v = self
+                            .builder
+                            .build_call(strget, args, "ret")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        self.builder.build_store(val_reg, v.into_int_value());
+                    }
                     RegCode::MapGet(_, _, _) => todo!(),
                     RegCode::MapSet(_, _, _) => todo!(),
                     RegCode::ChanSend(chan_var, var_reg) => {
@@ -861,6 +876,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             ("make_variant", vec![Type::Int, Type::Int], Type::Int),
             ("is_variant", vec![Type::Int, Type::Int], Type::Int),
             ("get_variant", vec![Type::Int], Type::Int),
+            ("strget", vec![Type::Int, Type::Int], Type::Int),
         ];
 
         for (name, params, retty) in functions.iter() {

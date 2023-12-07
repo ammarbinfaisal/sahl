@@ -281,6 +281,15 @@ void str_free(str_t *str) {
     GC_free(str);
 }
 
+char strget(Obj *str, uint64_t index) {
+    str_t *s = str->str;
+    if (index >= s->len) {
+        printf("string index out of range\n");
+        exit(1);
+    }
+    return s->ptr[index];
+}
+
 Obj *make_list(size_t size) {
     list_t *list = (list_t *)GC_malloc(sizeof(list_t));
     list->cap = size;
@@ -357,7 +366,12 @@ void list_free(list_t *list) {
     GC_free(list);
 }
 
-int len(Obj *list) { return list->list->length; }
+int len(Obj *list) {
+    if (list->type == OBJ_STR) {
+        return list->str->len;
+    }
+    return list->list->length;
+}
 
 Obj *concat(Obj *a, Obj *b) {
     str_t *astr = a->str;
