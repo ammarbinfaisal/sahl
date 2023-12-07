@@ -3,7 +3,6 @@
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
     "rust-analyzer.linkedProjects": [
-        "./runtime/Cargo.toml",
         "./frontend/Cargo.toml"
     ]
 }
