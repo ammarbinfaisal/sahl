@@ -3,7 +3,7 @@ use std::{collections::HashMap, process::exit};
 
 // highlevel enum for 3/4 address code
 #[derive(Debug, Clone)]
-pub enum RegCode {
+pub enum RegCode<'src> {
     // reg1 reg2 res_reg
     IAdd(u8, u8, u8),
     ISub(u8, u8, u8),
@@ -39,7 +39,7 @@ pub enum RegCode {
     FNeg(u8, u8),
     INeg(u8, u8),
     // encapulates a make call
-    Make(Type, u8, u8),
+    Make(Type<'src>, u8, u8),
     // lists
     ListSet(u8, u8, u8),
     ListGet(u8, u8, u8),
@@ -47,7 +47,7 @@ pub enum RegCode {
     // tuples
     TupleGet(u8, u8, u8),
     TupleSet(u8, u8, u8),
-    Tuple(usize, u8, Vec<Type>), // length, reg
+    Tuple(usize, u8, Vec<Type<'src>>), // length, reg
     // strings
     StrGet(u8, u8, u8),
     // maps
@@ -65,7 +65,7 @@ pub enum RegCode {
     Const(usize, u8),        // const_idx, reg
     Load(usize, u8, usize),  // local_ix, reg, version
     Store(usize, u8, usize), // local_ix, reg, version
-    Cast(u8, Type, Type, u8),
+    Cast(u8, Type<'src>, Type<'src>, u8),
     Move(u8, u8),
     Return(u8),
     VoidReturn,
@@ -74,7 +74,7 @@ pub enum RegCode {
     FreeRegs,
     Pop(u8),
     StackMap(Vec<u64>), // set of locals that are live
-    Super(SuperInstruction),
+    Super(SuperInstruction<'src>),
     CoroCall(usize, Vec<u8>),
     Ref(usize, u8),   // local_ix, reg
     Deref(u8, usize), // result reg, local_ix
@@ -137,26 +137,26 @@ fn three_operand_code(c: &RegCode) -> (u8, u8, u8) {
 }
 
 #[derive(Debug, Clone)]
-pub enum SuperInstruction {
+pub enum SuperInstruction<'src> {
     /// var_ix, const_ix, op_res_reg
-    LoadConstOp(usize, usize, u8, Box<RegCode>),
+    LoadConstOp(usize, usize, u8, Box<RegCode<'src>>),
     /// var_ix, const_ix
-    LoadConstOpStore(usize, usize, Box<RegCode>),
+    LoadConstOpStore(usize, usize, Box<RegCode<'src>>),
     /// jmp, reg1, reg2, res_reg, cond_op
-    JmpIfNotCond(usize, u8, u8, u8, Box<RegCode>),
+    JmpIfNotCond(usize, u8, u8, u8, Box<RegCode<'src>>),
 }
 
 #[derive(Debug, Clone)]
-enum SuperInstParseState {
+enum SuperInstParseState<'src> {
     None,
     /// var_ix, reg
     Load(usize, u8),
     /// var_ix, const_ix, load_reg, const_reg
     LoadConst(usize, usize, u8, u8),
     /// var_ix, const_ix, op_res_reg, op
-    LoadConstOp(usize, usize, u8, RegCode),
+    LoadConstOp(usize, usize, u8, RegCode<'src>),
     /// jmp_ix, reg
-    Cond(RegCode),
+    Cond(RegCode<'src>),
 }
 
 #[derive(Debug, Clone)]
@@ -233,20 +233,20 @@ impl NestedEnv {
     }
 }
 
-pub struct RegCodeGen<'a> {
-    code: Vec<RegCode>,
+pub struct RegCodeGen<'a, 'src> {
+    code: Vec<RegCode<'src>>,
     locals: NestedEnv,
     func_idx: HashMap<&'a str, usize>,
     func_args_len: Vec<u32>,
-    typemap: HashMap<String, Type>,
-    variants: HashMap<String, (Type, String, usize)>,
-    pub func_code: Vec<Vec<RegCode>>,
+    typemap: HashMap<&'src str, Type<'src>>,
+    variants: HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+    pub func_code: Vec<Vec<RegCode<'src>>>,
     pub start_func_idx: usize,
     curr_func: usize,
     // opcode_span: HashMap<usize, (usize, usize)>, // to be used for debugging
     span: (usize, usize),
     // source_name: String, // to be used for debugging
-    pub consts: Vec<(Type, Vec<u8>)>,
+    pub consts: Vec<(Type<'src>, Vec<u8>)>,
     stack: Vec<u8>,
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
@@ -254,11 +254,11 @@ pub struct RegCodeGen<'a> {
     coro_call: bool,
 }
 
-impl<'a> RegCodeGen<'a> {
+impl<'a, 'src> RegCodeGen<'a, 'src> {
     pub fn new(
         _source_name: String,
-        typemap: HashMap<String, Type>,
-        variants: HashMap<String, (Type, String, usize)>,
+        typemap: HashMap<&'src str, Type<'src>>,
+        variants: HashMap<&'src str, (Type<'src>, &'src str, usize)>,
     ) -> Self {
         RegCodeGen {
             code: Vec::new(),
@@ -356,7 +356,7 @@ impl<'a> RegCodeGen<'a> {
         }
     }
 
-    fn compile_complex_print(&mut self, reg: u8, arg_ty: Type, recur: usize) {
+    fn compile_complex_print(&mut self, reg: u8, arg_ty: Type<'src>, recur: usize) {
         if recur > 5 {
             // print ...
             let const_ellipses = self.consts.len();
@@ -487,7 +487,7 @@ impl<'a> RegCodeGen<'a> {
                 self.free_reg(close_reg);
             }
             Type::Custom(tyname) => {
-                let actual_ret_type = self.typemap.get(&tyname);
+                let actual_ret_type = self.typemap.get(tyname);
                 if actual_ret_type.is_some() {
                     self.compile_complex_print(reg, actual_ret_type.unwrap().clone(), recur + 1);
                 } else {
@@ -520,7 +520,7 @@ impl<'a> RegCodeGen<'a> {
         return stack_map;
     }
 
-    fn compile_expr(&mut self, expr: &Spanned<Expr>) {
+    fn compile_expr(&mut self, expr: &Spanned<Expr<'src>>) {
         // println!("compiling expr: {:?}", expr);
         self.span = (expr.0, expr.2);
         match &expr.1 {
@@ -547,7 +547,7 @@ impl<'a> RegCodeGen<'a> {
                     Lit::Str(s) => {
                         // encode as utf8
                         let mut bytes = vec![];
-                        for c in s.iter() {
+                        for c in s.chars() {
                             let mut buf = [0u8; 4];
                             let len = c.encode_utf8(&mut buf).len();
                             for i in 0..len {
@@ -572,7 +572,7 @@ impl<'a> RegCodeGen<'a> {
                     self.stack_push(reg);
                 } else {
                     // it is variant
-                    let ty = self.variants.get(name);
+                    let ty = self.variants.get(*name);
                     if ty.is_some() {
                         // find variant ix
                         let variant_ix = ty.unwrap().2;
@@ -758,7 +758,7 @@ impl<'a> RegCodeGen<'a> {
                     }
                     let reg = self.get_reg();
 
-                    if let Some(ty) = self.variants.get(&name) {
+                    if let Some(ty) = self.variants.get(name) {
                         // check which variant it is
                         let variant_ix = ty.2;
                         // NCall(8, [reg, variant_ix])
@@ -777,7 +777,7 @@ impl<'a> RegCodeGen<'a> {
                         return;
                     }
 
-                    let func = self.func_idx.get(name.as_str());
+                    let func = self.func_idx.get(name);
                     if func.is_some() {
                         let func = *func.unwrap();
                         // save registers
@@ -867,7 +867,7 @@ impl<'a> RegCodeGen<'a> {
                     Expr::Deref { expr, ty: _ } => {
                         let var = extract_var_name(expr);
                         if let Some(var) = var {
-                            let v = self.get_local(var.as_str());
+                            let v = self.get_local(var);
                             match v {
                                 Some(var) => {
                                     let v = *var;
@@ -979,14 +979,14 @@ impl<'a> RegCodeGen<'a> {
             }
             Expr::ChanRead { name, .. } => {
                 let reg = self.get_reg();
-                let chan = self.locals.get(name.as_str()).unwrap();
+                let chan = self.locals.get(name).unwrap();
                 self.code.push(RegCode::ChanRecv(*chan, reg));
                 self.stack_push(reg);
             }
             Expr::Ref { expr, .. } => {
                 let v = extract_var_name(expr);
                 if let Some(name) = v {
-                    let var = self.get_local(name.as_str());
+                    let var = self.get_local(name);
                     match var {
                         Some(var) => {
                             let v = *var;
@@ -1005,7 +1005,7 @@ impl<'a> RegCodeGen<'a> {
             Expr::Deref { expr, ty: _ } => {
                 let v = extract_var_name(expr);
                 if let Some(v) = v {
-                    let var = self.get_local(v.as_str());
+                    let var = self.get_local(v);
                     match var {
                         Some(var) => {
                             let v = *var;
@@ -1028,7 +1028,7 @@ impl<'a> RegCodeGen<'a> {
         // println!("stack: {:?}", self.stack);
     }
 
-    fn compile_stmt(&mut self, stmt: &'a Spanned<Stmt>) {
+    fn compile_stmt(&mut self, stmt: &'a Spanned<Stmt<'src>>) {
         match &(*stmt).1 {
             Stmt::Expr(expr) => {
                 self.compile_expr(&expr);
@@ -1110,7 +1110,7 @@ impl<'a> RegCodeGen<'a> {
             Stmt::For(var, expr, body) => {
                 // if expr is Range then set var to range.start and loop until range.end
                 // ele introduce new variable and loop until expr.len
-                let var_ix = self.locals.insert(var.as_str());
+                let var_ix = self.locals.insert(var);
                 self.breaks.push(vec![]);
                 if let Expr::Range {
                     start,
@@ -1434,21 +1434,21 @@ impl<'a> RegCodeGen<'a> {
     //     // }
     // }
 
-    fn compile_func(&mut self, func: &'a Func) {
+    fn compile_func(&mut self, func: &'a Func<'src>) {
         for arg in &func.args {
-            let lcl = self.locals.insert(arg.name.as_str());
+            let lcl = self.locals.insert(arg.name);
             if arg.ty.is_heap_type() {
                 self.locals.set_live_var(lcl);
             }
         }
-        self.curr_func = self.func_idx[&func.name.as_str()];
+        self.curr_func = self.func_idx[&func.name];
         for stmt in &func.body {
             self.compile_stmt(&stmt);
         }
         self.code.push(RegCode::Return(0));
     }
 
-    pub fn compile_program(&mut self, prog: &'a Program, super_inst: bool) {
+    pub fn compile_program(&mut self, prog: &'a Program<'src>, super_inst: bool) {
         let fns = &prog
             .top_levels
             .iter()
@@ -1464,7 +1464,7 @@ impl<'a> RegCodeGen<'a> {
 
         let mut idx = 0;
         for func in fns {
-            self.func_idx.insert(func.name.as_str(), idx);
+            self.func_idx.insert(func.name, idx);
             idx += 1;
         }
         idx = 0;

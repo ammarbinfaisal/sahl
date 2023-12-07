@@ -49,16 +49,16 @@ fn unescape(s: &str) -> String {
     s
 }
 
-struct GOCodegen {
+struct GOCodegen<'src> {
     header: String,            // struct, import, etc
     type_count: usize,         // t<type_count>
-    types: Vec<(Type, usize)>, // (type, printfn)
+    types: Vec<(Type<'src>, usize)>, // (type, printfn)
     print_count: usize,        // _print_<print_count>
     prints: Vec<String>,
 }
 
-impl GOCodegen {
-    fn find_type(&self, ty: &Type) -> Option<usize> {
+impl<'src> GOCodegen<'src> {
+    fn find_type(&self, ty: &Type<'src>) -> Option<usize> {
         for (i, t) in self.types.iter().enumerate() {
             if t.0 == ty.clone() {
                 return Some(i);
@@ -67,7 +67,7 @@ impl GOCodegen {
         None
     }
 
-    fn find_print(&self, ty: &Type) -> Option<String> {
+    fn find_print(&self, ty: &Type<'src>) -> Option<String> {
         for (i, t) in self.types.iter().enumerate() {
             if t.0 == ty.clone() {
                 return Some(self.prints[i].clone());
@@ -76,7 +76,7 @@ impl GOCodegen {
         None
     }
 
-    fn ty_to_go(&mut self, tyy: &Type) -> String {
+    fn ty_to_go(&mut self, tyy: &Type<'src>) -> String {
         match tyy {
             Type::Int => "int64".to_string(),
             Type::Double => "float64".to_string(),
@@ -201,7 +201,7 @@ impl GOCodegen {
         }
     }
 
-    fn compile_expr(&mut self, expr: &Expr) -> String {
+    fn compile_expr(&mut self, expr: &Expr<'src>) -> String {
         match expr {
             Expr::Literal { lit, ty: _ } => {
                 let mut code = String::new();
@@ -216,7 +216,7 @@ impl GOCodegen {
                         code.push_str(&format!("{}", b));
                     }
                     Lit::Str(s) => {
-                        let string = String::from_iter(s.iter());
+                        let string = s.to_string();
                         let string = unescape(&string);
                         code.push_str(&format!("\"{}\"", string));
                     }
@@ -464,7 +464,7 @@ impl GOCodegen {
         }
     }
 
-    fn compile_stmt(&mut self, stmt: &Stmt) -> String {
+    fn compile_stmt(&mut self, stmt: &Stmt<'src>) -> String {
         match stmt {
             Stmt::Expr(expr) => {
                 let mut code = String::new();
@@ -564,7 +564,7 @@ impl GOCodegen {
         }
     }
 
-    fn compile_func(&mut self, func: &Func) -> String {
+    fn compile_func(&mut self, func: &Func<'src>) -> String {
         let mut code = String::new();
         code.push_str(&format!("func {}(", func.name));
         for (i, arg) in func.args.iter().enumerate() {
@@ -584,7 +584,7 @@ impl GOCodegen {
     }
 }
 
-pub fn compile_program(program: &Program) -> String {
+pub fn compile_program<'src>(program: &Program<'src>) -> String {
     let mut code = String::new();
     let mut gen = GOCodegen {
         header: String::new(),

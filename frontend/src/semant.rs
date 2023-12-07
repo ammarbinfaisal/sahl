@@ -1,26 +1,26 @@
 use crate::{syntax::*, utils::extract_var_name};
 use std::{collections::HashMap, vec};
 
-pub enum Error {
+pub enum Error<'src> {
     BreakOutsideLoop,
     ContinueOutsideLoop,
     CoroutineNotFunction,
-    UndefinedVariable(String),
-    UndefinedFunction(String),
+    UndefinedVariable(&'src str),
+    UndefinedFunction(&'src str),
     ArityMismatch(usize, usize),
-    TypeMismatch(Vec<Type>, Vec<Type>),
+    TypeMismatch(Vec<Type<'src>>, Vec<Type<'src>>),
     TupleIndexOutOfBounds(usize, usize),
-    DuplicateVariant(String, String),
-    CastError(Type, Type),
-    IncorrectLHS(Expr),
-    NoReturn(String),
+    DuplicateVariant(&'src str, &'src str),
+    CastError(Type<'src>, Type<'src>),
+    IncorrectLHS(Expr<'src>),
+    NoReturn(&'src str),
     RefNonLValue,
     MainNotVoid,
     MainArgs,
     NoMain,
 }
 
-impl std::fmt::Display for Error {
+impl<'src> std::fmt::Display for Error<'src> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::TypeMismatch(expected, actual) => {
@@ -81,25 +81,25 @@ impl std::fmt::Display for Error {
     }
 }
 
-type TypeEnv = Vec<HashMap<String, Type>>;
-pub type FuncEnv = HashMap<String, (Vec<Type>, Type)>;
+type TypeEnv<'src> = Vec<HashMap<&'src str, Type<'src>>>;
+pub type FuncEnv<'src> = HashMap<&'src str, (Vec<Type<'src>>, Type<'src>)>;
 
-struct Checker<'a> {
-    type_env: TypeEnv,
-    func_env: &'a FuncEnv,
-    typemap: &'a HashMap<String, Type>,
-    variants: &'a HashMap<String, (Type, String, usize)>,
+struct Checker<'a, 'src> {
+    type_env: TypeEnv<'src>,
+    func_env: &'a FuncEnv<'src>,
+    typemap: &'a HashMap<&'src str, Type<'src>>,
+    variants: &'a HashMap<&'src str, (Type<'src>, &'src str, usize)>,
     loop_depth: usize,
-    func_ret_type: Type,
+    func_ret_type: Type<'src>,
     scope: usize,
 }
 
-impl<'a> Checker<'a> {
+impl<'a, 'src> Checker<'a, 'src> {
     fn new(
-        func_env: &'a FuncEnv,
-        typemap: &'a HashMap<String, Type>,
-        variants: &'a HashMap<String, (Type, String, usize)>,
-        retty: Type,
+        func_env: &'a FuncEnv<'src>,
+        typemap: &'a HashMap<&'src str, Type<'src>>,
+        variants: &'a HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+        retty: Type<'src>,
     ) -> Self {
         Checker {
             func_env,
@@ -112,7 +112,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn find_var(&self, name: &str, start: usize, end: usize) -> Result<Type, Spanned<Error>> {
+    fn find_var(&self, name: &'src str, start: usize, end: usize) -> Result<Type<'src>, Spanned<Error<'src>>> {
         for i in (0..self.scope).rev() {
             if let Some(ty) = self.type_env[i].get(name) {
                 return Ok(ty.clone());
@@ -122,7 +122,7 @@ impl<'a> Checker<'a> {
         if let Some((_, parent, _)) = self.variants.get(name) {
             return Ok(self.typemap.get(parent).unwrap().clone());
         }
-        Err((start, Error::UndefinedVariable(name.to_string()), end))
+        Err((start, Error::UndefinedVariable(name), end))
     }
 
     fn match_type(&self, ty1: &Type, ty2: &Type) -> bool {
@@ -171,11 +171,11 @@ impl<'a> Checker<'a> {
 
     fn builtin_fn(
         &self,
-        name: &str,
-        args: &[Type],
+        name: &'src str,
+        args: &[Type<'src>],
         start: usize,
         end: usize,
-    ) -> Result<Type, Spanned<Error>> {
+    ) -> Result<Type<'src>, Spanned<Error<'src>>> {
         match name {
             "print" => Ok(Type::Void),
             "append" => {
@@ -217,7 +217,7 @@ impl<'a> Checker<'a> {
                 if args.len() == 1 {
                     match &args[0] {
                         Type::List(t) => {
-                            let ty = *(t.clone());
+                            let ty = (**t).clone();
                             Ok(ty)
                         }
                         _ => Err((
@@ -233,11 +233,11 @@ impl<'a> Checker<'a> {
                     Err((start, Error::ArityMismatch(1, args.len()), end))
                 }
             }
-            _ => Err((start, Error::UndefinedFunction(name.to_string()), end)),
+            _ => Err((start, Error::UndefinedFunction(name), end)),
         }
     }
 
-    fn actual_type(&self, ty: &Type) -> Type {
+    fn actual_type(&self, ty: &Type<'src>) -> Type<'src> {
         match ty {
             Type::Custom(name) => {
                 if let Some(ty) = self.typemap.get(name) {
@@ -250,7 +250,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_expr(&self, expr: &mut Spanned<Expr>) -> Result<Type, Spanned<Error>> {
+    fn check_expr(&self, expr: &mut Spanned<Expr<'src>>) -> Result<Type<'src>, Spanned<Error<'src>>> {
         // println!("Checking expr: {:?}", expr);
         let immut_expr = expr.1.clone();
         match &mut expr.1 {
@@ -283,7 +283,7 @@ impl<'a> Checker<'a> {
                 // FIXME: this is a bogus error
                 Err((
                     expr.0,
-                    Error::UndefinedVariable("Variant is not defined".to_string()),
+                    Error::UndefinedVariable("Variant is not defined"),
                     expr.2,
                 ))
             }
@@ -512,7 +512,7 @@ impl<'a> Checker<'a> {
 
                 let (formal_types, ret_type) = self.func_env.get(&name).ok_or((
                     expr.0,
-                    Error::UndefinedFunction(name.clone()),
+                    Error::UndefinedFunction(name),
                     expr.2,
                 ))?;
 
@@ -622,10 +622,9 @@ impl<'a> Checker<'a> {
                     Type::Variant(tys) => {
                         // can only have integer literals as index
                         if let Expr::Literal { lit, ty: _ } = index.1.clone() {
-                            if let Lit::Str(n) = lit {
-                                let name = n.iter().collect::<String>();
+                            if let Lit::Str(name) = lit {
                                 for (variant_name, variant_ty) in tys {
-                                    if variant_name == name {
+                                    if variant_name == name.as_str() {
                                         *t = Some(variant_ty.clone());
                                         return Ok(variant_ty.clone());
                                     }
@@ -707,7 +706,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_stmt(&mut self, stmt: &mut Spanned<Stmt>) -> Result<(), Spanned<Error>> {
+    fn check_stmt(&mut self, stmt: &mut Spanned<Stmt<'src>>) -> Result<(), Spanned<Error<'src>>> {
         // println!("check_stmt: {:?}", stmt);
         match &mut stmt.1 {
             Stmt::Expr(expr) => {
@@ -777,7 +776,7 @@ impl<'a> Checker<'a> {
                 match in_ex_ty.clone() {
                     Type::List(ty) => {
                         let mut scope_env = HashMap::new();
-                        scope_env.insert(var.clone(), *ty.clone());
+                        scope_env.insert(*var, *ty.clone());
                         self.scope += 1;
                         self.type_env.push(scope_env);
                         self.loop_depth += 1;
@@ -792,7 +791,7 @@ impl<'a> Checker<'a> {
                     }
                     Type::Range => {
                         let mut scope_env = HashMap::new();
-                        scope_env.insert(var.clone(), Type::Int);
+                        scope_env.insert(*var, Type::Int);
                         self.scope += 1;
                         self.type_env.push(scope_env);
                         self.loop_depth += 1;
@@ -827,7 +826,7 @@ impl<'a> Checker<'a> {
                             match &mut (*var).1 {
                                 Expr::Variable { name, ty } => {
                                     *ty = Some(typee.clone());
-                                    scope_env.insert(name.clone(), typee);
+                                    scope_env.insert(name, typee);
                                 }
                                 Expr::Tuple { exprs, .. } => {
                                     if let Type::Tuple(tys) = typee {
@@ -835,7 +834,7 @@ impl<'a> Checker<'a> {
                                             if let Expr::Variable { name, ty: optty } = &mut expr.1
                                             {
                                                 *optty = Some(ty.clone());
-                                                scope_env.insert(name.clone(), ty);
+                                                scope_env.insert(name, ty);
                                             }
                                         }
                                         return Ok(());
@@ -1006,15 +1005,15 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
-pub fn check_program(
-    program: &mut Program,
+pub fn check_program<'src>(
+    program: &mut Program<'src>,
 ) -> Result<
     (
-        FuncEnv,
-        HashMap<String, Type>,
-        HashMap<String, (Type, String, usize)>,
+        FuncEnv<'src>,
+        HashMap<&'src str, Type<'src>>,
+        HashMap<&'src str, (Type<'src>, &'src str, usize)>,
     ),
-    Spanned<Error>,
+    Spanned<Error<'src>>,
 > {
     let mut func_env: FuncEnv = HashMap::new();
 
@@ -1026,7 +1025,7 @@ pub fn check_program(
             _ => false,
         })
         .map(|tl| match tl {
-            TopLevel::Typedef(name, ty) => (name.clone(), ty.clone()),
+            TopLevel::Typedef(name, ty) => (name, ty.clone()),
             _ => unreachable!(),
         })
         .collect::<Vec<_>>();
@@ -1034,7 +1033,7 @@ pub fn check_program(
     let mut typemap = HashMap::new();
 
     for (name, ty) in typedefs {
-        typemap.insert(name, ty);
+        typemap.insert(*name, ty);
     }
 
     let variants_iter = typemap
@@ -1046,9 +1045,9 @@ pub fn check_program(
         .map(|(name, ty)| {
             if let Type::Variant(variants) = ty {
                 variants
-                    .iter()
+                    .into_iter()
                     .enumerate()
-                    .map(move |(ix, variant)| (variant.0.clone(), (ty.clone(), name.clone(), ix)))
+                    .map(move |(ix, variant)| (variant.0, (ty.clone(), *name, ix)))
                     .collect::<Vec<_>>()
             } else {
                 unreachable!()

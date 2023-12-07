@@ -1,4 +1,4 @@
-use std::process;
+use std::{process, sync::Arc};
 
 use crate::{syntax::*, utils::extract_var_name};
 use ariadne::{Color, Label, Report, ReportKind, Source};
@@ -8,7 +8,7 @@ use chumsky::{extra::Err, input::SpannedInput, prelude::*, Parser};
 enum Token<'src> {
     Int(i64),
     Double(f64),
-    Str(Vec<char>),
+    Str(Arc<String>),
     Char(char),
     Ident(&'src str),
     Bool(bool),
@@ -76,7 +76,7 @@ impl std::fmt::Display for Token<'_> {
         match self {
             Token::Int(i) => write!(f, "{}", i),
             Token::Double(d) => write!(f, "{}", d),
-            Token::Str(s) => write!(f, "\"{}\"", s.iter().collect::<String>()),
+            Token::Str(s) => write!(f, "\"{}\"", s),
             Token::Char(c) => write!(f, "'{}'", c),
             Token::Ident(s) => write!(f, "{}", s),
             Token::Bool(b) => write!(f, "{}", b),
@@ -274,11 +274,12 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         .map(|(_, c)| c)
         .boxed();
 
-    let string: Boxed<'_, '_, _, Vec<char>, _> = none_of("\\\"")
+    let string = none_of("\\\"")
         .or(escape)
         .repeated()
-        .collect::<Vec<_>>()
+        .collect::<String>()
         .delimited_by(just('"'), just('"'))
+        .map(|s| Token::Str(Arc::new(s)))
         .boxed();
 
     let char_escape: Boxed<'_, '_, _, char, _> = just('\\')
@@ -340,7 +341,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
             double
                 .or(int.map(Token::Int))
                 .or(char.map(Token::Char))
-                .or(string.map(Token::Str))
+                .or(string)
                 .or(bool)
                 .or(ident)
                 .or(just("~").to(Token::Tilde))
@@ -388,7 +389,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
 type ParserInput<'src, 'tokens> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
 
 fn typee<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Type, Err<Rich<'tokens, Token<'src>, Span>>> {
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Type<'src>, Err<Rich<'tokens, Token<'src>, Span>>> {
     recursive(
         |t: Recursive<
             dyn Parser<
@@ -457,18 +458,18 @@ fn typee<'tokens, 'src: 'tokens>(
 }
 
 fn ident<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, String, Err<Rich<'tokens, Token<'src>, Span>>>
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, &'src str, Err<Rich<'tokens, Token<'src>, Span>>>
 {
     select! {
-        Token::Ident(s) => s.to_string(),
+        Token::Ident(s) => s,
     }
 }
 
 fn exp<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Expr>, Err<Rich<'tokens, Token<'src>, Span>>>
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Expr<'src>>, Err<Rich<'tokens, Token<'src>, Span>>>
 {
     let variable = select! {
-        Token::Ident(v) => Expr::Variable { name: v.to_string(), ty: None }
+        Token::Ident(v) => Expr::Variable { name: v, ty: None }
     };
 
     let optional_ref = just(Token::Ampersand)
@@ -965,7 +966,7 @@ fn exp<'tokens, 'src: 'tokens>(
             let chanread = just(Token::LeftArrow)
                 .ignore_then(ident())
                 .map(|name| Expr::ChanRead {
-                    name: name.to_string(),
+                    name,
                     ty: None,
                 })
                 .boxed();
@@ -1033,7 +1034,7 @@ fn exp<'tokens, 'src: 'tokens>(
 }
 
 fn statement<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Stmt>, Err<Rich<'tokens, Token<'src>, Span>>>
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Stmt<'src>>, Err<Rich<'tokens, Token<'src>, Span>>>
 {
     recursive(
         |st: Recursive<
@@ -1099,7 +1100,7 @@ fn statement<'tokens, 'src: 'tokens>(
                                     // variant
                                     let ex = Expr::Is {
                                         expr: Box::new(expr.clone()),
-                                        ty: Type::Custom(name.to_string()),
+                                        ty: Type::Custom(name),
                                         ix: None,
                                     };
                                     res.push((ex, stmts));
@@ -1120,7 +1121,7 @@ fn statement<'tokens, 'src: 'tokens>(
                                 if let Some(name) = extract_var_name(&name) {
                                     let ex = Expr::Is {
                                         expr: Box::new(expr.clone()),
-                                        ty: Type::Custom(name.to_string()),
+                                        ty: Type::Custom(name),
                                         ix: None,
                                     };
                                     // case L1(x) -> {
@@ -1134,16 +1135,12 @@ fn statement<'tokens, 'src: 'tokens>(
                                     // }
                                     let mut stmts = stmts;
                                     // add subscription to expr
-                                    let mut name_vec  = Vec::new();
-                                    for n in name.chars() {
-                                        name_vec.push(n);
-                                    }
                                     let expr = Expr::Subscr {
                                         expr: Box::new(expr.clone()),
                                         index: Box::new((
                                             0,
                                             Expr::Literal {
-                                                lit: Lit::Str(name_vec),
+                                                lit: Lit::Str(Arc::new(name.to_string())),
                                                 ty: Type::Str,
                                             },
                                             0,
@@ -1159,7 +1156,7 @@ fn statement<'tokens, 'src: 'tokens>(
                                             }
                                         };
                                         let name = Expr::Variable {
-                                            name: name.clone(),
+                                            name: *name,
                                             ty: None,
                                         };
                                         let spanned_name = (arg.0, name, arg.2);
@@ -1248,7 +1245,7 @@ fn statement<'tokens, 'src: 'tokens>(
                 .then_ignore(just(Token::In))
                 .then(exp())
                 .then(block.clone())
-                .map(|(((_, name), expr), body)| Stmt::For(name.to_string(), Box::new(expr), body))
+                .map(|(((_, name), expr), body)| Stmt::For(name, Box::new(expr), body))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
             let returnstmt = just(Token::Return)
@@ -1285,7 +1282,7 @@ fn statement<'tokens, 'src: 'tokens>(
                 .then(just(Token::LeftArrow))
                 .then(exp())
                 .then(just(Token::Semicolon))
-                .map(|(((name, _), expr), _)| Stmt::ChanWrite(name.to_string(), Box::new(expr)))
+                .map(|(((name, _), expr), _)| Stmt::ChanWrite(name, Box::new(expr)))
                 .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
 
             let continuest = just(Token::Continue)
@@ -1327,7 +1324,7 @@ fn statement<'tokens, 'src: 'tokens>(
 
 // fun func_name(a: int, b: string) -> b {}
 fn parse_function<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Func, Err<Rich<'tokens, Token<'src>, Span>>> {
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Func<'src>, Err<Rich<'tokens, Token<'src>, Span>>> {
     let param = ident().then(just(Token::Colon)).then(typee()).boxed();
 
     let params = param
@@ -1337,7 +1334,7 @@ fn parse_function<'tokens, 'src: 'tokens>(
             params
                 .into_iter()
                 .map(|((name, _), ty)| Param {
-                    name: name.to_string(),
+                    name: name,
                     ty,
                 })
                 .collect()
@@ -1362,7 +1359,7 @@ fn parse_function<'tokens, 'src: 'tokens>(
         .map(|res| {
             let ((((_, name), params), retty), body) = res;
             Func {
-                name: name.to_string(),
+                name,
                 args: params.unwrap_or_default(),
                 retty: retty.unwrap_or(Type::Void),
                 externed: false,
@@ -1383,7 +1380,7 @@ fn parse_function<'tokens, 'src: 'tokens>(
 }
 
 fn parse_typdef<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel, Err<Rich<'tokens, Token<'src>, Span>>>
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
 {
     let variant_param = just(Token::LeftParen)
         .ignored()
@@ -1416,14 +1413,14 @@ fn parse_typdef<'tokens, 'src: 'tokens>(
         .then_ignore(just(Token::Assign))
         .then(variants)
         .then(just(Token::Semicolon))
-        .map(|(((_, name), ty), _)| TopLevel::Typedef(name.to_string(), ty))
+        .map(|(((_, name), ty), _)| TopLevel::Typedef(name, ty))
         .boxed();
 
     typedef
 }
 
 fn parse_top_level<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel, Err<Rich<'tokens, Token<'src>, Span>>>
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
 {
     parse_function().map(TopLevel::Func).or(parse_typdef())
 }
@@ -1458,7 +1455,7 @@ pub fn handle_err<T: Clone + std::fmt::Debug + std::fmt::Display>(e: &Vec<Rich<T
             .with_message("Parsing Failed")
             .with_label(
                 Label::new(e.span().into_range())
-                    .with_message(e.reason().to_string())
+                    .with_message(e.reason())
                     .with_color(Color::Red),
             )
             .finish();

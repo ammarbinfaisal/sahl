@@ -2,14 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use crate::regcode::{RegCode, SuperInstruction};
 
-pub type CFG = Vec<BasicBlock>;
+pub type CFG<'src> = Vec<BasicBlock<'src>>;
 
 #[derive(Debug)]
-pub struct BasicBlock {
-    pub code: Vec<RegCode>,
+pub struct BasicBlock<'src> {
+    pub code: Vec<RegCode<'src>>,
 }
 
-pub fn construct_cfg(regcode: &Vec<RegCode>) -> CFG {
+pub fn construct_cfg<'src>(regcode: &Vec<RegCode<'src>>) -> CFG<'src> {
     let mut cfg: CFG = Vec::new();
     let mut block: Vec<RegCode> = Vec::new();
     let mut map = HashMap::new(); // regcode index -> block index, code index

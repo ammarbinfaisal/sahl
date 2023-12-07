@@ -34,20 +34,20 @@ impl<'ctx> LLVMTy<'ctx> {
     }
 }
 
-pub struct Compiler<'ctx> {
+pub struct Compiler<'ctx, 'src> {
     pub context: &'ctx Context,
     module: Module<'ctx>,
     builder: Builder<'ctx>,
-    consts: Vec<(Type, Vec<u8>)>,
-    fn_names: Vec<String>,
+    consts: Vec<(Type<'src>, Vec<u8>)>,
+    fn_names: Vec<&'src str>,
 }
 
-impl<'ctx> Compiler<'ctx> {
+impl<'ctx, 'src> Compiler<'ctx, 'src> {
     pub fn new(
         context: &'ctx Context,
         module: Module<'ctx>,
         builder: Builder<'ctx>,
-        consts: Vec<(Type, Vec<u8>)>,
+        consts: Vec<(Type<'src>, Vec<u8>)>,
     ) -> Self {
         Self {
             context,
@@ -839,7 +839,7 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    pub fn compile_program(&mut self, program: &Program, code: Vec<Vec<RegCode>>) {
+    pub fn compile_program(&mut self, program: &Program<'src>, code: Vec<Vec<RegCode>>) {
         let functions = [
             ("iprint", vec![Type::Int], Type::Void),
             ("fprint", vec![Type::Double], Type::Void),
@@ -888,7 +888,7 @@ impl<'ctx> Compiler<'ctx> {
                 .iter()
                 .map(|arg| arg.ty.clone())
                 .collect::<Vec<_>>();
-            self.fn_names.push(func.name.clone());
+            self.fn_names.push(func.name);
             let func_type = self.create_func_type(params.as_slice(), func.retty.clone());
             let func = if func.name == "main" {
                 self.module.add_function("sahl_main", func_type, None)

@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {
+pub enum Type<'src> {
     Int,
     Str,
     Char,
@@ -7,17 +9,17 @@ pub enum Type {
     Void,
     Double,
     Any,
-    List(Box<Type>),
-    Chan(Box<Type>),
-    Tuple(Vec<Type>),
-    Map(Box<Type>, Box<Type>),
+    List(Box<Type<'src>>),
+    Chan(Box<Type<'src>>),
+    Tuple(Vec<Type<'src>>),
+    Map(Box<Type<'src>>, Box<Type<'src>>),
     Range,
-    Ref(Box<Type>),
-    Custom(String),
-    Variant(Vec<(String, Type)>),
+    Ref(Box<Type<'src>>),
+    Custom(&'src str),
+    Variant(Vec<(&'src str, Type<'src>)>),
 }
 
-impl Type {
+impl<'src> Type<'src> {
     #[inline]
     pub fn is_heap_type(&self) -> bool {
         match self {
@@ -32,7 +34,7 @@ pub enum Lit {
     Int(i64),
     Char(u8),
     Bool(bool),
-    Str(Vec<char>),
+    Str(Arc<String>),
     Double(f64),
 }
 
@@ -71,107 +73,107 @@ pub enum BitOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub enum Expr<'src> {
     Literal {
         lit: Lit,
-        ty: Type,
+        ty: Type<'src>,
     },
     Variable {
-        name: String,
-        ty: Option<Type>,
+        name: &'src str,
+        ty: Option<Type<'src>>,
     },
     Neg {
-        expr: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        expr: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Not {
-        expr: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        expr: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     BitNot {
-        expr: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        expr: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Range {
-        start: Box<Spanned<Expr>>,
-        end: Box<Spanned<Expr>>,
+        start: Box<Spanned<Expr<'src>>>,
+        end: Box<Spanned<Expr<'src>>>,
         inclusive: bool,
     },
     Arith {
         op: ArithOp,
-        left: Box<Spanned<Expr>>,
-        right: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        left: Box<Spanned<Expr<'src>>>,
+        right: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     BoolOp {
         op: BoolOp,
-        left: Box<Spanned<Expr>>,
-        right: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        left: Box<Spanned<Expr<'src>>>,
+        right: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     CmpOp {
         op: CmpOp,
-        left: Box<Spanned<Expr>>,
-        right: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        left: Box<Spanned<Expr<'src>>>,
+        right: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     BitOp {
         op: BitOp,
-        left: Box<Spanned<Expr>>,
-        right: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        left: Box<Spanned<Expr<'src>>>,
+        right: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Call {
-        name: Box<Expr>,
-        args: Vec<Spanned<Expr>>,
-        ty: Option<Type>,
+        name: Box<Expr<'src>>,
+        args: Vec<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Subscr {
-        expr: Box<Spanned<Expr>>,
-        index: Box<Spanned<Expr>>,
-        ty: Option<Type>,
+        expr: Box<Spanned<Expr<'src>>>,
+        index: Box<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Assign {
-        left: Box<Spanned<Expr>>,
-        right: Box<Spanned<Expr>>,
+        left: Box<Spanned<Expr<'src>>>,
+        right: Box<Spanned<Expr<'src>>>,
     },
     Make {
-        ty: Type,
-        expr: Option<Box<Spanned<Expr>>>,
+        ty: Type<'src>,
+        expr: Option<Box<Spanned<Expr<'src>>>>,
     },
     Tuple {
-        exprs: Vec<Spanned<Expr>>,
-        ty: Option<Type>,
+        exprs: Vec<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     ChanRead {
-        name: String,
-        ty: Option<Type>,
+        name: &'src str,
+        ty: Option<Type<'src>>,
     },
     List {
-        exprs: Vec<Spanned<Expr>>,
-        ty: Option<Type>,
+        exprs: Vec<Spanned<Expr<'src>>>,
+        ty: Option<Type<'src>>,
     },
     Cast {
-        expr: Box<Spanned<Expr>>,
-        ty: Type,
+        expr: Box<Spanned<Expr<'src>>>,
+        ty: Type<'src>,
     },
     Ref {
-        expr: Box<Expr>,
-        ty: Option<Type>,
+        expr: Box<Expr<'src>>,
+        ty: Option<Type<'src>>,
     },
     Deref {
-        expr: Box<Expr>,
-        ty: Option<Type>,
+        expr: Box<Expr<'src>>,
+        ty: Option<Type<'src>>,
     },
     Is {
-        expr: Box<Spanned<Expr>>,
+        expr: Box<Spanned<Expr<'src>>>,
         ix: Option<usize>,
-        ty: Type,
+        ty: Type<'src>,
     },
 }
 
-impl Expr {
-    pub fn get_type(&self) -> Type {
+impl<'src> Expr<'src> {
+    pub fn get_type(&self) -> Type<'src> {
         match self {
             Expr::Literal { ty, .. } => ty.clone(),
             Expr::Variable { ty, .. } => ty.clone().unwrap(),
@@ -199,20 +201,20 @@ impl Expr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt {
-    Expr(Box<Spanned<Expr>>),
-    Decl(Spanned<Expr>, Box<Spanned<Expr>>),
-    For(String, Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
-    While(Box<Spanned<Expr>>, Vec<Spanned<Stmt>>),
+pub enum Stmt<'src> {
+    Expr(Box<Spanned<Expr<'src>>>),
+    Decl(Spanned<Expr<'src>>, Box<Spanned<Expr<'src>>>),
+    For(&'src str, Box<Spanned<Expr<'src>>>, Vec<Spanned<Stmt<'src>>>),
+    While(Box<Spanned<Expr<'src>>>, Vec<Spanned<Stmt<'src>>>),
     IfElse(
-        Box<Spanned<Expr>>,
-        Vec<Spanned<Stmt>>,
-        Option<Vec<Spanned<Stmt>>>,
+        Box<Spanned<Expr<'src>>>,
+        Vec<Spanned<Stmt<'src>>>,
+        Option<Vec<Spanned<Stmt<'src>>>>,
     ),
-    Return(Box<Option<Spanned<Expr>>>),
-    Coroutine(Spanned<Expr>),
-    ChanWrite(String, Box<Spanned<Expr>>),
-    Block(Vec<Spanned<Stmt>>),
+    Return(Box<Option<Spanned<Expr<'src>>>>),
+    Coroutine(Spanned<Expr<'src>>),
+    ChanWrite(&'src str, Box<Spanned<Expr<'src>>>),
+    Block(Vec<Spanned<Stmt<'src>>>),
     Continue,
     Break,
 }
@@ -220,27 +222,27 @@ pub enum Stmt {
 pub type Spanned<T> = (usize, T, usize);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param {
-    pub name: String,
-    pub ty: Type,
+pub struct Param<'src> {
+    pub name: &'src str,
+    pub ty: Type<'src>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Func {
-    pub name: String,
-    pub args: Vec<Param>,
-    pub body: Vec<Spanned<Stmt>>,
-    pub retty: Type,
+pub struct Func<'src> {
+    pub name: &'src str,
+    pub args: Vec<Param<'src>>,
+    pub body: Vec<Spanned<Stmt<'src>>>,
+    pub retty: Type<'src>,
     pub externed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TopLevel {
-    Func(Func),
-    Typedef(String, Type),
+pub enum TopLevel<'src> {
+    Func(Func<'src>),
+    Typedef(&'src str, Type<'src>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program {
-    pub top_levels: Vec<TopLevel>,
+pub struct Program<'src> {
+    pub top_levels: Vec<TopLevel<'src>>,
 }
