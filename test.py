@@ -30,6 +30,7 @@ files_all_checks = [
     "adt",
     "tree",
     "syncchan",
+    "string_indexing",
 ]
 files_retcode_check = [
     "chan",

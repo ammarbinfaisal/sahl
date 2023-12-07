@@ -1,0 +1,8 @@
+fun main() {
+    let str = "Hello, World!";
+    let str_len = len(str);
+    for i in 0..str_len {
+        print(str[i], " ");
+    }
+    print("\n");
+}
