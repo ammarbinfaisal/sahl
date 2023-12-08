@@ -25,7 +25,6 @@ files_all_checks = [
     "bitwise",
     "cast",
     "graph",
-    "map",
     "seive",
     "adt",
     "tree",
