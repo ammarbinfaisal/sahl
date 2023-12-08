@@ -287,7 +287,7 @@ The `extern` keyword is used for importing external c functions. Example:
 ```kt
 // prog.sahl
 
-extern fun exp(a: double) -> double;
+extern fun exp(a: double) -> double {}
 
 fun main() {
     let a = 10.0;
