@@ -4,14 +4,50 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
 
 ## Table of Contents
 
-- [Hello World](#hello-world)
-- [Functions](#functions)
-- [Variables](#variables)
-- [Types](#types)
-- [Statements](#statements)
-- [Expressions](#expressions)
-- [Channels](#channels)
-- [Examples](#examples)
+<table>
+  <tr>
+    <td width=33% valign=top>
+      <ul>
+        <li><a href="#hello-world">Hello World</a></li>
+        <li><a href="#functions">Functions</a></li>
+        <li><a href="#variables">Variables</a></li>
+        <li><a href="#types">Types</a></li>
+        <li><a href="#operators">Operators</a></li>
+      </ul>
+    </td>
+    <td width=33% valign=top>
+      <ul>
+        <li><a href="#statements">Statements</a>
+          <ul>
+            <li><a href="#if">if</a></li>
+            <li><a href="#while">while</a></li>
+            <li><a href="#for">for</a></li>
+            <li><a href="#match">match</a></li>
+            <li><a href="#destructuring">destructuring</a></li>
+          </ul>
+        </li>
+      </ul>
+    </td>
+    <td width=33% valign=top>
+      <ul>
+        <li><a href="#expressions">Expressions</a>
+          <ul>
+            <li><a href="#function-calls">Function Calls</a></li>
+            <li><a href="#array-access">Array Access</a></li>
+            <li><a href="#make">Make</a></li>
+            <li><a href="#chan-recvsend">Chan Recv/Send</a></li>
+          </ul>
+        </li>
+      </ul>
+    </td>
+    <td width=33% valign=top>
+      <ul>
+        <li><a href="#channels">Channels</a></li>
+        <li><a href="#examples">Examples</a></li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ## Hello World
 
