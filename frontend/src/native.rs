@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::bytes::rec_vectorise_ty;
@@ -40,6 +41,7 @@ pub struct Compiler<'ctx, 'src> {
     builder: Builder<'ctx>,
     consts: Vec<(Type<'src>, Vec<u8>)>,
     fn_names: Vec<&'src str>,
+    coro_fns: HashMap<usize, FunctionValue<'ctx>>,
 }
 
 impl<'ctx, 'src> Compiler<'ctx, 'src> {
@@ -55,6 +57,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             builder,
             consts,
             fn_names: Vec::new(),
+            coro_fns: HashMap::new(),
         }
     }
 
@@ -823,7 +826,58 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                     RegCode::Pop(_) => {}
                     RegCode::StackMap(_) => {}
                     RegCode::Super(_) => {}
-                    RegCode::CoroCall(_, _) => todo!(),
+                    RegCode::CoroCall(fnix, params) => {
+                        let fn_ptr = if let Some(fn_ptr) = self.coro_fns.get(&fnix) {
+                            *fn_ptr
+                        } else {
+                            let coro_fn = self.module.add_function(
+                                &format!("coro_{}", self.fn_names[*fnix]),
+                                // coro_fn takes args as array
+                                self.create_func_type(&[Type::Int], Type::Void),
+                                None,
+                            );
+                            self.coro_fns.insert(*fnix, coro_fn);
+                            coro_fn
+                        };
+                        let pthread_create = self.module.get_function("pthread_create").unwrap();
+                        // make an array of params
+                        let args_array = self.builder.build_array_alloca(
+                            i64_type,
+                            i64_type.const_int(params.len().try_into().unwrap(), false),
+                            "args_array",
+                        );
+                        for (i, r) in params.iter().enumerate() {
+                            let reg = registers[*r as usize];
+                            let v = self.builder.build_load(i64_type, reg, "v");
+                            let gep = unsafe {
+                                self.builder.build_gep(
+                                    i64_type,
+                                    args_array,
+                                    &[i64_type.const_int(i.try_into().unwrap(), false)],
+                                    "gep",
+                                )
+                            };
+                            self.builder.build_store(gep, v);
+                        }
+                        // call pthread_create
+                        let pthread_var = self
+                            .builder
+                            .build_alloca(i64_type.ptr_type(AddressSpace::from(0)), "pthread_var");
+                        let pthread_var = self.builder.build_pointer_cast(
+                            pthread_var,
+                            i64_type.ptr_type(AddressSpace::from(0)),
+                            "pthread_var",
+                        );
+                        let fnptr = fn_ptr.as_global_value().as_pointer_value();
+                        let args = &[
+                            pthread_var.into(),
+                            i64_type.const_int(0, false).into(),
+                            fnptr.into(),
+                            args_array.into(),
+                        ];
+                        self.builder
+                            .build_call(pthread_create, args, "pthread_create");
+                    }
                     RegCode::Ref(_, _) => todo!(),
                     RegCode::Deref(_, _) => todo!(),
                     RegCode::DerefAssign(_, _, _) => todo!(),
@@ -854,6 +908,41 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
         }
     }
 
+    fn add_coro_fns(&mut self) {
+        for (fnix, coro_fn) in self.coro_fns.iter() {
+            let fn_ptr = self.module.get_function(&self.fn_names[*fnix]).unwrap();
+            self.context.append_basic_block(*coro_fn, "entry");
+            self.builder.position_at_end(coro_fn.get_last_basic_block().unwrap());
+            let mut args = Vec::new();
+            // args passed are in the form array of i64
+            // so we need to call the function with the args
+            let args_array = coro_fn.get_nth_param(0).unwrap().into_int_value();
+            let i64_type: IntType<'_> = self.context.i64_type();
+            let args_array = self.builder.build_int_to_ptr(
+                args_array,
+                i64_type.ptr_type(AddressSpace::from(0)),
+                "args_array",
+            );
+            for i in 0..fn_ptr.count_params() {
+                let gep = unsafe {
+                    self.builder.build_gep(
+                        i64_type,
+                        args_array,
+                        &[i64_type.const_int(i.try_into().unwrap(), false)],
+                        "gep",
+                    )
+                };
+                let v = self.builder.build_load(i64_type, gep, "v");
+                args.push(v.into());
+            }
+            let pthread_exit = self.module.get_function("pthread_exit").unwrap();
+            self.builder.build_call(fn_ptr, args.as_slice(), "ret");
+            self.builder
+                .build_call(pthread_exit, &[i64_type.const_int(0, false).into()], "ret");
+            self.builder.build_return(None);
+        }
+    }
+
     pub fn compile_program(&mut self, program: &Program<'src>, code: Vec<Vec<RegCode>>) {
         let functions = [
             ("iprint", vec![Type::Int], Type::Void),
@@ -877,6 +966,12 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             ("is_variant", vec![Type::Int, Type::Int], Type::Int),
             ("get_variant", vec![Type::Int], Type::Int),
             ("strget", vec![Type::Int, Type::Int], Type::Int),
+            (
+                "pthread_create",
+                vec![Type::Int, Type::Int, Type::Int],
+                Type::Void,
+            ),
+            ("pthread_exit", vec![Type::Int], Type::Void),
         ];
 
         for (name, params, retty) in functions.iter() {
@@ -920,6 +1015,8 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             }
             self.compile_fn(&funcs[i], &func.0.retty, func.0.name == "main", func.1);
         }
+
+        self.add_coro_fns();
 
         // mem2reg - no passes working
         // let pass_manager = PassManager::create(());
