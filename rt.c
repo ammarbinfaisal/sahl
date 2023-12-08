@@ -1,4 +1,6 @@
 #include "gc.h"
+#include "gc/gc.h"
+#include <assert.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -110,6 +112,181 @@ void free_linkedlist(LinkedList *q) {
     GC_free(q);
 }
 
+// Map
+
+
+// algo taken from GFG
+
+enum Color { RED, BLACK };
+
+struct RBNode {
+    int64_t key;
+    int64_t value;
+    int color;
+    struct RBNode *left;
+    struct RBNode *right;
+    struct RBNode *parent;
+};
+
+typedef struct RBNode RBNode;
+
+RBNode *new_rb_node(int64_t key) {
+    RBNode *node = GC_malloc(sizeof(RBNode));
+    node->key = key;
+    node->value = 0;
+    node->color = RED;
+    node->left = NULL;
+    node->right = NULL;
+    node->parent = NULL;
+    return node;
+}
+
+// function to perform BST insertion of a node
+RBNode *rb_insert(RBNode *trav, RBNode *temp) {
+    // If the tree is empty,
+    // return a new node
+    if (trav == NULL) return temp;
+
+    if (temp->key < trav->key) {
+        trav->left = rb_insert(trav->left, temp);
+        trav->left->parent = trav;
+    } else {
+        trav->right = rb_insert(trav->right, temp);
+        trav->right->parent = trav;
+    }
+
+    // Return the (unchanged) node pointer
+    return trav;
+}
+
+// Function performing right rotation
+// of the passed node
+void rb_rightrotate(RBNode **root, RBNode *temp) {
+    RBNode *left = temp->left;
+    temp->left = left->right;
+    if (temp->left) temp->left->parent = temp;
+    left->parent = temp->parent;
+    if (!temp->parent)
+        *root = left;
+    else if (temp == temp->parent->left)
+        temp->parent->left = left;
+    else
+        temp->parent->right = left;
+    left->right = temp;
+    temp->parent = left;
+}
+
+// Function performing left rotation
+// of the passed node
+void rb_leftrotate(RBNode **root, RBNode *temp) {
+    RBNode *right = temp->right;
+    temp->right = right->left;
+    if (temp->right) temp->right->parent = temp;
+    right->parent = temp->parent;
+    if (!temp->parent)
+        *root = right;
+    else if (temp == temp->parent->left)
+        temp->parent->left = right;
+    else
+        temp->parent->right = right;
+    right->left = temp;
+    temp->parent = right;
+}
+
+// This function fixes violations
+// caused by rb_insert insertion
+void rb_fixup(RBNode *root, RBNode *pt) {
+    RBNode *parent_pt = NULL;
+    RBNode *grand_parent_pt = NULL;
+
+    while ((pt != root) && (pt->color != 0) && (pt->parent->color == 1)) {
+        parent_pt = pt->parent;
+        grand_parent_pt = pt->parent->parent;
+
+        /*  Case : A
+             Parent of pt is left child
+             of Grand-parent of
+           pt */
+        if (parent_pt == grand_parent_pt->left) {
+
+            RBNode *uncle_pt = grand_parent_pt->right;
+
+            /* Case : 1
+                The uncle of pt is also red
+                Only Recoloring required */
+            if (uncle_pt != NULL && uncle_pt->color == 1) {
+                grand_parent_pt->color = 1;
+                parent_pt->color = 0;
+                uncle_pt->color = 0;
+                pt = grand_parent_pt;
+            }
+
+            else {
+
+                /* Case : 2
+                     pt is right child of its parent
+                     Left-rotation required */
+                if (pt == parent_pt->right) {
+                    rb_leftrotate(&root, parent_pt);
+                    pt = parent_pt;
+                    parent_pt = pt->parent;
+                }
+
+                /* Case : 3
+                     pt is left child of its parent
+                     Right-rotation required */
+                rb_rightrotate(&root, grand_parent_pt);
+                int t = parent_pt->color;
+                parent_pt->color = grand_parent_pt->color;
+                grand_parent_pt->color = t;
+                pt = parent_pt;
+            }
+        }
+
+        /* Case : B
+             Parent of pt is right
+             child of Grand-parent of
+           pt */
+        else {
+            RBNode *uncle_pt = grand_parent_pt->left;
+
+            /*  Case : 1
+                The uncle of pt is also red
+                Only Recoloring required */
+            if ((uncle_pt != NULL) && (uncle_pt->color == 1)) {
+                grand_parent_pt->color = 1;
+                parent_pt->color = 0;
+                uncle_pt->color = 0;
+                pt = grand_parent_pt;
+            } else {
+                /* Case : 2
+                   pt is left child of its parent
+                   Right-rotation required */
+                if (pt == parent_pt->left) {
+                    rb_rightrotate(&root, parent_pt);
+                    pt = parent_pt;
+                    parent_pt = pt->parent;
+                }
+
+                /* Case : 3
+                     pt is right child of its parent
+                     Left-rotation required */
+                rb_leftrotate(&root, grand_parent_pt);
+                int t = parent_pt->color;
+                parent_pt->color = grand_parent_pt->color;
+                grand_parent_pt->color = t;
+                pt = parent_pt;
+            }
+        }
+    }
+}
+
+RBNode *rb_search(RBNode *root, uint64_t key) {
+    if (root == NULL || key == root->key) return root;
+    if (key < root->key) return rb_search(root->left, key);
+    return rb_search(root->right, key);
+}
+
 // Chan
 
 struct Chan {
@@ -134,9 +311,14 @@ chan_t *new_chan(int capacity) {
     c->len = 0;
     c->cap = capacity;
 
-    pthread_mutex_init(&c->m_mu, NULL);
-    pthread_cond_init(&c->r_cond, NULL);
-    pthread_cond_init(&c->w_cond, NULL);
+    int rc;
+
+    rc = pthread_mutex_init(&c->m_mu, NULL);
+    assert(rc == 0);
+    rc = pthread_cond_init(&c->r_cond, NULL);
+    assert(rc == 0);
+    rc = pthread_cond_init(&c->w_cond, NULL);
+    assert(rc == 0);
     c->closed = 0;
     c->r_waiting = 0;
 
@@ -187,7 +369,7 @@ struct list_t {
 
 typedef struct list_t list_t;
 
-enum ObjType { OBJ_STR, OBJ_LIST, OBJ_CHAN };
+enum ObjType { OBJ_STR, OBJ_LIST, OBJ_CHAN, OBJ_MAP };
 
 typedef enum ObjType ObjType;
 
@@ -198,6 +380,7 @@ struct Obj {
         str_t *str;
         list_t *list;
         chan_t *chan;
+        RBNode *map;
     };
 };
 
@@ -290,6 +473,24 @@ char strget(Obj *str, uint64_t index) {
     return s->ptr[index];
 }
 
+int64_t mapget(Obj *map, int64_t key) {
+    RBNode *node = rb_search(map->map, key);
+    if (node == NULL) {
+        printf("key not found\n");
+        exit(1);
+    }
+    return node->value;
+}
+
+void mapset(Obj *map, int64_t key, int64_t val) {
+    RBNode *node = rb_search(map->map, key);
+    if (node == NULL) {
+        node = new_rb_node(key);
+        map->map = rb_insert(map->map, node);
+    }
+    node->value = val;
+}
+
 Obj *make_list(size_t size) {
     list_t *list = (list_t *)GC_malloc(sizeof(list_t));
     list->cap = size;
@@ -298,6 +499,12 @@ Obj *make_list(size_t size) {
     list->data = (uint64_t *)GC_malloc(newsize);
     Obj *obj = newobj(OBJ_LIST);
     obj->list = list;
+    return obj;
+}
+
+Obj *make_map() {
+    Obj *obj = newobj(OBJ_MAP);
+    obj->map = new_rb_node(0);
     return obj;
 }
 
@@ -310,7 +517,7 @@ Obj *make_chan(size_t size) {
 
 typedef Obj *(*MakeFn)(size_t len);
 
-static MakeFn make_fns[] = {make_list, make_list, make_chan};
+static MakeFn make_fns[] = {make_list, make_map, make_chan};
 
 Obj *make(int ty, size_t size) { return make_fns[ty - 5](size); }
 

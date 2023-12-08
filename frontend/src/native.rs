@@ -548,8 +548,33 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                             .unwrap();
                         self.builder.build_store(val_reg, v.into_int_value());
                     }
-                    RegCode::MapGet(_, _, _) => todo!(),
-                    RegCode::MapSet(_, _, _) => todo!(),
+                    RegCode::MapGet(map_reg, key_reg, val_reg) => {
+                        let map_reg = registers[*map_reg as usize];
+                        let key_reg = registers[*key_reg as usize];
+                        let val_reg = registers[*val_reg as usize];
+                        let mapget = self.module.get_function("mapget").unwrap();
+                        let map = self.builder.build_load(i64_type, map_reg, "map");
+                        let key = self.builder.build_load(i64_type, key_reg, "key");
+                        let args = &[map.into(), key.into()];
+                        let v = self
+                            .builder
+                            .build_call(mapget, args, "ret")
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+                        self.builder.build_store(val_reg, v.into_int_value());
+                    }
+                    RegCode::MapSet(map_reg, key_reg, val_reg) => {
+                        let map_reg = registers[*map_reg as usize];
+                        let key_reg = registers[*key_reg as usize];
+                        let val_reg = registers[*val_reg as usize];
+                        let mapset = self.module.get_function("mapset").unwrap();
+                        let map = self.builder.build_load(i64_type, map_reg, "map");
+                        let key = self.builder.build_load(i64_type, key_reg, "key");
+                        let val = self.builder.build_load(i64_type, val_reg, "val");
+                        let args = &[map.into(), key.into(), val.into()];
+                        self.builder.build_call(mapset, args, "ret");
+                    }
                     RegCode::ChanSend(chan_var, var_reg) => {
                         let chan_var = variables[*chan_var as usize];
                         let var_reg = registers[*var_reg as usize];
@@ -966,6 +991,8 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             ("is_variant", vec![Type::Int, Type::Int], Type::Int),
             ("get_variant", vec![Type::Int], Type::Int),
             ("strget", vec![Type::Int, Type::Int], Type::Int),
+            ("mapget", vec![Type::Int, Type::Int], Type::Int),
+            ("mapset", vec![Type::Int, Type::Int, Type::Int], Type::Void),
             (
                 "pthread_create",
                 vec![Type::Int, Type::Int, Type::Int],
