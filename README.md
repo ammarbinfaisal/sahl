@@ -14,8 +14,7 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 - install rust, llvm, clang
 - `make codegen` to compile the compiler
-- then use **"./sahlc"** to compile a sahl file to native code
-- or use the following commands:
+- then use **"./sahlc -o exe code.sahl"** to compile a sahl file to native code
 
 ## features
 
