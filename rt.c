@@ -1,13 +1,7 @@
+#include "rt.h"
 #include "gc.h"
 #include "gc/gc.h"
 #include <assert.h>
-#include <pthread.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
 
 // #define DEBUG
 
@@ -20,21 +14,6 @@
 void sahl_main();
 
 // List
-
-struct Node {
-    void *value;
-    struct Node *next;
-};
-
-typedef struct Node Node;
-
-struct LinkedList {
-    int size;
-    struct Node *head;
-    struct Node *tail;
-};
-
-typedef struct LinkedList LinkedList;
 
 LinkedList *new_list() {
     LinkedList *q;
@@ -82,7 +61,7 @@ void *dequeue(LinkedList *q) {
     }
 
     void *value = NULL;
-    struct Node *tmp = NULL;
+    Node *tmp = NULL;
 
     value = q->head->value;
     tmp = q->head;
@@ -114,21 +93,7 @@ void free_linkedlist(LinkedList *q) {
 
 // Map
 
-
 // algo taken from GFG
-
-enum Color { RED, BLACK };
-
-struct RBNode {
-    int64_t key;
-    int64_t value;
-    int color;
-    struct RBNode *left;
-    struct RBNode *right;
-    struct RBNode *parent;
-};
-
-typedef struct RBNode RBNode;
 
 RBNode *new_rb_node(int64_t key) {
     RBNode *node = GC_malloc(sizeof(RBNode));
@@ -289,22 +254,6 @@ RBNode *rb_search(RBNode *root, uint64_t key) {
 
 // Chan
 
-struct Chan {
-    LinkedList *q;
-    int len;
-    // channel properties
-    pthread_mutex_t m_mu;
-    pthread_cond_t r_cond;
-    pthread_cond_t w_cond;
-    int closed;
-    int r_waiting;
-    int cap;
-};
-
-typedef struct Chan chan_t;
-
-enum ChanStatus { CHAN_OK, CHAN_CLOSED };
-
 chan_t *new_chan(int capacity) {
     chan_t *c = malloc(sizeof(chan_t));
     c->q = new_list();
@@ -352,46 +301,6 @@ static int chan_read(chan_t *chan, uint64_t *v) {
 }
 
 // Objects
-
-struct str_t {
-    int64_t len;
-    int constant;
-    char *ptr;
-};
-
-typedef struct str_t str_t;
-
-struct list_t {
-    size_t cap;
-    size_t length;
-    uint64_t *data;
-};
-
-typedef struct list_t list_t;
-
-enum ObjType { OBJ_STR, OBJ_LIST, OBJ_CHAN, OBJ_MAP };
-
-typedef enum ObjType ObjType;
-
-struct Obj {
-    ObjType type;
-    int marked;
-    union {
-        str_t *str;
-        list_t *list;
-        chan_t *chan;
-        RBNode *map;
-    };
-};
-
-typedef struct Obj Obj;
-
-struct variant_t {
-    uint64_t tag;
-    uint64_t val;
-};
-
-typedef struct variant_t variant_t;
 
 void iprint(int64_t i) { printf("%ld", i); }
 
