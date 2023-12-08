@@ -1,0 +1,25 @@
+{
+  "name": "sahl",
+  "displayName": "sahl",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "sahl",
+      "aliases": ["Sahl", "sahl"],
+      "extensions": [".sahl"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "sahl",
+      "scopeName": "source.sahl",
+      "path": "./syntaxes/grammar.tmLanguage.json"
+    }]
+  }
+}

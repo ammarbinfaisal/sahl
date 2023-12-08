@@ -1,0 +1,92 @@
+{
+  "name": "Sahl",
+  "scopeName": "source.sahl",
+  "fileTypes": ["sahl"],
+  "patterns": [
+    {
+      "match": "\\b(type|fun|let|struct|if|else|while|for|match|return)\\b",
+      "name": "keyword.control.sahl"
+    },
+    {
+      "match": "\\b(int|bool|char|string|float|double)\\b",
+      "name": "entity.name.type.sahl"
+    },
+    {
+      "match": "map|chan|list",
+      "name": "storage.type.sahl"
+    },
+    {
+      "match": "fun\\s+(\\w+)",
+      "name": "entity.name.function.sahl"
+    },
+    {
+      "match": "\\b(\\w+)\\b\\s*\\(",
+      "name": "entity.name.function.sahl"
+    },
+    {
+      "match" : "(\\w+)\\s*=",
+      "name" : "variable.other.sahl"
+    },
+    {
+      "match": "\\b(true|false)\\b",
+      "name": "constant.language.sahl"
+    },
+    {
+      "match": "//.*$",
+      "name": "comment.line.double-slash.sahl"
+    },
+    {
+      "match": "\".*\"",
+      "name": "string.quoted.double.sahl"
+    },
+    {
+      "match": "\\d+",
+      "name": "constant.numeric.sahl"
+    },
+    {
+      "match": "\\s+(\\w+)(?=\\()\\s+",
+      "name": "variable.other.sahl"
+    },
+    {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "match": "\\w+",
+          "name": "variable.parameter.sahl"
+        }
+      ]
+    },
+    {
+      "match": "\\{|\\}|\\[|\\]|\\(|\\)|\\;|\\,|\\.|\\<|\\>",
+      "name": "punctuation.sahl"
+    },
+    {
+      "match": ",",
+      "name": "punctuation.separator.comma.sahl"
+    },
+    {
+      "match": "=",
+      "name": "punctuation.separator.equals.sahl"
+    },
+    {
+      "match": "\\btype\\b\\s+(\\w+)\\s*\\(([^\\)]+)\\)",
+      "name": "keyword.type.sahl",
+      "captures": {
+        "1": { "name": "keyword.other.sahl" },
+        "2": { "name": "storage.type.sahl" },
+        "3": {
+          "name": "meta.type-arguments.sahl",
+          "patterns": [
+            { "match": "\\w+", "name": "entity.name.function.sahl" },
+            { "match": ",", "name": "punctuation.separator.comma.sahl" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "keyword.operator.sahl",
+      "match": "(==|<=|>=|!=|->|<<|>>)|\\+|\\-|\\*|\\/|\\%|\\^|\\&|\\||\\!|\\?|\\~|\\@|\\#|\\$|\\`|\\'|\\:|\\=|\\>|\\<|is|in"
+    }
+  ]
+}
