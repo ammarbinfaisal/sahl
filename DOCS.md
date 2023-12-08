@@ -7,6 +7,7 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
 <table>
   <tr>
     <td width=33% valign=top>
+      <table> <tr> <td> <b><a>Basics</a></b> </td> </tr> </table>
       <ul>
         <li><a href="#hello-world">Hello World</a></li>
         <li><a href="#functions">Functions</a></li>
@@ -16,31 +17,27 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
       </ul>
     </td>
     <td width=33% valign=top>
-      <ul>
-        <li><a href="#statements">Statements</a>
-          <ul>
-            <li><a href="#if">if</a></li>
-            <li><a href="#while">while</a></li>
-            <li><a href="#for">for</a></li>
-            <li><a href="#match">match</a></li>
-            <li><a href="#destructuring">destructuring</a></li>
-          </ul>
-        </li>
+        <table> <tr> <td> <b><a href="#statements">Statements</a></b> </td> </tr> </table>
+        <ul>
+          <li><a href="#if">if</a></li>
+          <li><a href="#while">while</a></li>
+          <li><a href="#for">for</a></li>
+          <li><a href="#match">match</a></li>
+          <li><a href="#destructuring">destructuring</a></li>
+        </ul>
       </ul>
     </td>
     <td width=33% valign=top>
+      <table> <tr> <td> <b><a href="#expressions">Expressions</a></b> </td> </tr> </table>
       <ul>
-        <li><a href="#expressions">Expressions</a>
-          <ul>
-            <li><a href="#function-calls">Function Calls</a></li>
-            <li><a href="#array-access">Array Access</a></li>
-            <li><a href="#make">Make</a></li>
-            <li><a href="#chan-recvsend">Chan Recv/Send</a></li>
-          </ul>
-        </li>
+        <li><a href="#function-calls">Function Calls</a></li>
+        <li><a href="#array-access">Array Access</a></li>
+        <li><a href="#make">Make</a></li>
+        <li><a href="#chan-recvsend">Chan Recv/Send</a></li>
       </ul>
     </td>
     <td width=33% valign=top>
+      <table> <tr> <td> <b><a>More</a></b> </td> </tr> </table>
       <ul>
         <li><a href="#channels">Channels</a></li>
         <li><a href="#extern">Extern</a></li>
@@ -119,7 +116,6 @@ let myChannel = chan<int>;
 
 ### Type Constructors
 
-
 ```rs
 type Person = PersonS(string) | PersonI(int);
 ```
@@ -172,7 +168,7 @@ fun main() {
                 print(age, "\n");
             }
         }
-    } 
+    }
 }
 ```
 
@@ -200,23 +196,22 @@ Expressions involve operators, function calls, array access, and more.
 Math operators: `+`, `-`, `*`, `/`, `%`. Comparison operators: `==`, `!=`, `>`, `<`, `>=`, `<=`. Logical and bitwise operators are also supported.
 The precedence of operators is listed below, from highest to lowest:
 
-| Operator | Description |
-| --- | --- |
-| `()` | Parentheses |
-| `[]` | Array access |
-| `!`, `~`, `-` | Logical NOT, bitwise NOT, unary minus |
-| `*`, `/`, `%` | Multiplication, division, remainder |
-| `+`, `-` | Addition, subtraction |
-| `<<`, `>>` | Bitwise shift left, bitwise shift right |
-| `&` | Bitwise AND |
-| `^` | Bitwise XOR |
-| `\|` | Bitwise OR |
-| `&&` | Logical AND |
-| `\|\|` | Logical OR |
-| `==`, `!=` | Equality, inequality |
-| `<`, `<=`, `>`, `>=` | Comparison |
-| `=` | Assignment |
-
+| Operator             | Description                             |
+| -------------------- | --------------------------------------- |
+| `()`                 | Parentheses                             |
+| `[]`                 | Array access                            |
+| `!`, `~`, `-`        | Logical NOT, bitwise NOT, unary minus   |
+| `*`, `/`, `%`        | Multiplication, division, remainder     |
+| `+`, `-`             | Addition, subtraction                   |
+| `<<`, `>>`           | Bitwise shift left, bitwise shift right |
+| `&`                  | Bitwise AND                             |
+| `^`                  | Bitwise XOR                             |
+| `\|`                 | Bitwise OR                              |
+| `&&`                 | Logical AND                             |
+| `\|\|`               | Logical OR                              |
+| `==`, `!=`           | Equality, inequality                    |
+| `<`, `<=`, `>`, `>=` | Comparison                              |
+| `=`                  | Assignment                              |
 
 ### Function Calls
 
@@ -306,7 +301,6 @@ clang -lm -O3 rt.c exe.ll math.c -o exe
 ```bash
 ./exe
 ```
-
 
 The `sahl` keyword runs a function in a new coroutine.
 
