@@ -12,7 +12,11 @@ print_usage() {
 
 
 file="${@: -1}"
+
+# strip extension
+# path to pwd
 o=${file%.*}
+o=${o##*/}
 
 if [ ! -f $file ]; then
     echo "error: file $file does not exist"
