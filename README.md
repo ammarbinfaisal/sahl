@@ -13,20 +13,9 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 ## usage
 
 - install rust, llvm, clang
-- `make` to build the frontend and the virtual machine
-- then either use existing scripts **"run_aot.sh"/"run_byte.sh".**
+- `make codegen` to compile the compiler
+- then use **"./sahlc"** to compile a sahl file to native code
 - or use the following commands:
-
-### bytecode vm
-
-- `./target/release/sahl <file.sahl> -c` to compile to bytecode
-- `./sahl exe.bin` to run the bytecode
-
-### native
-
-- `./target/release/sahl <file.sahl> -n` to compile to native code
-- `clang -o exe rt.c exe.ll ./libs/libgc.a` to compile the llvm ir
-- `./exe` to run the native code
 
 ## features
 

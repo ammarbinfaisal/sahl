@@ -1,0 +1,49 @@
+#!/usr/bin/bash
+
+o=exe
+
+print_usage() {
+    printf "Usage: "
+    printf "  %s [options] <file>\n" "$0"
+    printf "Options:\n"
+    printf "  -o <file>  Output file name\n"
+    printf "  -h         Print this help message\n"
+}
+
+
+file="${@: -1}"
+o=${file%.*}
+
+check() {
+    if [ $? -ne 0 ]; then
+        echo "error: failed to compile $file"
+        exit 1
+    fi
+}
+
+while getopts 'o:h' flag; do
+    case "${flag}" in
+        o) o="${OPTARG}" ;;
+        h) print_usage
+           exit 1 ;;
+        *) print_usage
+           exit 1 ;;
+    esac
+done
+
+
+# $rt=./runtime/target/release/libruntime.so
+rt=./rt.c
+
+cmds=(
+    "./frontend/target/release/sahl $file -n 2>./exe.ll"
+    "clang -opaque-pointer -O3 -c ./exe.ll -o ./exe.o"
+    "if [ ! -f rt.o ]; then clang -O3 -Iinclude -c $rt -o ./rt.o; fi"
+    "if [ ! -f math.o ]; then clang -O3 -c math.c -o ./math.o; fi"
+    "clang -lm -O3 ./exe.o ./rt.o ./math.o ./libs/libgc.a -o ./$o"
+)
+
+for cmd in "${cmds[@]}"; do
+    eval $cmd
+    check $1
+done
