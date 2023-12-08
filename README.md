@@ -18,11 +18,12 @@ sahl means easy. <s>This is the easiest statically typed language I could come u
 
 ## features
 
+- c interop
 - type inference
 - garbage collected
+- haskellesque type constructors
 - green threads (only in vm)
 - channels
-- haskellesque type constructors
 
 ## docs
 
