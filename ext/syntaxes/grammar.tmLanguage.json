@@ -12,7 +12,7 @@
       "name": "entity.name.type.sahl"
     },
     {
-      "match": "map|chan|list",
+      "match": "map|chan",
       "name": "storage.type.sahl"
     },
     {
