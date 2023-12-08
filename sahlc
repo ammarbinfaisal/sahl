@@ -14,6 +14,11 @@ print_usage() {
 file="${@: -1}"
 o=${file%.*}
 
+if [ ! -f $file ]; then
+    echo "error: file $file does not exist"
+    exit 1
+fi
+
 check() {
     if [ $? -ne 0 ]; then
         echo "error: failed to compile $file"
