@@ -389,7 +389,8 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
 type ParserInput<'src, 'tokens> = SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
 
 fn typee<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Type<'src>, Err<Rich<'tokens, Token<'src>, Span>>> {
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Type<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
+{
     recursive(
         |t: Recursive<
             dyn Parser<
@@ -465,9 +466,12 @@ fn ident<'tokens, 'src: 'tokens>(
     }
 }
 
-fn exp<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Expr<'src>>, Err<Rich<'tokens, Token<'src>, Span>>>
-{
+fn exp<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'src, 'tokens>,
+    Spanned<Expr<'src>>,
+    Err<Rich<'tokens, Token<'src>, Span>>,
+> {
     let variable = select! {
         Token::Ident(v) => Expr::Variable { name: v, ty: None }
     };
@@ -500,142 +504,132 @@ fn exp<'tokens, 'src: 'tokens>(
                 .delimited_by(just(Token::LeftParen), just(Token::RightParen))
                 .boxed();
 
-            let prim = recursive(
-                |p: Recursive<
-                    dyn Parser<
-                        'tokens,
-                        ParserInput<'src, 'tokens>,
-                        Spanned<Expr>,
-                        Err<Rich<'tokens, Token<'src>, Span>>,
-                    >,
-                >| {
-                    // cast(value, type)
-                    let cast = just(Token::Cast)
-                        .ignored()
-                        .then(just(Token::LeftParen))
-                        .ignored()
-                        .then(p.clone())
-                        .then_ignore(just(Token::Comma))
-                        .then(typee())
-                        .then_ignore(just(Token::RightParen))
-                        .map(|((_, e), ty)| Expr::Cast {
-                            expr: Box::new(e),
-                            ty,
-                        })
-                        .boxed();
+            let prim = {
+                // cast(value, type)
+                let cast = just(Token::Cast)
+                    .ignored()
+                    .then(just(Token::LeftParen))
+                    .ignored()
+                    .then(p_exp.clone())
+                    .then_ignore(just(Token::Comma))
+                    .then(typee())
+                    .then_ignore(just(Token::RightParen))
+                    .map(|((_, e), ty)| Expr::Cast {
+                        expr: Box::new(e),
+                        ty,
+                    })
+                    .boxed();
 
-                    let sqbrac_ex = just(Token::LeftBracket)
-                        .ignored()
-                        .then(p_exp.clone())
-                        .then_ignore(just(Token::RightBracket))
-                        .map(|(_, e)| e)
-                        .boxed();
+                let sqbrac_ex = just(Token::LeftBracket)
+                    .ignored()
+                    .then(p_exp.clone())
+                    .then_ignore(just(Token::RightBracket))
+                    .map(|(_, e)| e)
+                    .boxed();
 
-                    // use sqbrac_ex to avoid left recursion
-                    let subscript = optional_ref
-                        .clone()
-                        .then(sqbrac_ex.clone().repeated().collect::<Vec<_>>())
-                        .map(|(name, subs)| {
-                            let mut res = name.clone();
-                            if subs.is_empty() {
-                                return res;
-                            }
-                            let mut ref_count = 0;
-                            let mut name2 = name.clone();
-                            while let Expr::Ref { expr, .. } = name2 {
-                                name2 = (*expr).clone();
-                                ref_count += 1;
-                            }
-                            let start = subs[0].0;
-                            for sub in subs {
-                                let end = sub.2;
-                                res = Expr::Subscr {
-                                    expr: Box::new((start, res, end)),
-                                    index: Box::new(sub),
-                                    ty: None,
-                                };
-                            }
-                            for _ in 0..ref_count {
-                                res = Expr::Ref {
-                                    expr: Box::new(res),
-                                    ty: None,
-                                }
-                            }
-                            res
-                        })
-                        .boxed();
-
-                    let optional_deref = just(Token::Star)
-                        .repeated()
-                        .collect::<Vec<_>>()
-                        .then(subscript.clone())
-                        .map(|(refs, mut var)| {
-                            for _ in 0..refs.len() {
-                                var = Expr::Deref {
-                                    expr: Box::new(var),
-                                    ty: None,
-                                }
-                            }
-                            var
-                        });
-
-                    let call = subscript
-                        .clone()
-                        .then_ignore(just(Token::LeftParen))
-                        .then(
-                            p_exp
-                                .clone()
-                                .separated_by(just(Token::Comma))
-                                .collect::<Vec<_>>()
-                                .or_not(),
-                        ) // TODO: replace p by p__expr
-                        .then_ignore(just(Token::RightParen))
-                        .map(|(name, args)| {
-                            let args = args.unwrap_or_default();
-                            Expr::Call {
-                                name: Box::new(name),
-                                args,
+                // use sqbrac_ex to avoid left recursion
+                let subscript = optional_ref
+                    .clone()
+                    .then(sqbrac_ex.clone().repeated().collect::<Vec<_>>())
+                    .map(|(name, subs)| {
+                        let mut res = name.clone();
+                        if subs.is_empty() {
+                            return res;
+                        }
+                        let mut ref_count = 0;
+                        let mut name2 = name.clone();
+                        while let Expr::Ref { expr, .. } = name2 {
+                            name2 = (*expr).clone();
+                            ref_count += 1;
+                        }
+                        let start = subs[0].0;
+                        for sub in subs {
+                            let end = sub.2;
+                            res = Expr::Subscr {
+                                expr: Box::new((start, res, end)),
+                                index: Box::new(sub),
+                                ty: None,
+                            };
+                        }
+                        for _ in 0..ref_count {
+                            res = Expr::Ref {
+                                expr: Box::new(res),
                                 ty: None,
                             }
-                        });
+                        }
+                        res
+                    })
+                    .boxed();
 
-                    let bool = select! {
-                        Token::Bool(b) => Expr::Literal { lit: Lit::Bool(b), ty: Type::Bool }
-                    };
+                let optional_deref = just(Token::Star)
+                    .repeated()
+                    .collect::<Vec<_>>()
+                    .then(subscript.clone())
+                    .map(|(refs, mut var)| {
+                        for _ in 0..refs.len() {
+                            var = Expr::Deref {
+                                expr: Box::new(var),
+                                ty: None,
+                            }
+                        }
+                        var
+                    });
 
-                    let char = select! {
-                        Token::Char(c) => Expr::Literal { lit: Lit::Char(c as u8), ty: Type::Char }
-                    };
+                let call = subscript
+                    .clone()
+                    .then_ignore(just(Token::LeftParen))
+                    .then(
+                        p_exp
+                            .clone()
+                            .separated_by(just(Token::Comma))
+                            .collect::<Vec<_>>()
+                            .or_not(),
+                    ) // TODO: replace p by p__expr
+                    .then_ignore(just(Token::RightParen))
+                    .map(|(name, args)| {
+                        let args = args.unwrap_or_default();
+                        Expr::Call {
+                            name: Box::new(name),
+                            args,
+                            ty: None,
+                        }
+                    });
 
-                    let string = select! {
-                        Token::Str(s) => Expr::Literal { lit: Lit::Str(s), ty: Type::Str }
-                    };
+                let bool = select! {
+                    Token::Bool(b) => Expr::Literal { lit: Lit::Bool(b), ty: Type::Bool }
+                };
 
-                    let double = select! {
-                        Token::Double(f) => Expr::Literal { lit: Lit::Double(f), ty: Type::Double }
-                    };
+                let char = select! {
+                    Token::Char(c) => Expr::Literal { lit: Lit::Char(c as u8), ty: Type::Char }
+                };
 
-                    let int = select! {
-                        Token::Int(i) => Expr::Literal { lit: Lit::Int(i), ty: Type::Int }
-                    };
+                let string = select! {
+                    Token::Str(s) => Expr::Literal { lit: Lit::Str(s), ty: Type::Str }
+                };
 
-                    // primary expression: (expr) | ident | literal
-                    let prim = cast
-                        .or(call)
-                        .or(bool)
-                        .or(subscript)
-                        .or(char.clone())
-                        .or(string.clone())
-                        .or(double)
-                        .or(int)
-                        .or(optional_deref.clone())
-                        .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
-                        .boxed();
+                let double = select! {
+                    Token::Double(f) => Expr::Literal { lit: Lit::Double(f), ty: Type::Double }
+                };
 
-                    prim
-                },
-            )
-            .boxed();
+                let int = select! {
+                    Token::Int(i) => Expr::Literal { lit: Lit::Int(i), ty: Type::Int }
+                };
+
+                // primary expression: (expr) | ident | literal
+                let prim = cast
+                    .or(call)
+                    .or(bool)
+                    .or(subscript)
+                    .or(char.clone())
+                    .or(string.clone())
+                    .or(double)
+                    .or(int)
+                    .or(optional_deref.clone())
+                    .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end))
+                    .boxed();
+
+                prim.boxed()
+            };
 
             let primm = one_of(vec![Token::Minus, Token::Not, Token::Tilde])
                 .or_not()
@@ -965,10 +959,7 @@ fn exp<'tokens, 'src: 'tokens>(
 
             let chanread = just(Token::LeftArrow)
                 .ignore_then(ident())
-                .map(|name| Expr::ChanRead {
-                    name,
-                    ty: None,
-                })
+                .map(|name| Expr::ChanRead { name, ty: None })
                 .boxed();
 
             let range = prim
@@ -1033,9 +1024,12 @@ fn exp<'tokens, 'src: 'tokens>(
     exp
 }
 
-fn statement<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Spanned<Stmt<'src>>, Err<Rich<'tokens, Token<'src>, Span>>>
-{
+fn statement<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'src, 'tokens>,
+    Spanned<Stmt<'src>>,
+    Err<Rich<'tokens, Token<'src>, Span>>,
+> {
     recursive(
         |st: Recursive<
             dyn Parser<
@@ -1324,7 +1318,8 @@ fn statement<'tokens, 'src: 'tokens>(
 
 // fun func_name(a: int, b: string) -> b {}
 fn parse_function<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Func<'src>, Err<Rich<'tokens, Token<'src>, Span>>> {
+) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, Func<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
+{
     let param = ident().then(just(Token::Colon)).then(typee()).boxed();
 
     let params = param
@@ -1333,10 +1328,7 @@ fn parse_function<'tokens, 'src: 'tokens>(
         .map(|params| {
             params
                 .into_iter()
-                .map(|((name, _), ty)| Param {
-                    name: name,
-                    ty,
-                })
+                .map(|((name, _), ty)| Param { name: name, ty })
                 .collect()
         });
 
@@ -1379,9 +1371,12 @@ fn parse_function<'tokens, 'src: 'tokens>(
         .or(fun)
 }
 
-fn parse_typdef<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
-{
+fn parse_typdef<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'src, 'tokens>,
+    TopLevel<'src>,
+    Err<Rich<'tokens, Token<'src>, Span>>,
+> {
     let variant_param = just(Token::LeftParen)
         .ignored()
         .then(typee())
@@ -1419,9 +1414,12 @@ fn parse_typdef<'tokens, 'src: 'tokens>(
     typedef
 }
 
-fn parse_top_level<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'src, 'tokens>, TopLevel<'src>, Err<Rich<'tokens, Token<'src>, Span>>>
-{
+fn parse_top_level<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'src, 'tokens>,
+    TopLevel<'src>,
+    Err<Rich<'tokens, Token<'src>, Span>>,
+> {
     parse_function().map(TopLevel::Func).or(parse_typdef())
 }
 
