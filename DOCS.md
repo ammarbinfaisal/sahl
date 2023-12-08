@@ -43,6 +43,7 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
     <td width=33% valign=top>
       <ul>
         <li><a href="#channels">Channels</a></li>
+        <li><a href="#extern">Extern</a></li>
         <li><a href="#examples">Examples</a></li>
       </ul>
     </td>
@@ -278,6 +279,34 @@ fun main() {
     }
 }
 ```
+
+## Extern
+
+The `extern` keyword is used for importing external c functions. Example:
+
+```kt
+// prog.sahl
+
+extern fun exp(a: double) -> double;
+
+fun main() {
+    let a = 10.0;
+    let b = exp(a);
+    print(b, "\n"); // 22026.465795
+}
+```
+
+compile with:
+
+```bash
+./frontend/target/release/sahl file.sahl -n 2>exe.ll
+clang -lm -O3 rt.c exe.ll math.c -o exe
+```
+
+```bash
+./exe
+```
+
 
 The `sahl` keyword runs a function in a new coroutine.
 
