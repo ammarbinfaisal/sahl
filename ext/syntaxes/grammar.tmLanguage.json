@@ -36,7 +36,7 @@
       "name": "comment.line.double-slash.sahl"
     },
     {
-      "match": "\".*\"",
+      "match": "\"(?:\\\\.|[^\\\\\"])*\"",
       "name": "string.quoted.double.sahl"
     },
     {
