@@ -1143,7 +1143,14 @@ pub fn check_program<'src>(
     }
     let mainfn = mainfn.unwrap();
     if mainfn.0.len() != 0 {
-        return Err((0, Error::MainArgs, 0));
+        match mainfn.0[0].clone() {
+            Type::List(l) => {
+                if *l != Type::Str {
+                    return Err((0, Error::MainArgs, 0));
+                }
+            }
+            _ => return Err((0, Error::MainArgs, 0)),
+        }
     }
     if mainfn.1 != Type::Void {
         return Err((0, Error::MainNotVoid, 0));

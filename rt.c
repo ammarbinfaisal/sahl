@@ -10,7 +10,7 @@
 #define DEBUG_printf(...)
 #endif
 
-void sahl_main();
+void sahl_main(Obj *args);
 
 static inline void *checked_malloc(size_t size) {
     void *ptr;
@@ -549,9 +549,13 @@ void spawn(void *fn, void *arg) {
     assert(rc == 0);
 }
 
-int main() {
+int main(const int argc, const char **argv) {
+    Obj *args = make_list(argc);
+    for (int i = 0; i < argc; i++) {
+        listset(args, i, (int64_t)make_string((char *)argv[i], strlen(argv[i])));
+    }
     GC_INIT();
     GC_expand_hp(1024 * 1024 * 256);
-    sahl_main();
+    sahl_main(args);
     return 0;
 }
