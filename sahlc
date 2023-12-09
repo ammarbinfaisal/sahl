@@ -46,7 +46,7 @@ echo "compiling $file_str to $o"
 
 # $rt=./runtime/target/release/libruntime.so
 base_dir=$(dirname "$0")
-rt=$base_dir/rt.c
+rt=$base_dir/runtime/rt.c
 sahl_compiler=$base_dir/frontend/target/release/sahl
 
 cmds=()
