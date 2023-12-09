@@ -671,7 +671,13 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 let arg2 = self.stack_unfree_pop();
                 let arg1 = self.stack_unfree_pop();
                 let ty = left.1.get_type();
-                let op = if ty == Type::Int {
+                let ty2 = right.1.get_type();
+                let op = if ty == Type::Int || ty == Type::Bool || ty == Type::Char {
+                    if ty == Type::Bool || ty == Type::Char {
+                        // convert to int
+                        self.code.push(RegCode::Cast(arg1, Type::Int, ty, arg1));
+                        self.code.push(RegCode::Cast(arg2, Type::Int, ty2, arg2));
+                    }
                     match op {
                         CmpOp::Eq => RegCode::IEq,
                         CmpOp::Ne => RegCode::INe,
