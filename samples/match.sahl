@@ -1,0 +1,13 @@
+fun main() {
+    let ls = [1, 2, 3, 4, 5];
+    for i in ls {
+        match i {
+            2 -> {
+                print("found 2 \n");
+            }
+            else -> {
+                print("this is else block. \n");
+            }
+        }
+    }
+}
