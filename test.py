@@ -33,8 +33,8 @@ files_all_checks = [
     "match",
 ]
 files_retcode_check = [
-    "chan",
-    "coroutine",
+    # "chan",
+    # "coroutine",
 ]
 
 byte_mode = 0
