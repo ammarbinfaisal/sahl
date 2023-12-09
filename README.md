@@ -43,4 +43,4 @@ cp -r ext ~/.vscode/extensions/sahl
 ## history
 
 Initially I made the virtual machine in rust. It was slow so I rewrote the codegen in rust to emit bytes instead of rust enums/structs and then run the bytecode on a virtual machine I wrote in c. Since, the language is statically typed I thought compiling it to native code would be a nice idea so I started writing that using llvm but paused. I also wrote [`sahl_aot.go`](https://github.com/ammarbinfaisal/sahl/blob/828d8bef82ec3a40083cd938c6ec40deef4355f7/sahl_aot.go) to convert the bytecode to assembly but stopped. I wrote [x86 codegen](https://github.com/ammarbinfaisal/sahl/blob/e9b49e7f2993197614458ea86f697bda1f120d47/frontend/src/asm.rs) which operated on the ast. Abandoned that soon after. Then reorganized the source to use [three-addr-code](https://github.com/ammarbinfaisal/sahl/pull/40) and a register based vm. After that picked up native codegen using llvm from the three-addr-code. <br/>
-Right now there is a virtual machine, <s>native code generation with llvm</s> and transpilation to go.
+Right now there is a virtual machine, native code generation with llvm and transpilation to go.
