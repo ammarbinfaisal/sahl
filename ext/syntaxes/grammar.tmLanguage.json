@@ -4,7 +4,7 @@
   "fileTypes": ["sahl"],
   "patterns": [
     {
-      "match": "\\b(type|fun|let|struct|if|else|while|for|match|return)\\b",
+      "match": "\\b(type|fun|let|struct|if|else|while|for|match|return|extern)\\b",
       "name": "keyword.control.sahl"
     },
     {
