@@ -292,7 +292,7 @@ Sahl supports threads. In the virtual machine, threads are implemented as corout
 The `sahl` keyword is used for running a function in a new coroutine.
 <br/>
 In the virtual machine, the main thread does not exit until all other threads have exited.
-But in the compiler, the main thread exits immediately after spawning other threads and something like semaphores is needed to prevent the main thread from exiting.
+But when compiled to executable, the main thread exits immediately after spawning other threads and something like semaphores is needed to prevent the main thread from exiting.
 <br/>
 
 Example:
