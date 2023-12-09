@@ -270,31 +270,28 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
                     })
                 },
             )),
+            just('x').ignore_then(text::digits(16).exactly(2).slice().validate(
+                |digits, span, emitter| {
+                    char::from_u32(u32::from_str_radix(digits, 16).unwrap()).unwrap_or_else(|| {
+                        emitter.emit(Rich::custom(span, "invalid unicode character"));
+                        '\u{FFFD}' // unicode replacement character
+                    })
+                },
+            )),
         )))
         .map(|(_, c)| c)
         .boxed();
 
     let string = none_of("\\\"")
-        .or(escape)
+        .or(escape.clone())
         .repeated()
         .collect::<String>()
         .delimited_by(just('"'), just('"'))
         .map(|s| Token::Str(Arc::new(s)))
         .boxed();
 
-    let char_escape: Boxed<'_, '_, _, char, _> = just('\\')
-        .ignore_then(choice((
-            just('\\'),
-            just('/'),
-            just('"'),
-            just('n').to('\n'),
-            just('r').to('\r'),
-            just('t').to('\t'),
-        )))
-        .boxed();
-
     let char: Boxed<'_, '_, _, char, _> = just('\'')
-        .ignore_then(none_of("\\'").or(char_escape))
+        .ignore_then(none_of("\\'").or(escape))
         .then_ignore(just('\''))
         .boxed();
 
