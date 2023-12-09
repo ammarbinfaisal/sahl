@@ -151,7 +151,7 @@ for i in 0..10 {
 
 ### `match`
 
-Works for types with constructors.
+Works for types with constructors and also as a switch statement.
 
 ```rs
 type Person = PersonS(string) | PersonI(int);
@@ -168,6 +168,16 @@ fun main() {
             PersonI(age) -> {
                 print(age, "\n");
             }
+        }
+    }
+
+    let a = 10;
+    match a {
+        10 -> {
+            print("a is 10\n");
+        }
+        else -> {
+            print("compiler is broken!\n");
         }
     }
 }
