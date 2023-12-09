@@ -5,6 +5,9 @@ fun main() {
             2 -> {
                 print("found 2 \n");
             }
+            4 -> {
+                print("found 4 \n");
+            }
             else -> {
                 print("this is else block. \n");
             }
