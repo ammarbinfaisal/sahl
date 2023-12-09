@@ -24,8 +24,18 @@
       "name": "entity.name.function.sahl"
     },
     {
-      "match" : "(\\w+)\\s*=",
-      "name" : "variable.other.sahl"
+      "match" : "(.+)\\s*(=)",
+      "captures": {
+        "1": { 
+          "name": "variable.other.sahl",
+          "patterns": [
+            { "match": "let", "name": "keyword.control.sahl" },
+            { "match": "\\b(\\w+)\\b", "name": "variable.other.sahl" },
+            { "match": "\\[(\\d+)\\]", "name": "constant.numeric.sahl" }
+          ]
+        },
+        "2": { "name": "keyword.operator.sahl" }
+      }
     },
     {
       "match": "\\b(true|false)\\b",
@@ -40,34 +50,24 @@
       "name": "string.quoted.double.sahl"
     },
     {
-      "match": "\\d+",
+      "match": "\\b\\d+\\b",
       "name": "constant.numeric.sahl"
+    },
+    {
+      "match": "\\'[^']\\'",
+      "name": "constant.character.sahl"
     },
     {
       "match": "\\s+(\\w+)(?=\\()\\s+",
       "name": "variable.other.sahl"
     },
     {
-      "begin": "\\(",
-      "end": "\\)",
-      "patterns": [
-        {
-          "match": "\\w+",
-          "name": "variable.parameter.sahl"
-        }
-      ]
-    },
-    {
-      "match": "\\{|\\}|\\[|\\]|\\(|\\)|\\;|\\,|\\.|\\<|\\>",
+      "match": "\\;|\\,",
       "name": "punctuation.sahl"
     },
     {
       "match": ",",
       "name": "punctuation.separator.comma.sahl"
-    },
-    {
-      "match": "=",
-      "name": "punctuation.separator.equals.sahl"
     },
     {
       "match": "\\btype\\b\\s+(\\w+)\\s*\\(([^\\)]+)\\)",
@@ -86,7 +86,7 @@
     },
     {
       "name": "keyword.operator.sahl",
-      "match": "(==|<=|>=|!=|->|<<|>>)|\\+|\\-|\\*|\\/|\\%|\\^|\\&|\\||\\!|\\?|\\~|\\@|\\#|\\$|\\`|\\'|\\:|\\=|\\>|\\<|(?:\\b(?:is|in)\\b)"
+      "match": "(?:==|<=|>=|!=|->|<<|>>|<-|->)|\\+|\\-|\\*|\\/|\\%|\\^|\\&|\\||\\!|\\?|\\~|\\:|\\=|\\>|\\<|(?:\\b(?:is|in)\\b)"
     }
   ]
 }
