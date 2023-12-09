@@ -1,27 +1,14 @@
 #!/usr/bin/bash
 
-o=exe
-
 print_usage() {
     printf "Usage: "
-    printf "  %s [options] <file>\n" "$0"
+    printf "  %s [options] <file.sahl>\n" "$0"
+    printf "  %s [options] <file.c> <file.sahl> ...\n" "$0"
+    printf "  %s [options] <file.o> <file.sahl> ...\n" "$0"
     printf "Options:\n"
     printf "  -o <file>  Output file name\n"
     printf "  -h         Print this help message\n"
 }
-
-
-file="${@: -1}"
-
-# strip extension
-# path to pwd
-o=${file%.*}
-o=${o##*/}
-
-if [ ! -f $file ]; then
-    echo "error: file $file does not exist"
-    exit 1
-fi
 
 check() {
     if [ $? -ne 0 ]; then
@@ -30,28 +17,74 @@ check() {
     fi
 }
 
-while getopts 'o:h' flag; do
-    case "${flag}" in
-        o) o="${OPTARG}" ;;
-        h) print_usage
-           exit 1 ;;
-        *) print_usage
-           exit 1 ;;
+if [ $# -eq 0 ]; then
+    print_usage
+    exit 1
+fi
+
+files=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o)
+            shift
+            o=$1
+            ;;
+        -h)
+            print_usage
+            exit 0
+            ;;
+        *)
+            files+=("$1")
+            ;;
     esac
+    shift
 done
 
+files_str=$(printf " %s" "${files[@]}")
+
+echo "compiling $file_str to $o"
 
 # $rt=./runtime/target/release/libruntime.so
 rt=./rt.c
 
-cmds=(
-    "./frontend/target/release/sahl $file -n 2>./exe.ll"
-    "clang -opaque-pointer -O3 -c ./exe.ll -o ./exe.o"
-    "if [ ! -f rt.o ]; then clang -O3 -Iinclude -c $rt -o ./rt.o; fi"
-    "if [ ! -f math.o ]; then clang -O3 -c math.c -o ./math.o; fi"
-    "clang -lm -O3 ./exe.o ./rt.o ./math.o ./libs/libgc.a -o ./$o"
-)
+cmds=()
+compiled_files=()
+
+for f in "${files[@]}"; do
+    # if sahl file
+    if [[ $f == *.sahl ]]; then
+        f_o=${f%.*}.o
+        f_ll=${f%.*}.ll
+        cmds+=("./frontend/target/release/sahl $f -n 2>$f_ll")
+        cmds+=("clang -O3 -c -o ./$f_o $f_ll")
+        compiled_files+=("./$f_o")
+    elif [[ $f == *.c ]]; then
+        f_o=${f%.*}.o
+        cmds+=("clang -O3 -c $f -o $f_o")
+        compiled_files+=("./$f_o")
+    elif [[ $f == *.o ]]; then
+        # do nothing
+        object=1
+    else
+        echo "error: invalid file type $f"
+        exit 1
+    fi
+done
 
 for cmd in "${cmds[@]}"; do
+    echo $cmd
     eval "$cmd; check $1"
 done
+
+compiled=$(printf " %s" "${compiled_files[@]}")
+
+rt_compile="clang -O3 -c $rt -o rt.o"
+if [ ! -f rt.o ];
+then
+    echo $rt_compile
+    eval "$rt_compile; check $1"
+fi
+
+linker="clang -lm -O3 ./rt.o $compiled ./libs/libgc.a -o ./$o"
+echo $linker
+eval "$linker; check $1"
