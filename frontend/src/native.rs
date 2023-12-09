@@ -864,7 +864,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                             self.coro_fns.insert(*fnix, coro_fn);
                             coro_fn
                         };
-                        let pthread_create = self.module.get_function("pthread_create").unwrap();
+                        let spwan_fn = self.module.get_function("spawn").unwrap();
                         // make an array of params
                         let args_array = self.builder.build_array_alloca(
                             i64_type,
@@ -884,24 +884,9 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                             };
                             self.builder.build_store(gep, v);
                         }
-                        // call pthread_create
-                        let pthread_var = self
-                            .builder
-                            .build_alloca(i64_type.ptr_type(AddressSpace::from(0)), "pthread_var");
-                        let pthread_var = self.builder.build_pointer_cast(
-                            pthread_var,
-                            i64_type.ptr_type(AddressSpace::from(0)),
-                            "pthread_var",
-                        );
                         let fnptr = fn_ptr.as_global_value().as_pointer_value();
-                        let args = &[
-                            pthread_var.into(),
-                            i64_type.const_int(0, false).into(),
-                            fnptr.into(),
-                            args_array.into(),
-                        ];
-                        self.builder
-                            .build_call(pthread_create, args, "pthread_create");
+                        let args = &[fnptr.into(), args_array.into()];
+                        self.builder.build_call(spwan_fn, args, "pthread_create");
                     }
                     RegCode::Ref(_, _) => todo!(),
                     RegCode::Deref(_, _) => todo!(),
@@ -937,7 +922,8 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
         for (fnix, coro_fn) in self.coro_fns.iter() {
             let fn_ptr = self.module.get_function(&self.fn_names[*fnix]).unwrap();
             self.context.append_basic_block(*coro_fn, "entry");
-            self.builder.position_at_end(coro_fn.get_last_basic_block().unwrap());
+            self.builder
+                .position_at_end(coro_fn.get_last_basic_block().unwrap());
             let mut args = Vec::new();
             // args passed are in the form array of i64
             // so we need to call the function with the args
@@ -960,10 +946,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                 let v = self.builder.build_load(i64_type, gep, "v");
                 args.push(v.into());
             }
-            let pthread_exit = self.module.get_function("pthread_exit").unwrap();
             self.builder.build_call(fn_ptr, args.as_slice(), "ret");
-            self.builder
-                .build_call(pthread_exit, &[i64_type.const_int(0, false).into()], "ret");
             self.builder.build_return(None);
         }
     }
@@ -993,12 +976,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             ("strget", vec![Type::Int, Type::Int], Type::Int),
             ("mapget", vec![Type::Int, Type::Int], Type::Int),
             ("mapset", vec![Type::Int, Type::Int, Type::Int], Type::Void),
-            (
-                "pthread_create",
-                vec![Type::Int, Type::Int, Type::Int],
-                Type::Void,
-            ),
-            ("pthread_exit", vec![Type::Int], Type::Void),
+            ("spawn", vec![Type::Int, Type::Int], Type::Void),
         ];
 
         for (name, params, retty) in functions.iter() {

@@ -1,7 +1,6 @@
 #include "rt.h"
-#include "gc.h"
-#include "gc/gc.h"
 #include <assert.h>
+#include <stdlib.h>
 
 // #define DEBUG
 
@@ -13,11 +12,21 @@
 
 void sahl_main();
 
+static inline void *checked_malloc(size_t size) {
+    void *ptr;
+    ptr = GC_malloc(size);
+    if (ptr == NULL) {
+        printf("out of memory\n");
+        exit(1);
+    }
+    return ptr;
+}
+
 // List
 
 LinkedList *new_list() {
     LinkedList *q;
-    q = GC_malloc(sizeof(LinkedList));
+    q = checked_malloc(sizeof(LinkedList));
 
     if (q == NULL) {
         return q;
@@ -31,7 +40,7 @@ LinkedList *new_list() {
 }
 
 int enqueue(LinkedList *q, void *value) {
-    Node *node = GC_malloc(sizeof(Node));
+    Node *node = checked_malloc(sizeof(Node));
 
     if (node == NULL) {
         return q->size;
@@ -96,7 +105,7 @@ void free_linkedlist(LinkedList *q) {
 // algo taken from GFG
 
 RBNode *new_rb_node(int64_t key) {
-    RBNode *node = GC_malloc(sizeof(RBNode));
+    RBNode *node = checked_malloc(sizeof(RBNode));
     node->key = key;
     node->value = 0;
     node->color = RED;
@@ -313,7 +322,7 @@ void bprint(int b) { printf("%s", b ? "true" : "false"); }
 void exit_with(int32_t code) { exit(code); }
 
 variant_t *make_variant(uint64_t val, uint64_t tag) {
-    variant_t *v = (variant_t *)GC_malloc(sizeof(variant_t));
+    variant_t *v = (variant_t *)checked_malloc(sizeof(variant_t));
     v->tag = tag;
     v->val = val;
     return v;
@@ -324,14 +333,14 @@ int is_variant(variant_t *v, uint64_t tag) { return v->tag == tag; }
 int64_t get_variant(variant_t *v) { return v->val; }
 
 Obj *newobj(ObjType ty) {
-    Obj *obj = (Obj *)GC_malloc(sizeof(Obj));
+    Obj *obj = (Obj *)checked_malloc(sizeof(Obj));
     obj->marked = 0;
     obj->type = ty;
     return obj;
 }
 
 Obj *make_string(char *ptr, int len) {
-    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
+    str_t *str = (str_t *)checked_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
     str->constant = 1;
@@ -353,11 +362,11 @@ Obj *strcatt(Obj *aobj, Obj *bobj) {
     str_t *astr = aobj->str;
     str_t *bstr = aobj->str;
     int64_t len = astr->len + bstr->len;
-    char *ptr = (char *)GC_malloc(len + 1);
+    char *ptr = (char *)checked_malloc(len + 1);
     memcpy(ptr, astr->ptr, astr->len);
     memcpy(ptr + astr->len, bstr->ptr, bstr->len);
     ptr[len] = '\0';
-    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
+    str_t *str = (str_t *)checked_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
     str->constant = 0;
@@ -401,11 +410,11 @@ void mapset(Obj *map, int64_t key, int64_t val) {
 }
 
 Obj *make_list(size_t size) {
-    list_t *list = (list_t *)GC_malloc(sizeof(list_t));
+    list_t *list = (list_t *)checked_malloc(sizeof(list_t));
     list->cap = size;
     list->length = size;
     size_t newsize = size * sizeof(uint64_t);
-    list->data = (uint64_t *)GC_malloc(newsize);
+    list->data = (uint64_t *)checked_malloc(newsize);
     Obj *obj = newobj(OBJ_LIST);
     obj->list = list;
     return obj;
@@ -493,11 +502,11 @@ Obj *concat(Obj *a, Obj *b) {
     str_t *astr = a->str;
     str_t *bstr = b->str;
     int64_t len = astr->len + bstr->len;
-    char *ptr = (char *)GC_malloc(len + 1);
+    char *ptr = (char *)checked_malloc(len + 1);
     memcpy(ptr, astr->ptr, astr->len);
     memcpy(ptr + astr->len, bstr->ptr, bstr->len);
     ptr[len] = '\0';
-    str_t *str = (str_t *)GC_malloc(sizeof(str_t));
+    str_t *str = (str_t *)checked_malloc(sizeof(str_t));
     str->len = len;
     str->ptr = ptr;
     str->constant = 0;
@@ -534,9 +543,15 @@ uint64_t chanrecv(Obj *chan) {
     return val;
 }
 
+void spawn(void *fn, void *arg) {
+    pthread_t thread;
+    int rc = pthread_create(&thread, NULL, fn, arg);
+    assert(rc == 0);
+}
+
 int main() {
     GC_INIT();
-    GC_expand_hp(1024 * 1024 * 1024);
+    GC_expand_hp(1024 * 1024 * 256);
     sahl_main();
     return 0;
 }

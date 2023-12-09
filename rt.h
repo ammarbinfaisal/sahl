@@ -1,11 +1,15 @@
-
-#include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+
+#define GC_THREADS
+
+#include "gc.h"
+#include "gc/gc.h"
+
 
 #ifndef H_RT
 
