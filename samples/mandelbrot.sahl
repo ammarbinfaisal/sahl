@@ -59,7 +59,7 @@ fun main() {
             x = x + 1;
         }
         for c in line {
-            let c_int = cast(c, int)
+            let c_int = cast(c, int);
             let color = 16 + c_int % 64;
             print("\u001b[38;5;", color, "m", '*');
         }
