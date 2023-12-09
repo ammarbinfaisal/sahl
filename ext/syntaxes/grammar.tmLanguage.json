@@ -24,7 +24,7 @@
       "name": "entity.name.function.sahl"
     },
     {
-      "match" : "(.+)\\s*(=)",
+      "match" : "(\\w+(?:\\[.+\\])?)\\s*(=)",
       "captures": {
         "1": { 
           "name": "variable.other.sahl",
