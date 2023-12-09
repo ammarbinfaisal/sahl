@@ -53,6 +53,5 @@ cmds=(
 )
 
 for cmd in "${cmds[@]}"; do
-    eval $cmd
-    check $1
+    eval "$cmd; check $1"
 done
