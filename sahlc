@@ -45,7 +45,9 @@ files_str=$(printf " %s" "${files[@]}")
 echo "compiling $file_str to $o"
 
 # $rt=./runtime/target/release/libruntime.so
-rt=./rt.c
+base_dir=$(dirname "$0")
+rt=$base_dir/rt.c
+sahl_compiler=$base_dir/frontend/target/release/sahl
 
 cmds=()
 compiled_files=()
@@ -55,7 +57,7 @@ for f in "${files[@]}"; do
     if [[ $f == *.sahl ]]; then
         f_o=${f%.*}.o
         f_ll=${f%.*}.ll
-        cmds+=("./frontend/target/release/sahl $f -n 2>$f_ll")
+        cmds+=("$sahl_compiler $f -n 2>$f_ll")
         cmds+=("clang -O3 -c -o ./$f_o $f_ll")
         compiled_files+=("./$f_o")
     elif [[ $f == *.c ]]; then
@@ -85,6 +87,6 @@ then
     eval "$rt_compile; check $1"
 fi
 
-linker="clang -lm -O3 ./rt.o $compiled ./libs/libgc.a -o ./$o"
+linker="clang -lm -O3 $base_dir/rt.o $compiled $base_dir/libs/libgc.a -o ./$o"
 echo $linker
 eval "$linker; check $1"
