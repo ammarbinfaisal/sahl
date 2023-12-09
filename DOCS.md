@@ -40,6 +40,7 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
       <table> <tr> <td> <b><a>More</a></b> </td> </tr> </table>
       <ul>
         <li><a href="#channels">Channels</a></li>
+        <li><a href="#threads">Threads</a></li>
         <li><a href="#extern">Extern</a></li>
         <li><a href="#examples">Examples</a></li>
       </ul>
@@ -271,6 +272,31 @@ fun main() {
         sahl sendVals(a, 10000, i);
         sahl recvVals(a, 10000, i);
         i = i + 1;
+    }
+}
+```
+
+## Threads
+
+Sahl supports threads. In the virtual machine, threads are implemented as coroutines. 
+The `sahl` keyword is used for running a function in a new coroutine.
+<br/>
+In the virtual machine, the main thread does not exit until all other threads have exited.
+But in the compiler, the main thread exits immediately after spawning other threads and something like semaphores is needed to prevent the main thread from exiting.
+<br/>
+
+Example:
+
+```kt
+fun printn(n: int) {
+    for i in 0..10 {
+        print(n, "\n");
+    }
+}
+
+fun main() {
+    for i in 0..100 {
+        sahl printn(i);
     }
 }
 ```
