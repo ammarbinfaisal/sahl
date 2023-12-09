@@ -80,8 +80,8 @@ done
 
 compiled=$(printf " %s" "${compiled_files[@]}")
 
-rt_compile="clang -O3 -c $rt -o rt.o"
-if [ ! -f rt.o ];
+rt_compile="clang -O3 -c $base_dir/$rt -o $base_dir/rt.o"
+if [ ! -f $base_dir/rt.o ];
 then
     echo $rt_compile
     eval "$rt_compile; check $1"
