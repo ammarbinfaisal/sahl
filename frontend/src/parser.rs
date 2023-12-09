@@ -1046,7 +1046,15 @@ fn statement<'tokens, 'src: 'tokens>() -> impl Parser<
                 .delimited_by(just(Token::LeftBrace), just(Token::RightBrace))
                 .boxed();
 
+            let else_keyword = just(Token::Else)
+                .to(Expr::Variable {
+                    name: "else",
+                    ty: None,
+                })
+                .map_with_span(|e, span: SimpleSpan<usize>| (span.start, e, span.end));
+
             let matchcases = exp()
+                .or(else_keyword)
                 .then_ignore(just(Token::RightArrow))
                 .then(block.clone())
                 .map(|(expr, stmts)| (expr, stmts));
