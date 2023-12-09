@@ -391,13 +391,14 @@ impl<'a, 'src> Checker<'a, 'src> {
                 let ty1 = self.check_expr(ex1)?;
                 let ty2 = self.check_expr(ex2)?;
                 if *op == ArithOp::Add {
-                    if (ty1 == Type::Str && ty2 == Type::Str)
-                        || (ty1 == Type::Str && ty2 == Type::Char)
-                        || (ty1 == Type::Char && ty2 == Type::Str)
-                    {
-                        *t = Some(Type::Str);
-                        Ok(Type::Str)
-                    } else if ty1 == Type::Int && ty2 == Type::Int {
+                    // if (ty1 == Type::Str && ty2 == Type::Str)
+                    //     || (ty1 == Type::Str && ty2 == Type::Char)
+                    //     || (ty1 == Type::Char && ty2 == Type::Str)
+                    // {
+                    //     *t = Some(Type::Str);
+                    //     Ok(Type::Str)
+                    // } else 
+                    if ty1 == Type::Int && ty2 == Type::Int {
                         *t = Some(Type::Int);
                         Ok(Type::Int)
                     } else if ty1 == Type::Double || ty2 == Type::Double {
