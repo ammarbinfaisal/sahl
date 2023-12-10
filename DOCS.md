@@ -86,6 +86,18 @@ fun main() {
 ```
 
 Variable types are inferred from assigned values.
+<br/>
+
+Constants are declared with the `const` keyword outside of functions:
+
+```rs
+const PI = 3.14;
+const AREA = PI * 10 * 10;
+
+fun main() {
+    print("Area of circle of radius 10 is ", AREA, "\n");
+}
+```
 
 ## Types
 

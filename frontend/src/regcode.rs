@@ -1,4 +1,7 @@
-use crate::{syntax::*, utils::extract_var_name};
+use crate::{
+    syntax::*,
+    utils::{extract_var_name, get_literal_type},
+};
 use std::{collections::HashMap, process::exit};
 
 // highlevel enum for 3/4 address code
@@ -240,6 +243,7 @@ pub struct RegCodeGen<'a, 'src> {
     func_args_len: Vec<u32>,
     typemap: HashMap<&'src str, Type<'src>>,
     variants: HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+    constmap: &'a HashMap<&'src str, Spanned<Lit>>,
     pub func_code: Vec<Vec<RegCode<'src>>>,
     pub start_func_idx: usize,
     curr_func: usize,
@@ -259,6 +263,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
         _source_name: String,
         typemap: HashMap<&'src str, Type<'src>>,
         variants: HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+        constmap: &'a HashMap<&'src str, Spanned<Lit>>,
     ) -> Self {
         RegCodeGen {
             code: Vec::new(),
@@ -277,6 +282,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             free_regs: [true; 256],
             breaks: Vec::new(),
             coro_call: false,
+            constmap,
             variants,
             typemap,
         }
@@ -587,7 +593,15 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                         self.code.push(RegCode::Move(varreg, 0));
                         self.stack_push(varreg);
                     } else {
-                        panic!("Unknown variable: {}", name);
+                        let lit = self.constmap.get(*name);
+                        if lit.is_some() {
+                            let lit = lit.unwrap().1.clone();
+                            let ty = get_literal_type(&lit);
+                            let literal = Expr::Literal { lit, ty };
+                            self.compile_expr(&(expr.0, literal, expr.2));
+                        } else {
+                            panic!("Unknown variable: {}", name);
+                        }
                     }
                 }
             }

@@ -33,6 +33,7 @@ enum Token<'src> {
     Typedef,
     Is,
     Match,
+    Const,
     // Symbols
     Tilde,
     Plus,
@@ -100,6 +101,7 @@ impl std::fmt::Display for Token<'_> {
             Token::Typedef => write!(f, "type"),
             Token::Is => write!(f, "is"),
             Token::Match => write!(f, "match"),
+            Token::Const => write!(f, "const"),
             Token::Ref => write!(f, "ref"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -322,6 +324,7 @@ fn lexer<'a>() -> impl Parser<'a, &'a str, Vec<(Token<'a>, Span)>, Err<Rich<'a, 
         "type" => Token::Typedef,
         "is" => Token::Is,
         "match" => Token::Match,
+        "const" => Token::Const,
         _ => Token::Ident(s),
     });
 
@@ -1419,13 +1422,34 @@ fn parse_typdef<'tokens, 'src: 'tokens>() -> impl Parser<
     typedef
 }
 
+fn parse_const_decl<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    ParserInput<'src, 'tokens>,
+    TopLevel<'src>,
+    Err<Rich<'tokens, Token<'src>, Span>>,
+> {
+    let const_decl = just(Token::Const)
+        .ignored()
+        .then(ident())
+        .then_ignore(just(Token::Assign))
+        .then(exp())
+        .then(just(Token::Semicolon))
+        .map(|(((_, name), expr), _)| TopLevel::Const(name, expr))
+        .boxed();
+
+    const_decl
+}
+
 fn parse_top_level<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'src, 'tokens>,
     TopLevel<'src>,
     Err<Rich<'tokens, Token<'src>, Span>>,
 > {
-    parse_function().map(TopLevel::Func).or(parse_typdef())
+    parse_function()
+        .map(TopLevel::Func)
+        .or(parse_typdef())
+        .or(parse_const_decl())
 }
 
 pub fn program(s: &str) -> Option<Program> {

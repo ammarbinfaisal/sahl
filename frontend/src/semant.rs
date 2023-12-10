@@ -9,6 +9,7 @@ pub enum Error<'src> {
     UndefinedFunction(&'src str),
     ArityMismatch(usize, usize),
     TypeMismatch(Vec<Type<'src>>, Vec<Type<'src>>),
+    InvalidConstantExpr,
     TupleIndexOutOfBounds(usize, usize),
     DuplicateVariant(&'src str, &'src str),
     CastError(Type<'src>, Type<'src>),
@@ -77,6 +78,9 @@ impl<'src> std::fmt::Display for Error<'src> {
             Error::DuplicateVariant(name, parent) => {
                 write!(f, "Duplicate variant {} in {}", name, parent)
             }
+            Error::InvalidConstantExpr => {
+                write!(f, "Invalid constant expression")
+            }
         }
     }
 }
@@ -89,6 +93,7 @@ struct Checker<'a, 'src> {
     func_env: &'a FuncEnv<'src>,
     typemap: &'a HashMap<&'src str, Type<'src>>,
     variants: &'a HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+    constmap: &'a HashMap<&'src str, Spanned<Lit>>,
     loop_depth: usize,
     func_ret_type: Type<'src>,
     scope: usize,
@@ -99,11 +104,13 @@ impl<'a, 'src> Checker<'a, 'src> {
         func_env: &'a FuncEnv<'src>,
         typemap: &'a HashMap<&'src str, Type<'src>>,
         variants: &'a HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+        constmap: &'a HashMap<&'src str, Spanned<Lit>>,
         retty: Type<'src>,
     ) -> Self {
         Checker {
             func_env,
             typemap,
+            constmap,
             type_env: vec![HashMap::new()],
             variants,
             func_ret_type: retty,
@@ -112,7 +119,12 @@ impl<'a, 'src> Checker<'a, 'src> {
         }
     }
 
-    fn find_var(&self, name: &'src str, start: usize, end: usize) -> Result<Type<'src>, Spanned<Error<'src>>> {
+    fn find_var(
+        &self,
+        name: &'src str,
+        start: usize,
+        end: usize,
+    ) -> Result<Type<'src>, Spanned<Error<'src>>> {
         for i in (0..self.scope).rev() {
             if let Some(ty) = self.type_env[i].get(name) {
                 return Ok(ty.clone());
@@ -121,6 +133,15 @@ impl<'a, 'src> Checker<'a, 'src> {
         // check if it is a variant
         if let Some((_, parent, _)) = self.variants.get(name) {
             return Ok(self.typemap.get(parent).unwrap().clone());
+        }
+        if let Some(lit) = self.constmap.get(name) {
+            match lit.1 {
+                Lit::Int(_) => return Ok(Type::Int),
+                Lit::Double(_) => return Ok(Type::Double),
+                Lit::Bool(_) => return Ok(Type::Bool),
+                Lit::Char(_) => return Ok(Type::Char),
+                Lit::Str(_) => return Ok(Type::Str),
+            }
         }
         Err((start, Error::UndefinedVariable(name), end))
     }
@@ -249,8 +270,10 @@ impl<'a, 'src> Checker<'a, 'src> {
             _ => ty.clone(),
         }
     }
-
-    fn check_expr(&self, expr: &mut Spanned<Expr<'src>>) -> Result<Type<'src>, Spanned<Error<'src>>> {
+    fn check_expr(
+        &self,
+        expr: &mut Spanned<Expr<'src>>,
+    ) -> Result<Type<'src>, Spanned<Error<'src>>> {
         // println!("Checking expr: {:?}", expr);
         let immut_expr = expr.1.clone();
         match &mut expr.1 {
@@ -265,10 +288,42 @@ impl<'a, 'src> Checker<'a, 'src> {
                 if let Some(t) = ty {
                     Ok(t.clone())
                 } else {
-                    let t = self.find_var(name, expr.0, expr.2)?;
-                    let t = self.actual_type(&t);
-                    *ty = Some(t.clone());
-                    Ok(t)
+                    let res = self.find_var(name, expr.0, expr.2);
+                    match res {
+                        Ok(t) => {
+                            let t = self.actual_type(&t);
+                            *ty = Some(t.clone());
+                            Ok(t)
+                        }
+                        Err(e) => {
+                            if let Some(lit) = self.constmap.get(name) {
+                                match lit.1 {
+                                    Lit::Int(_) => {
+                                        *ty = Some(Type::Int);
+                                        Ok(Type::Int)
+                                    }
+                                    Lit::Double(_) => {
+                                        *ty = Some(Type::Double);
+                                        Ok(Type::Double)
+                                    }
+                                    Lit::Bool(_) => {
+                                        *ty = Some(Type::Bool);
+                                        Ok(Type::Bool)
+                                    }
+                                    Lit::Char(_) => {
+                                        *ty = Some(Type::Char);
+                                        Ok(Type::Char)
+                                    }
+                                    Lit::Str(_) => {
+                                        *ty = Some(Type::Str);
+                                        Ok(Type::Str)
+                                    }
+                                }
+                            } else {
+                                Err(e)
+                            }
+                        }
+                    }
                 }
             }
             Expr::Is { ty, ix, expr } => {
@@ -397,7 +452,7 @@ impl<'a, 'src> Checker<'a, 'src> {
                     // {
                     //     *t = Some(Type::Str);
                     //     Ok(Type::Str)
-                    // } else 
+                    // } else
                     if ty1 == Type::Int && ty2 == Type::Int {
                         *t = Some(Type::Int);
                         Ok(Type::Int)
@@ -1006,6 +1061,139 @@ fn validate_cfg(cfg: &CFG) -> bool {
     }
 }
 
+fn eval_const_expr<'src>(
+    expr: &Spanned<Expr<'src>>,
+    constmap: &HashMap<&'src str, Spanned<Lit>>,
+) -> Result<Spanned<Lit>, Spanned<Error<'src>>> {
+    match &expr.1 {
+        Expr::Literal { lit, ty: _ } => Ok((expr.0, lit.clone(), expr.2)),
+        Expr::Variable { name, ty: _ } => {
+            if let Some(val) = constmap.get(*name) {
+                Ok(val.clone())
+            } else {
+                Err((expr.0, Error::UndefinedVariable(*name), expr.2))
+            }
+        }
+        Expr::Arith {
+            op,
+            left,
+            right,
+            ty: _,
+        } => {
+            let left = eval_const_expr(left, constmap)?;
+            let right = eval_const_expr(right, constmap)?;
+            match (left.1, right.1) {
+                (Lit::Int(i1), Lit::Int(i2)) => match op {
+                    ArithOp::Add => Ok((expr.0, Lit::Int(i1 + i2), expr.2)),
+                    ArithOp::Sub => Ok((expr.0, Lit::Int(i1 - i2), expr.2)),
+                    ArithOp::Mul => Ok((expr.0, Lit::Int(i1 * i2), expr.2)),
+                    ArithOp::Div => Ok((expr.0, Lit::Int(i1 / i2), expr.2)),
+                    ArithOp::Mod => Ok((expr.0, Lit::Int(i1 % i2), expr.2)),
+                },
+                (Lit::Double(i1), Lit::Double(i2)) => match op {
+                    ArithOp::Add => Ok((expr.0, Lit::Double(i1 + i2), expr.2)),
+                    ArithOp::Sub => Ok((expr.0, Lit::Double(i1 - i2), expr.2)),
+                    ArithOp::Mul => Ok((expr.0, Lit::Double(i1 * i2), expr.2)),
+                    ArithOp::Div => Ok((expr.0, Lit::Double(i1 / i2), expr.2)),
+                    ArithOp::Mod => Ok((expr.0, Lit::Double(i1 % i2), expr.2)),
+                },
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Int, Type::Double], vec![Type::Int]),
+                    expr.2,
+                )),
+            }
+        }
+        Expr::BitOp {
+            op, left, right, ..
+        } => {
+            let left = eval_const_expr(left, constmap)?;
+            let right = eval_const_expr(right, constmap)?;
+            match (left.1, right.1) {
+                (Lit::Int(i1), Lit::Int(i2)) => match op {
+                    BitOp::And => Ok((expr.0, Lit::Int(i1 & i2), expr.2)),
+                    BitOp::Or => Ok((expr.0, Lit::Int(i1 | i2), expr.2)),
+                    BitOp::Xor => Ok((expr.0, Lit::Int(i1 ^ i2), expr.2)),
+                    BitOp::Shl => Ok((expr.0, Lit::Int(i1 << i2), expr.2)),
+                    BitOp::Shr => Ok((expr.0, Lit::Int(i1 >> i2), expr.2)),
+                },
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Int], vec![Type::Int]),
+                    expr.2,
+                )),
+            }
+        }
+        Expr::Neg { expr, .. } => {
+            let expr = eval_const_expr(expr, constmap)?;
+            match expr.1 {
+                Lit::Int(i) => Ok((expr.0, Lit::Int(-i), expr.2)),
+                Lit::Double(i) => Ok((expr.0, Lit::Double(-i), expr.2)),
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Int, Type::Double], vec![Type::Int]),
+                    expr.2,
+                )),
+            }
+        }
+        Expr::BitNot { expr, .. } => {
+            let expr = eval_const_expr(expr, constmap)?;
+            match expr.1 {
+                Lit::Int(i) => Ok((expr.0, Lit::Int(!i), expr.2)),
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Int], vec![Type::Int]),
+                    expr.2,
+                )),
+            }
+        }
+        Expr::Not { expr, .. } => {
+            let expr = eval_const_expr(expr, constmap)?;
+            match expr.1 {
+                Lit::Bool(i) => Ok((expr.0, Lit::Bool(!i), expr.2)),
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Bool], vec![Type::Bool]),
+                    expr.2,
+                )),
+            }
+        }
+        Expr::BoolOp {
+            op, left, right, ..
+        } => {
+            let left = eval_const_expr(left, constmap)?;
+            let right = eval_const_expr(right, constmap)?;
+            match (left.1, right.1) {
+                (Lit::Bool(i1), Lit::Bool(i2)) => match op {
+                    BoolOp::And => Ok((expr.0, Lit::Bool(i1 && i2), expr.2)),
+                    BoolOp::Or => Ok((expr.0, Lit::Bool(i1 || i2), expr.2)),
+                },
+                _ => Err((
+                    expr.0,
+                    Error::TypeMismatch(vec![Type::Bool], vec![Type::Bool]),
+                    expr.2,
+                )),
+            }
+        }
+        _ => Err((expr.0, Error::InvalidConstantExpr, expr.2)),
+    }
+}
+
+// const A = 1;
+// const B = A + 1;
+fn check_consts<'src>(
+    consts: &[(&'src str, Spanned<Expr<'src>>)],
+) -> Result<HashMap<&'src str, (usize, Lit, usize)>, Spanned<Error<'src>>> {
+    // should be a constant expression
+    // check if all are literals or depend on other constants
+    let mut const_env = HashMap::new();
+    for c in consts {
+        let val = eval_const_expr(&c.1, &const_env)?;
+        const_env.insert(c.0, val);
+    }
+    Ok(const_env)
+}
+
 pub fn check_program<'src>(
     program: &mut Program<'src>,
 ) -> Result<
@@ -1013,6 +1201,7 @@ pub fn check_program<'src>(
         FuncEnv<'src>,
         HashMap<&'src str, Type<'src>>,
         HashMap<&'src str, (Type<'src>, &'src str, usize)>,
+        HashMap<&'src str, Spanned<Lit>>,
     ),
     Spanned<Error<'src>>,
 > {
@@ -1065,6 +1254,19 @@ pub fn check_program<'src>(
         }
     }
 
+    let consts = program
+        .top_levels
+        .iter_mut()
+        .filter(|tl| match tl {
+            TopLevel::Const(_, _) => true,
+            _ => false,
+        })
+        .map(|tl| match tl {
+            TopLevel::Const(c, expr) => (*c, expr.clone()),
+            _ => unreachable!(),
+        })
+        .collect::<Vec<_>>();
+
     let fns = program
         .top_levels
         .iter_mut()
@@ -1096,6 +1298,8 @@ pub fn check_program<'src>(
         func_env.insert(func.name.clone(), (args_ty, ret_ty));
     }
 
+    let constmap = check_consts(&consts)?;
+
     for func in fns {
         if func.externed {
             continue;
@@ -1104,6 +1308,7 @@ pub fn check_program<'src>(
             &func_env,
             &typemap,
             &variants,
+            &constmap,
             func_env.get(&func.name).unwrap().1.clone(),
         );
         // add args to type env
@@ -1155,5 +1360,5 @@ pub fn check_program<'src>(
     if mainfn.1 != Type::Void {
         return Err((0, Error::MainNotVoid, 0));
     }
-    Ok((func_env, typemap, variants))
+    Ok((func_env, typemap, variants, constmap))
 }

@@ -240,6 +240,7 @@ pub struct Func<'src> {
 pub enum TopLevel<'src> {
     Func(Func<'src>),
     Typedef(&'src str, Type<'src>),
+    Const(&'src str, Spanned<Expr<'src>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
