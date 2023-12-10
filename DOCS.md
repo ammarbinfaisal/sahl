@@ -52,7 +52,7 @@ Welcome to the documentation for the Sahl programming language. Below, you'll fi
 
 Let's start with the traditional "Hello World" program:
 
-```kt
+```rs
 fun main() {
     print("Hello World! \n");
 }
@@ -64,7 +64,7 @@ This basic program defines a `main` function and prints the classic greeting.
 
 Functions are fundamental in Sahl. Here's an example of a function adding two integers:
 
-```kt
+```rs
 fun add(a: int, b: int) -> int {
     return a + b;
 }
@@ -76,7 +76,7 @@ If the return type is unspecified, it defaults to `void`.
 
 Variables store and manipulate data. Check this example:
 
-```kt
+```rs
 fun main() {
     let a = 10;
     let b = 20;
@@ -105,25 +105,25 @@ Sahl supports various types, including basic ones like `int`, `double`, `bool`, 
 
 ### Arrays
 
-```kt
+```rs
 let a = [1, 2, 3];
 ```
 
 ### Tuple
 
-```kt
+```rs
 let myTuple = (10, "Hello",); // trailing comma is nessesary
 ```
 
 ### Map
 
-```kt
+```rs
 let myMap = map<int, string>;
 ```
 
 ### Chan
 
-```kt
+```rs
 let myChannel = chan<int>;
 ```
 
@@ -139,7 +139,7 @@ Essential statements include `if`, `while`, `for`, `break`, `continue`, and `ret
 
 ### `if`
 
-```kt
+```rs
 if a > 0 {
     a = a + 1;
 }
@@ -147,7 +147,7 @@ if a > 0 {
 
 ### `while`
 
-```kt
+```rs
 while a > 0 {
     a = a - 1;
 }
@@ -155,7 +155,7 @@ while a > 0 {
 
 ### `for`
 
-```kt
+```rs
 for i in 0..10 {
     print(i, "\n");
 }
@@ -238,19 +238,19 @@ The precedence of operators is listed below, from highest to lowest:
 
 ### Function Calls
 
-```kt
+```rs
 let result = add(10, 20);
 ```
 
 ### Array Access
 
-```kt
+```rs
 let value = a[0];
 ```
 
 ### Make
 
-```kt
+```rs
 let newArray = make([int], 10);
 ```
 
@@ -258,7 +258,7 @@ let newArray = make([int], 10);
 
 ### Chan Recv/Send
 
-```kt
+```rs
 let c = make(chan<int>);
 c <- 10;
 let value = <-c;
@@ -270,7 +270,7 @@ Check [Channels](#channels).
 
 Channels facilitate communication between coroutines. Example:
 
-```kt
+```rs
 fun sendVals(c: chan<int>, count: int, id: int) {
     let i = 0;
     while i < count {
@@ -309,7 +309,7 @@ But when compiled to executable, the main thread exits immediately after spawnin
 
 Example:
 
-```kt
+```rs
 fun printn(n: int) {
     for i in 0..10 {
         print(n, "\n");
@@ -327,7 +327,7 @@ fun main() {
 
 The `extern` keyword is used for importing external c functions. Example:
 
-```kt
+```rs
 // prog.sahl
 
 extern fun exp(a: double) -> double {}
