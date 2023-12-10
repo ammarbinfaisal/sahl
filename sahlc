@@ -40,6 +40,11 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# if there is no $o then set it to exe
+if [ -z "$o" ]; then
+    o="exe"
+fi
+
 files_str=$(printf " %s" "${files[@]}")
 
 echo "compiling $file_str to $o"
