@@ -20,7 +20,7 @@ function check {
 }
 
 # $rt=./runtime/target/release/libruntime.so
-rt=./rt.c
+rt=./runtime/rt.c
 
 ./frontend/target/release/sahl $1 -n 2>./exe.ll
 
