@@ -524,11 +524,32 @@ impl<'src> GOCodegen<'src> {
             }
             Stmt::For(var, iter, body) => {
                 let mut code = String::new();
-                code.push_str(&format!(
-                    "for _, {} := range {} {{\n",
-                    var,
-                    self.compile_expr(&iter.1)
-                ));
+                // for i in 0..=10
+                // for i := 0; i <= 10; i++
+                match iter.1.clone() {
+                    Expr::Range {
+                        start,
+                        end,
+                        inclusive,
+                    } => {
+                        code.push_str(&format!(
+                            "for {} := {}; {} {} {}; {}++ {{\n",
+                            var,
+                            self.compile_expr(&start.1),
+                            var,
+                            if inclusive { "<=" } else { "<" },
+                            self.compile_expr(&end.1),
+                            var
+                        ));
+                    }
+                    _ => {
+                        code.push_str(&format!(
+                            "for _, {} := range {} {{\n",
+                            var,
+                            self.compile_expr(&iter.1)
+                        ));
+                    }
+                };
                 for stmt in body {
                     code.push_str(&self.compile_stmt(&stmt.1));
                 }
