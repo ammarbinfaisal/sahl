@@ -197,6 +197,10 @@ impl<'src> GOCodegen<'src> {
                 let ty = self.ty_to_go(ty);
                 format!("*{}", ty)
             }
+            Type::Chan(ty) => {
+                let ty = self.ty_to_go(ty);
+                format!("chan {}", ty)
+            }
             _ => unimplemented!("ty_to_go: {:?}", tyy),
         }
     }
@@ -228,6 +232,10 @@ impl<'src> GOCodegen<'src> {
             }
             Expr::Variable { name, ty: _ } => {
                 let mut code = String::new();
+                // check if this is a go keyword but hasnt been checked yet as it is not a sahl keyword
+                if *name == "range" {
+                    println!("// WARNING: variable name \"range\" is a go keyword, please rename it");
+                }
                 code.push_str(&name);
                 code
             }

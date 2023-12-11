@@ -11,7 +11,7 @@ fun map_mul_by_2 (xs : [int], len : int) -> [int] {
     return xs;
 }
 
-fun range (start : int, end : int) -> [int] {
+fun rangee(start : int, end : int) -> [int] {
     let xs = make([int]);
     for i in start..end {
         append(xs, i);
@@ -20,7 +20,7 @@ fun range (start : int, end : int) -> [int] {
 }
 
 fun main () {
-    let xs = range(0, 100);
+    let xs = rangee(0, 100);
     map_mul_by_2(xs, 100);
     print(xs, "\n");
 }
