@@ -50,10 +50,10 @@ fn unescape(s: &str) -> String {
 }
 
 struct GOCodegen<'src> {
-    header: String,            // struct, import, etc
-    type_count: usize,         // t<type_count>
+    header: String,                  // struct, import, etc
+    type_count: usize,               // t<type_count>
     types: Vec<(Type<'src>, usize)>, // (type, printfn)
-    print_count: usize,        // _print_<print_count>
+    print_count: usize,              // _print_<print_count>
     prints: Vec<String>,
 }
 
@@ -86,7 +86,7 @@ impl<'src> GOCodegen<'src> {
             Type::Char => "byte".to_string(),
             Type::List(ty) => {
                 let goty = self.ty_to_go(ty);
-                if let Some(_) = self.find_type(ty) {
+                if let Some(_) = self.find_type(tyy) {
                     // cool
                 } else {
                     // add a print function for this type
@@ -207,7 +207,7 @@ impl<'src> GOCodegen<'src> {
                 let mut code = String::new();
                 match lit {
                     Lit::Int(i) => {
-                        code.push_str(&format!("{}", i));
+                        code.push_str(&format!("int64({})", i));
                     }
                     Lit::Double(d) => {
                         code.push_str(&format!("{}", d));
@@ -297,16 +297,18 @@ impl<'src> GOCodegen<'src> {
                 code.push_str(&self.compile_expr(&right.1));
                 code
             }
-            Expr::List { exprs, ty: _ } => {
+            Expr::List { exprs, ty } => {
                 let mut code = String::new();
-                code.push_str("[");
+                let ty = ty.clone().unwrap();
+                code.push_str(&self.ty_to_go(&ty));
+                code.push_str("{");
                 for (i, expr) in exprs.iter().enumerate() {
                     code.push_str(&self.compile_expr(&expr.1));
                     if i < exprs.len() - 1 {
                         code.push_str(", ");
                     }
                 }
-                code.push_str("]");
+                code.push_str("}");
                 code
             }
             Expr::Tuple { exprs, ty } => {
@@ -342,7 +344,7 @@ impl<'src> GOCodegen<'src> {
                 }
                 code
             }
-            Expr::Call { name, args, ty } => {
+            Expr::Call { name, args, .. } => {
                 let mut code = String::new();
                 let name = extract_var_name(name);
                 if name.is_none() {
@@ -396,10 +398,16 @@ impl<'src> GOCodegen<'src> {
                             self.compile_expr(&arg.1)
                         ));
                     }
+                } else if name == "len" {
+                    code.push_str("int64(len(");
+                    code.push_str(&self.compile_expr(&args[0].1));
+                    code.push_str("))");
+                } else if name == "append" {
+                    let lhs = self.compile_expr(&args[0].1);
+                    let rhs = self.compile_expr(&args[1].1);
+                    code.push_str(&format!("{} = append({}, {})", lhs, lhs, rhs));
                 } else {
                     // wrap in return type
-                    let goty = self.ty_to_go(&ty.clone().unwrap());
-                    code.push_str(&format!("{}(", goty));
                     code.push_str(&name);
                     code.push_str("(");
                     for (i, arg) in args.iter().enumerate() {
@@ -408,7 +416,7 @@ impl<'src> GOCodegen<'src> {
                             code.push_str(", ");
                         }
                     }
-                    code.push_str("))");
+                    code.push_str(")");
                 };
                 code
             }
@@ -478,10 +486,8 @@ impl<'src> GOCodegen<'src> {
                     Expr::Variable { name, .. } => {
                         code.push_str(&name);
                         code.push_str(" := ");
-                        code.push_str(&self.ty_to_go(&rhs.1.get_type()));
-                        code.push_str("(");
                         code.push_str(&self.compile_expr(&rhs.1));
-                        code.push_str(")\n");
+                        code.push_str("\n");
                         code
                     }
                     _ => {
