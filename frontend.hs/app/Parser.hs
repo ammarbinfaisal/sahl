@@ -115,7 +115,7 @@ sqbracExpr =
 
 subscript :: Parser SpannedExpr
 subscript = M.try $ do
-  e <- expr
+  e <- ident
   es <- M.some sqbracExpr
   let foldSubscr =
         foldl
@@ -135,12 +135,58 @@ cast =
 
 call :: Parser SpannedExpr
 call = M.try $ do
-  (sp, e) <- withSpan expr
-  args <- M.some expr
-  return . ((fst sp, (snd . fst) (last args)),) $ Sy.ECall e args
+  (sp, e) <- withSpan ident
+  args <- delimited L.TLeftParen L.TRightParen $ expr `M.sepBy` consume L.TComma
+  let end = if not (null args) then (snd . fst) (last args) else snd sp
+  return . ((fst sp, end),) $ Sy.ECall e args
+
+ident :: Parser SpannedExpr
+ident =
+  M.try $
+    satisfy isIdent
+      <&> \(p, tok) -> case tok of
+        L.TIdent i -> (p, Sy.EVariable i)
+        _ -> error "impossible"
+  where
+    isIdent = \case
+      L.TIdent _ -> True
+      _ -> False
 
 prim :: Parser SpannedExpr
-prim = M.choice [literal, call, subscript]
+prim = M.choice [literal, call, subscript, cast, ident]
+
+genOperators ::
+  [L.Token] ->
+  [SpannedExpr -> SpannedExpr -> Sy.Expr] ->
+  Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+genOperators toks ops =
+  M.choice $
+    -- zipWith ( \tok op -> consume tok $> op) toks ops
+    zip toks ops <&> \(tok, op) -> consume tok $> op
+
+-- prim (op prim)*
+op ::
+  Parser SpannedExpr ->
+  Parser (SpannedExpr -> SpannedExpr -> Sy.Expr) ->
+  Parser SpannedExpr
+op base operators =
+  base
+    >>= \e ->
+      M.many
+        ( (,)
+            <$> operators
+            <*> base
+        )
+        <&> foldl (\acc (op, ex) -> (((fst . fst) acc, (snd . fst) ex),) $ op acc ex) e
+
+factorOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+factorOp =
+  genOperators
+    [L.TStar, L.TSlash, L.TPercent]
+    [Sy.EArith Sy.Mul, Sy.EArith Sy.Div, Sy.EArith Sy.Mod]
+
+factor :: Parser SpannedExpr
+factor = op prim factorOp
 
 expr :: Parser (Sy.Spanned Sy.Expr)
-expr = M.choice [cast, literal, subscript]
+expr = factor

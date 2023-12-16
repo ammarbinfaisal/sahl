@@ -39,7 +39,7 @@ data BitOp = BAnd | BOr | BXor | Shl | Shr deriving (Show, Eq)
 
 data Expr
   = ELiteral Lit Type
-  | EVariable String
+  | EVariable Text
   | ENeg (Spanned Expr)
   | ENot (Spanned Expr)
   | EBitNot (Spanned Expr)

@@ -27,6 +27,8 @@ executable frontend
         ,   mtl
         ,   megaparsec ^>=9.6.1
         ,   text
+        ,   pretty-simple
+        ,   haskeline
 
     hs-source-dirs:   app
     default-language: Haskell2010

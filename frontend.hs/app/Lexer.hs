@@ -10,7 +10,7 @@ where
 
 import Control.Applicative ((<|>))
 import Data.Char (Char, isAlphaNum)
-import Data.Data (Data)
+import Data.Data (Data, Proxy)
 import Data.Functor (($>))
 import Data.Int (Int64)
 import qualified Data.List.NonEmpty as NE
