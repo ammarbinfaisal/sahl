@@ -1,0 +1,32 @@
+cabal-version:      2.4
+name:               frontend
+version:            0.1.0.0
+
+license:            MIT
+author:             Malik Ammar Faisal
+maintainer:         binfaisal.ammar@gmail.com
+
+extra-source-files: CHANGELOG.md
+
+executable frontend
+    main-is:          Main.hs
+
+    -- Modules included in this executable, other than Main.
+    other-modules:
+        Lexer
+        Parser
+        Syntax
+
+    other-extensions:
+        OverloadedStrings
+        LambdaCase
+
+    build-depends:    
+            base ^>=4.17.2.0
+        ,   containers
+        ,   mtl
+        ,   megaparsec ^>=9.6.1
+        ,   text
+
+    hs-source-dirs:   app
+    default-language: Haskell2010
