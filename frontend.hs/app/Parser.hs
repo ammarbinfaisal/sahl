@@ -238,14 +238,16 @@ assign :: Parser SpannedExpr
 assign =
   M.try . withSpan $
     ident
-      >>= \i -> consume L.TAssign *> expr <&> Sy.EAssign i
+      -- >>= \i -> consume L.TAssign *> expr <&> Sy.EAssign i
+      >>= (<&>) (consume L.TAssign *> expr) . Sy.EAssign
 
 make :: Parser SpannedExpr
 make =
   M.try . withSpan $
     consume L.TMake
       >> typee
-      >>= \t -> Sy.EMake t <$> M.optional expr
+      -- >>= \t -> M.optional expr <&> Sy.EMake t
+      >>= (M.optional expr <&>) . Sy.EMake
 
 tuple :: Parser SpannedExpr
 tuple =
