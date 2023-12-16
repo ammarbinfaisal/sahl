@@ -7,3 +7,5 @@ sahl
 *.o
 *.bc
 exe
+dist
+dist-*
