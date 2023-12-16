@@ -4,12 +4,13 @@
 
 module Parser where
 
-import Control.Applicative ((<|>))
+import Control.Applicative (Applicative (liftA2), (<|>), (<**>))
 import Data.Bifunctor (second)
 import Data.Char (Char, isAlphaNum)
 import Data.Functor (($>), (<&>))
 import Data.Int (Int64)
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe (isJust)
 import Data.Set (Set, toList)
 import Data.Text (Text, cons, intercalate, pack, unpack)
 import Data.Typeable (Typeable (..), typeOf)
@@ -62,8 +63,8 @@ chanty :: Parser Sy.Type
 chanty = M.try $ consume (L.TIdent "chan") *> delimited L.TLessThan L.TGreaterThan typee <&> Sy.TChan
 
 -- (type, type, type)
-tuple :: Parser Sy.Type
-tuple = M.try $ delimited L.TLeftParen L.TRightParen (typee `M.sepBy` consume L.TComma) <&> Sy.TTuple
+tupleTy :: Parser Sy.Type
+tupleTy = M.try $ delimited L.TLeftParen L.TRightParen (typee `M.sepBy` consume L.TComma) <&> Sy.TTuple
 
 -- map<type, type>
 mapty :: Parser Sy.Type
@@ -75,7 +76,7 @@ mapty =
       <&> uncurry Sy.TMap
 
 typee :: Parser Sy.Type
-typee = M.choice [simpleType, listty, chanty, tuple, mapty]
+typee = M.choice [simpleType, listty, chanty, tupleTy, mapty]
 
 withSpan :: Parser a -> Parser (Sy.Spanned a)
 withSpan p = do
@@ -140,6 +141,11 @@ call = M.try $ do
   let end = if not (null args) then (snd . fst) (last args) else snd sp
   return . ((fst sp, end),) $ Sy.ECall e args
 
+isIdent :: Token -> Bool
+isIdent = \case
+  L.TIdent _ -> True
+  _ -> False
+
 ident :: Parser SpannedExpr
 ident =
   M.try $
@@ -147,10 +153,6 @@ ident =
       <&> \(p, tok) -> case tok of
         L.TIdent i -> (p, Sy.EVariable i)
         _ -> error "impossible"
-  where
-    isIdent = \case
-      L.TIdent _ -> True
-      _ -> False
 
 prim :: Parser SpannedExpr
 prim = M.choice [literal, call, subscript, cast, ident]
@@ -161,7 +163,6 @@ genOperators ::
   Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
 genOperators toks ops =
   M.choice $
-    -- zipWith ( \tok op -> consume tok $> op) toks ops
     zip toks ops <&> \(tok, op) -> consume tok $> op
 
 -- prim (op prim)*
@@ -188,5 +189,90 @@ factorOp =
 factor :: Parser SpannedExpr
 factor = op prim factorOp
 
+termOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+termOp =
+  genOperators
+    [L.TPlus, L.TMinus]
+    [Sy.EArith Sy.Add, Sy.EArith Sy.Sub]
+
+term :: Parser SpannedExpr
+term = op factor termOp
+
+cmpOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+cmpOp =
+  genOperators
+    [L.TLessThan, L.TGreaterThan, L.TLessThanOrEqual, L.TGreaterThanOrEqual]
+    [Sy.ECmpOp Sy.Lt, Sy.ECmpOp Sy.Gt, Sy.ECmpOp Sy.Le, Sy.ECmpOp Sy.Ge]
+
+cmp :: Parser SpannedExpr
+cmp = op term cmpOp
+
+eqOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+eqOp =
+  genOperators
+    [L.TEqual, L.TNotEqual]
+    [Sy.ECmpOp Sy.Eq, Sy.ECmpOp Sy.Ne]
+
+eq :: Parser SpannedExpr
+eq = op cmp eqOp
+
+bitOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+bitOp =
+  genOperators
+    [L.TAmpersand, L.TPipe, L.TCaret, L.TLeftShift, L.TRightShift]
+    [Sy.EBitOp Sy.BAnd, Sy.EBitOp Sy.BOr, Sy.EBitOp Sy.BXor, Sy.EBitOp Sy.Shl, Sy.EBitOp Sy.Shr]
+
+bit :: Parser SpannedExpr
+bit = op eq bitOp
+
+boolOp :: Parser (SpannedExpr -> SpannedExpr -> Sy.Expr)
+boolOp =
+  genOperators
+    [L.TAnd, L.TOr]
+    [Sy.EBoolOp Sy.And, Sy.EBoolOp Sy.Or]
+
+bool :: Parser SpannedExpr
+bool = op bit boolOp
+
+assign :: Parser SpannedExpr
+assign = M.try $ do
+  (sp, e) <- withSpan ident
+  consume L.TAssign
+  e' <- expr
+  let end = snd sp
+  return ((fst sp, end), Sy.EAssign e e')
+
+make :: Parser SpannedExpr
+make =
+  M.try . withSpan $
+    consume L.TMake
+      >> typee
+      >>= \t -> Sy.EMake t <$> M.optional expr
+
+tuple :: Parser SpannedExpr
+tuple =
+  M.try . withSpan $
+    consume L.TLeftParen
+      *> expr `M.sepBy` consume L.TComma
+      <* consume L.TRightParen
+      <&> Sy.ETuple
+
+chanRead :: Parser SpannedExpr
+chanRead =
+  M.try . withSpan $
+    consume L.TLeftArrow
+      *> satisfy isIdent
+      <&> \(p, tok) -> case tok of
+        L.TIdent i -> Sy.EChanRead i
+        _ -> error "impossible"
+
+list :: Parser SpannedExpr
+list =
+  M.try . withSpan $
+    consume L.TLeftBracket
+      *> expr `M.sepBy` consume L.TComma
+      <* consume L.TRightBracket
+      <&> Sy.EList
+
 expr :: Parser (Sy.Spanned Sy.Expr)
-expr = factor
+expr = M.choice [make, tuple, chanRead, list, bool]

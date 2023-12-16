@@ -53,7 +53,7 @@ data Expr
   | EAssign (Spanned Expr) (Spanned Expr)
   | EMake Type (Maybe (Spanned Expr))
   | ETuple [Spanned Expr]
-  | EChanRead String
+  | EChanRead Text
   | EList [Spanned Expr]
   | ECast (Spanned Expr) Type
   | ERef (Spanned Expr)
