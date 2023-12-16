@@ -4,7 +4,7 @@
 
 module Parser where
 
-import Control.Applicative (Applicative (liftA2), (<|>), (<**>))
+import Control.Applicative (Applicative (liftA2), (<**>), (<|>))
 import Data.Bifunctor (second)
 import Data.Char (Char, isAlphaNum)
 import Data.Functor (($>), (<&>))
@@ -235,12 +235,10 @@ bool :: Parser SpannedExpr
 bool = op bit boolOp
 
 assign :: Parser SpannedExpr
-assign = M.try $ do
-  (sp, e) <- withSpan ident
-  consume L.TAssign
-  e' <- expr
-  let end = snd sp
-  return ((fst sp, end), Sy.EAssign e e')
+assign =
+  M.try . withSpan $
+    ident
+      >>= \i -> consume L.TAssign *> expr <&> Sy.EAssign i
 
 make :: Parser SpannedExpr
 make =
