@@ -11,7 +11,7 @@ import Data.Functor (($>), (<&>))
 import Data.Int (Int64)
 import qualified Data.List.NonEmpty as NE
 import Data.Set (Set, toList)
-import Data.Text (Text, intercalate, pack, unpack)
+import Data.Text (Text, cons, intercalate, pack, unpack)
 import Data.Typeable (Typeable (..), typeOf)
 import Data.Void (Void)
 import Lexer (SpannedTok, Token (TIdent))
@@ -30,11 +30,13 @@ import Text.Megaparsec.Error
 
 type Parser = M.Parsec Void [SpannedTok]
 
-satisfy :: (Token -> Bool) -> Parser ((Int, Int), Token)
+type SpannedExpr = Sy.Spanned Sy.Expr
+
+satisfy :: (Token -> Bool) -> Parser SpannedTok
 satisfy f = M.satisfy (\(p, tok) -> f tok)
 
-consume :: Token -> Parser (Int, Int)
-consume tok = satisfy (== tok) <&> fst
+consume :: Token -> Parser SpannedTok
+consume tok = satisfy (== tok)
 
 delimited :: Token -> Token -> Parser a -> Parser a
 delimited open close p = do
@@ -75,23 +77,26 @@ mapty =
 typee :: Parser Sy.Type
 typee = M.choice [simpleType, listty, chanty, tuple, mapty]
 
-type SpannedExpr = Sy.Spanned Sy.Expr
-
-withSpan :: (a -> a) -> (Int, Int) -> a -> ((Int, Int), a)
-withSpan f p = (p,) . f
+withSpan :: Parser a -> Parser (Sy.Spanned a)
+withSpan p = do
+  start <- M.getOffset
+  x <- p
+  end <- M.getOffset
+  return ((start, end), x)
 
 literal :: Parser SpannedExpr
 literal =
   -- fmap (\(p, (l, t)) -> (p,) $ Sy.ELiteral l t) $
-  fmap (second $ uncurry Sy.ELiteral) $
-    satisfy isLit
-      <&> \(p, tok) -> (p,) $ case tok of
-        L.TInt i -> (Sy.LInt i, Sy.TInt)
-        L.TDouble d -> (Sy.LDouble d, Sy.TDouble)
-        L.TStr s -> (Sy.LStr s, Sy.TStr)
-        L.TChar c -> (Sy.LChar c, Sy.TChar)
-        L.TBool b -> (Sy.LBool b, Sy.TBool)
-        _ -> error "impossible"
+  withSpan $
+    fmap (uncurry Sy.ELiteral) $
+      satisfy isLit
+        <&> \(_, tok) -> case tok of
+          L.TInt i -> (Sy.LInt i, Sy.TInt)
+          L.TDouble d -> (Sy.LDouble d, Sy.TDouble)
+          L.TStr s -> (Sy.LStr s, Sy.TStr)
+          L.TChar c -> (Sy.LChar c, Sy.TChar)
+          L.TBool b -> (Sy.LBool b, Sy.TBool)
+          _ -> error "impossible"
   where
     isLit = \case
       L.TInt _ -> True
@@ -102,38 +107,40 @@ literal =
       _ -> False
 
 sqbracExpr :: Parser SpannedExpr
-sqbracExpr = M.try $ do
-  sp1 <- consume L.TLeftBracket
-  e <- expr
-  sp2 <- consume L.TRightBracket
-  let span = (fst sp1, snd sp2)
-  return (span, snd e)
+sqbracExpr =
+  M.try $
+    (snd <$> consume L.TLeftBracket)
+      *> expr
+      <* (snd <$> consume L.TRightBracket)
 
 subscript :: Parser SpannedExpr
 subscript = M.try $ do
   e <- expr
   es <- M.some sqbracExpr
-  let start = fst $ fst e
-  let end = fst . fst $ last es
-  let span = (start, end)
   let foldSubscr =
         foldl
           ( \acc ex@(sp, e) ->
               let end = snd sp
-               in ((start, end),) $
+               in (((fst . fst) acc, end),) $
                     Sy.ESubscr acc ex
           )
   return $ foldSubscr e es
 
 cast :: Parser SpannedExpr
-cast = M.try $ do
-  sp1 <- consume L.TLeftParen
-  e <- expr
-  consume L.TColon
-  t <- typee
-  sp2 <- consume L.TRightParen
-  let span = (fst sp1, snd sp2)
-  return $ (span,) $ Sy.ECast e t
+cast =
+  M.try . withSpan $
+    consume L.TCast
+      *> delimited L.TLeftParen L.TRightParen typee
+      >>= \t -> (Sy.ECast <$> expr) <*> pure t
+
+call :: Parser SpannedExpr
+call = M.try $ do
+  (sp, e) <- withSpan expr
+  args <- M.some expr
+  return . ((fst sp, (snd . fst) (last args)),) $ Sy.ECall e args
+
+prim :: Parser SpannedExpr
+prim = M.choice [literal, call, subscript]
 
 expr :: Parser (Sy.Spanned Sy.Expr)
 expr = M.choice [cast, literal, subscript]
