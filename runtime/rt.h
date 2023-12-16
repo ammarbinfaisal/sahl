@@ -1,7 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -9,7 +8,6 @@
 
 #include "gc.h"
 #include "gc/gc.h"
-
 
 #ifndef H_RT
 
@@ -97,5 +95,46 @@ struct variant_t {
 };
 
 typedef struct variant_t variant_t;
+
+void iprint(int64_t);
+void fprint(double);
+void cprint(char);
+void bprint(int);
+void exit_with(int32_t);
+
+variant_t *make_variant(uint64_t, uint64_t);
+int is_variant(variant_t *, uint64_t);
+int64_t get_variant(variant_t *);
+
+Obj *newobj(ObjType);
+Obj *make_string(char *, int);
+void sprint(Obj *);
+Obj *strcatt(Obj *, Obj *);
+void str_free(str_t *);
+char strget(Obj *, uint64_t);
+
+int64_t mapget(Obj *, int64_t);
+void mapset(Obj *, int64_t, int64_t);
+
+Obj *make_list(size_t);
+Obj *make_map();
+Obj *make_chan(size_t);
+typedef Obj *(*MakeFn)(size_t);
+Obj *make(int, size_t);
+
+void append(Obj *, int64_t);
+uint64_t pop(Obj *);
+void listset(Obj *, uint64_t, int64_t);
+int64_t listget(Obj *, uint64_t);
+void list_set_all(Obj *, void *);
+void list_free(list_t *);
+int len(Obj *);
+
+Obj *concat(Obj *, Obj *);
+
+void chansend(Obj *, uint64_t);
+uint64_t chanrecv(Obj *);
+
+void spawn(void *, void *);
 
 #endif
