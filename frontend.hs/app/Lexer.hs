@@ -157,13 +157,13 @@ nat :: Parser SpannedTok
 nat = withOffset (TInt <$> L.decimal)
 
 hex :: Parser SpannedTok
-hex = withOffset (TInt <$> L.hexadecimal)
+hex = withOffset (MC.string "0x" *> (TInt <$> L.hexadecimal))
 
 oct :: Parser SpannedTok
-oct = withOffset (TInt <$> L.octal)
+oct = withOffset (MC.string "0" *> (TInt <$> L.octal))
 
 bin :: Parser SpannedTok
-bin = withOffset (TInt <$> L.binary)
+bin = withOffset (MC.string "0b" *> (TInt <$> L.binary))
 
 integer :: Parser SpannedTok
 integer = M.choice [hex, oct, bin, nat]
