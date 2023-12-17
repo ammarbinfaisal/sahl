@@ -108,60 +108,33 @@ space = do L.space MC.space1 lineCmnt blockCmnt
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme space
 
-keywords :: [Text]
-keywords =
-  [ "let",
-    "in",
-    "if",
-    "then",
-    "else",
-    "true",
-    "false",
-    "fun",
-    "return",
-    "while",
-    "make",
-    "cast",
-    "for",
-    "sahl",
-    "break",
-    "continue",
-    "ref",
-    "extern",
-    "type",
-    "is",
-    "match",
-    "const"
-  ]
-
 identifier :: Parser SpannedTok
 identifier = withOffset $ do
   name <- lexeme $ M.takeWhile1P Nothing isAlphaNum
-  if name `elem` keywords
-    then return $ case name of
-      "let" -> TLet
-      "in" -> TIn
-      "if" -> TIf
-      "then" -> TThen
-      "else" -> TElse
-      "true" -> TTrue
-      "false" -> TFalse
-      "fun" -> TFun
-      "return" -> TReturn
-      "while" -> TWhile
-      "make" -> TMake
-      "cast" -> TCast
-      "for" -> TFor
-      "sahl" -> TSahl
-      "break" -> TBreak
-      "continue" -> TContinue
-      "ref" -> TRef
-      "extern" -> TExtern
-      "type" -> TTypedef
-      "is" -> TIs
-      "match" -> TMatch
-      "const" -> TConst
-    else return $ TIdent name
+  return $ case name of
+    "let" -> TLet
+    "in" -> TIn
+    "if" -> TIf
+    "then" -> TThen
+    "else" -> TElse
+    "true" -> TTrue
+    "false" -> TFalse
+    "fun" -> TFun
+    "return" -> TReturn
+    "while" -> TWhile
+    "make" -> TMake
+    "cast" -> TCast
+    "for" -> TFor
+    "sahl" -> TSahl
+    "break" -> TBreak
+    "continue" -> TContinue
+    "ref" -> TRef
+    "extern" -> TExtern
+    "type" -> TTypedef
+    "is" -> TIs
+    "match" -> TMatch
+    "const" -> TConst
+    _ -> TIdent name
 
 withOffset :: Parser a -> Parser (Spanned a)
 withOffset p = do
