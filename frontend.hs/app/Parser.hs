@@ -239,7 +239,7 @@ assign =
   M.try . withSpan $
     ident
       -- >>= \i -> consume L.TAssign *> expr <&> Sy.EAssign i
-      >>= (<&>) (consume L.TAssign *> expr) . Sy.EAssign
+      >>= (consume L.TAssign *> expr <&>) . Sy.EAssign
 
 make :: Parser SpannedExpr
 make =
