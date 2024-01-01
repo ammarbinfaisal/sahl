@@ -1295,7 +1295,7 @@ pub fn check_program<'src>(
         } else {
             func.retty.clone()
         };
-        func_env.insert(func.name.clone(), (args_ty, ret_ty));
+        func_env.insert(func.name, (args_ty, ret_ty));
     }
 
     let constmap = check_consts(&consts)?;
@@ -1317,7 +1317,7 @@ pub fn check_program<'src>(
                 .type_env
                 .last_mut()
                 .unwrap()
-                .insert(arg.name.clone(), arg.ty.clone());
+                .insert(arg.name, arg.ty.clone());
         }
         for stmt in func.body.iter_mut() {
             checker.check_stmt(stmt)?;
@@ -1335,7 +1335,7 @@ pub fn check_program<'src>(
             if !validate_cfg(&cfg) {
                 return Err((
                     func.body[func.body.len() - 1].0,
-                    Error::NoReturn(func.name.clone()),
+                    Error::NoReturn(func.name),
                     func.body[func.body.len() - 1].2,
                 ));
             }
