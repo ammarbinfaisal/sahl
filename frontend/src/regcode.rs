@@ -46,7 +46,7 @@ pub enum RegCode<'src> {
     // lists
     ListSet(u8, u8, u8),
     ListGet(u8, u8, u8),
-    // List(usize, u8, Type), // length, reg - not needed as of now
+    // List(usize, u8, Type), // not needed as of now
     // tuples
     TupleGet(u8, u8, u8),
     TupleSet(u8, u8, u8),
@@ -244,18 +244,18 @@ pub struct RegCodeGen<'a, 'src> {
     typemap: HashMap<&'src str, Type<'src>>,
     variants: HashMap<&'src str, (Type<'src>, &'src str, usize)>,
     constmap: &'a HashMap<&'src str, Spanned<Lit>>,
-    pub func_code: Vec<Vec<RegCode<'src>>>,
-    pub start_func_idx: usize,
     curr_func: usize,
     // opcode_span: HashMap<usize, (usize, usize)>, // to be used for debugging
     span: (usize, usize),
     // source_name: String, // to be used for debugging
-    pub consts: Vec<(Type<'src>, Vec<u8>)>,
     stack: Vec<u8>,
     free_regs: [bool; 256],
     breaks: Vec<Vec<usize>>,
-    loop_starts: Vec<usize>, // stack of (start, end) of loops
+    loop_starts: Vec<usize>, // stack of start index of loops
     coro_call: bool,
+    pub consts: Vec<(Type<'src>, Vec<u8>)>,
+    pub func_code: Vec<Vec<RegCode<'src>>>,
+    pub start_func_idx: usize,
 }
 
 impl<'a, 'src> RegCodeGen<'a, 'src> {
