@@ -1495,7 +1495,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             let args = &func
                 .args
                 .iter()
-                .map(|arg| arg.name.clone())
+                .map(|arg| arg.name)
                 .collect::<Vec<_>>();
             self.func_args_len.push(args.len() as u32);
             if func.name == "main" {
