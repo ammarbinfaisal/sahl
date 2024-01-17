@@ -8,6 +8,7 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
+use inkwell::passes::PassManager;
 use inkwell::targets::TargetTriple;
 use inkwell::types::{BasicMetadataTypeEnum, FloatType, FunctionType, IntType, PointerType};
 use inkwell::values::{
@@ -178,6 +179,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
             bbs.push(bb);
         }
 
+        self.builder.position_at_end(entry);
         self.builder.build_unconditional_branch(bbs[0]);
 
         for (bb_ix, bb) in cfg.iter().enumerate() {
@@ -1024,11 +1026,13 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
         self.add_coro_fns();
 
         // mem2reg - no passes working
-        // let pass_manager = PassManager::create(());
-        // pass_manager.add_promote_memory_to_register_pass();
-        // pass_manager.run_on(&self.module);
+        let pass_manager = PassManager::create(());
+        pass_manager.add_cfg_simplification_pass();
+        pass_manager.add_promote_memory_to_register_pass();
+        pass_manager.add_instruction_combining_pass();
+        pass_manager.run_on(&self.module);
 
-        let triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        let triple = TargetTriple::create("x86_64-pc-linux-gnu");
         self.module.set_triple(&triple);
         self.module.print_to_stderr();
         self.module.write_bitcode_to_path(Path::new("./exe.bc"));

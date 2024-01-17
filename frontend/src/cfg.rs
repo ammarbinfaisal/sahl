@@ -15,26 +15,27 @@ pub fn construct_cfg<'src>(regcode: &Vec<RegCode<'src>>) -> CFG<'src> {
     let mut map = HashMap::new(); // regcode index -> block index, code index
     let mut leaders = HashSet::new();
 
-    for code in regcode.into_iter() {
+    leaders.insert(0);
+
+    for (curr_ix, code) in regcode.into_iter().enumerate() {
         match code {
             RegCode::Jmp(ix) => {
                 leaders.insert(*ix);
+                leaders.insert(curr_ix + 1);
             }
             RegCode::JmpIfNot(_, ix) => {
                 leaders.insert(*ix);
+                leaders.insert(curr_ix + 1);
             }
             RegCode::Super(SuperInstruction::JmpIfNotCond(ix, _, _, _, _)) => {
                 leaders.insert(*ix);
+                leaders.insert(curr_ix + 1);
             }
             _ => {}
         }
     }
 
     for (i, code) in regcode.into_iter().enumerate() {
-        // if the last code is a jump if not then the next code is a leader
-        if let RegCode::JmpIfNot(_, _) = code {
-            leaders.insert(i + 1);
-        }
         if leaders.contains(&i) && !block.is_empty() {
             cfg.push(BasicBlock { code: block });
             block = Vec::new();
@@ -73,6 +74,6 @@ pub fn construct_cfg<'src>(regcode: &Vec<RegCode<'src>>) -> CFG<'src> {
             }
         }
     }
-    // println!("cfg {:?}", cfg);
+
     cfg
 }
