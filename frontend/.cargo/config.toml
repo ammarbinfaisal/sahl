@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-L/usr/lib/llvm-15/lib"]
