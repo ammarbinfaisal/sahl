@@ -20,11 +20,11 @@ VM *new_vm(uint8_t *code, int code_length) {
     offset += 16;
 
     CheneyState *cheney_state = checked_malloc(sizeof(CheneyState));
-    void *mem = checked_malloc(1024 * 256 * sizeof(Obj));
+    void *mem = checked_malloc(1024 * 1024 * sizeof(Obj));
     cheney_state->from_space = mem;
     cheney_state->from_top = mem;
-    cheney_state->from_space_size = 1024 * 128 * sizeof(Obj);
-    cheney_state->extent = mem + 1024 * 256 * sizeof(Obj);
+    cheney_state->from_space_size = 1024 * 512 * sizeof(Obj);
+    cheney_state->extent = mem + 1024 * 512 * sizeof(Obj);
     pthread_mutex_init(&cheney_state->lock, NULL);
     vm->cheney_state = cheney_state;
 
