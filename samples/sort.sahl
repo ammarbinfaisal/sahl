@@ -55,12 +55,11 @@ fun sort(arr: [int], left: int, right: int) {
 }
 
 fun main() {
-    let arr = make([int], 100000);
-    let i = 0;
-    while i < 100000 {
-        arr[i] = 100000 - i;
-        i = i + 1;
+    let l = 100000;
+    let arr = make([int], l);
+    for i in 0..l {
+        arr[i] = l - i;
     }
-    sort(arr, 0, 100000 - 1);
+    sort(arr, 0, l - 1);
     print(arr, "\n");
 }
