@@ -10,16 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define mark_value(vm, value) mark_obj(vm, (Obj *)value);
-
-#define OOM_CHECK(cheney_state)                                                \
-    do {                                                                       \
-        if (cheney_state->top + sizeof(Obj) > cheney_state->extent) {          \
-            printf("out of memory\n");                                         \
-            exit(1);                                                           \
-        }                                                                      \
-    } while (0);
-
 typedef struct {
     void *ptr;
     int size;
