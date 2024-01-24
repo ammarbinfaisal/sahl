@@ -1,7 +1,6 @@
 #include <stdlib.h>
 
 #include "gc.h"
-#include "obj.h"
 #include "rbtree.h"
 
 // algo taken from GFG

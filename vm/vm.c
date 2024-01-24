@@ -1,15 +1,13 @@
 #include "vm.h"
 #include "common.h"
+#include "gc.h"
 #include "list.h"
-#include "obj.h"
-#include "rbtree.h"
 #include "read.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "gc.h"
 
 VM *new_vm(uint8_t *code, int code_length) {
     VM *vm = checked_malloc(sizeof(struct VM));
@@ -20,11 +18,13 @@ VM *new_vm(uint8_t *code, int code_length) {
     offset += 16;
 
     CheneyState *cheney_state = checked_malloc(sizeof(CheneyState));
-    void *mem = checked_malloc(1024 * 1024 * sizeof(Obj));
+    void *mem = checked_malloc(1024 * 1024 * 128); // 128MiB
     cheney_state->from_space = mem;
-    cheney_state->from_top = mem;
-    cheney_state->from_space_size = 1024 * 512 * sizeof(Obj);
-    cheney_state->extent = mem + 1024 * 512 * sizeof(Obj);
+    cheney_state->heap = mem;
+    cheney_state->top = mem;
+    cheney_state->free = mem;
+    cheney_state->extent = 1024 * 1024 * 64;
+    cheney_state->to_space = mem + cheney_state->extent;
     pthread_mutex_init(&cheney_state->lock, NULL);
     vm->cheney_state = cheney_state;
 
@@ -100,7 +100,7 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->regs = checked_malloc(sizeof(Value) * 256);
 
     // callframe
-    vm->call_frame = NULL;
+    vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
 
     // stackmap
     if (curr->call_frame->stackmap) {
@@ -126,7 +126,8 @@ VM *coro_vm(VM *curr, int start_func) {
 void free_vm(VM *vm) {
     free(vm->stack);
     free(vm->consts);
-    free(vm->cheney_state->from_space);
+    free(vm->regs);
+    free(vm->cheney_state->heap);
     free(vm->cheney_state);
     free(vm);
 }

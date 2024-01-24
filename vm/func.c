@@ -14,6 +14,12 @@ CallFrame *new_call_frame(Func *func, CallFrame *prev) {
 }
 
 void free_call_frame(CallFrame *frame) {
+    // free stackmap
+    if (frame->stackmap) {
+        free(frame->stackmap->bits);
+        free(frame->stackmap);
+    }
+        
     free(frame->locals);
     free(frame);
 }

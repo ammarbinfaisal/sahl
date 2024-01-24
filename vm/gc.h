@@ -9,6 +9,6 @@
 
 void * checked_malloc(size_t size);
 void cheney_collect(CheneyState *cs, VM *vm);
-Obj *cheney_allocate(VM *vm, int count);
+void *cheney_allocate(VM *vm, int count);
 
 #endif

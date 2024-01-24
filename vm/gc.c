@@ -1,8 +1,9 @@
 #include "gc.h"
 #include "common.h"
-#include "conc.h"
 #include "list.h"
 #include "rbtree.h"
+#include "vm.h"
+#include <complex.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,11 +14,17 @@
 
 #define OOM_CHECK(cheney_state)                                                \
     do {                                                                       \
-        if (cheney_state->from_top + sizeof(Obj) > cheney_state->extent) {     \
+        if (cheney_state->top + sizeof(Obj) > cheney_state->extent) {          \
             printf("out of memory\n");                                         \
             exit(1);                                                           \
         }                                                                      \
     } while (0);
+
+typedef struct {
+    void *ptr;
+    int size;
+    bool obj;
+} worklist_items_t;
 
 void *checked_malloc(size_t size) {
     void *ptr = malloc(size);
@@ -28,43 +35,46 @@ void *checked_malloc(size_t size) {
     return ptr;
 }
 
-Obj *cheney_allocate(VM *vm, int count) {
+void *cheney_allocate(VM *vm, int size) {
     CheneyState *cheney_state = vm->cheney_state;
     pthread_mutex_lock(&cheney_state->lock);
-    if (cheney_state->from_top + sizeof(Obj) >
-        cheney_state->from_space + cheney_state->from_space_size) {
-        // printf("from space exhausted, collecting garbage\n");
-        pthread_mutex_unlock(&cheney_state->lock);
+    if (cheney_state->free + size > cheney_state->top) {
         cheney_collect(vm->cheney_state, vm);
-        pthread_mutex_lock(&cheney_state->lock);
-        OOM_CHECK(cheney_state)
     }
-    Obj *obj = cheney_state->from_top;
-    cheney_state->from_top += sizeof(Obj) * count;
+    if (cheney_state->free + size > cheney_state->top) {
+        // FIXME: heap expansion
+        puts("out of memory");
+        free_vm(vm);
+        exit(1);
+    }
+    void *obj = cheney_state->free;
+    cheney_state->free += size;
     pthread_mutex_unlock(&cheney_state->lock);
     return obj;
 }
 
 void cheney_collect(CheneyState *cs, VM *vm) {
-    pthread_mutex_lock(&cs->lock);
-    memcpy(cs->from_space + cs->from_space_size, cs->from_space,
-           cs->from_top - cs->from_space);
-    cs->from_top = cs->from_space;
-
-    pthread_mutex_unlock(&cs->lock);
+    void *temp = cs->to_space;
+    cs->to_space = cs->from_space;
+    cs->from_space = temp;
+    cs->top = cs->to_space + cs->extent;
+    cs->free = cs->to_space;
 
     LinkedList *worklist = new_list();
-
     CallFrame *frame = vm->call_frame;
+
     while (frame != NULL) {
         StackMap *map = frame->stackmap;
         if (map) {
             for (int i = 0; i < map->len; i++) {
                 for (int j = 0; j < 64; j++) {
-                    if (map->bits[i] & (1 << j)) {
-                        enqueue(worklist, (void *)frame->locals[i * 64 + j]);
-                        Obj *obj = (Obj *)frame->locals[i * 64 + j];
-                        obj->marked = true;
+                    if (map->bits[i] & (1ull << j)) {
+                        worklist_items_t *item =
+                            checked_malloc(sizeof(worklist_items_t));
+                        item->ptr = frame->locals + i * 64 + j;
+                        item->size = sizeof(Obj);
+                        item->obj = true;
+                        enqueue(worklist, item);
                     }
                 }
             }
@@ -72,77 +82,68 @@ void cheney_collect(CheneyState *cs, VM *vm) {
         frame = frame->prev;
     }
 
+    RBNode *forwarding_addr = new_rb_node(0);
+
     while (worklist->size) {
-        Obj *obj = dequeue(worklist);
-        // copy obj to to_space
-        if (obj->marked) {
+        worklist_items_t *w = dequeue(worklist);
+
+        uint64_t **ptr = w->ptr;
+        uint64_t *from_ref = *ptr;
+        if (from_ref == NULL) {
             continue;
         }
-        obj->marked = true;
 
-        memcpy(cs->from_top, obj, sizeof(Obj));
-        cs->from_top += sizeof(Obj);
-
-        switch (obj->type) {
-        case OBJ_STRING: {
-            break;
+        void *to_ref;
+        RBNode *node = rb_search(forwarding_addr, (Value)from_ref);
+        if (node != NULL) {
+            *(void **)ptr = (void *)node->value;
+        } else {
+            // forward
+            to_ref = cs->free;
+            cs->free += w->size;
+            memmove(to_ref, from_ref, w->size);
+            *(void **)ptr = to_ref;
+            RBNode *new_node = new_rb_node((Value)to_ref);
+            new_node->key = (Value)from_ref;
+            rb_insert(forwarding_addr, new_node);
         }
-        case OBJ_LIST: {
-            if (obj->list.boxed_items) {
-                for (int i = 0; i < obj->list.length; i++) {
-                    enqueue(worklist, (void *)obj->list.items[i]);
-                }
+
+        if (w->obj) {
+            Obj *obj = (Obj *)to_ref;
+
+            switch (obj->type) {
+            case OBJ_STRING: {
+                break;
             }
-            break;
-        }
-        case OBJ_TUPLE: {
-            uint64_t *bitset = obj->tuple.boxed_items;
-            int len = *bitset;
-            bitset++;
-            for (int i = 0; i < len; i++) {
-                uint64_t bits = bitset[i];
-                for (int j = 0; j < 64; j++) {
-                    if (bits & (1 << j)) {
-                        enqueue(worklist, (void *)obj->tuple.items[i * 64 + j]);
+            case OBJ_LIST: {
+                if (obj->list.boxed_items) {
+                    for (int i = 0; i < obj->list.length; i++) {
+                        worklist_items_t *item =
+                            checked_malloc(sizeof(worklist_items_t));
+                        item->ptr = obj->list.items + i;
+                        item->size = sizeof(Obj);
+                        item->obj = true;
+                        enqueue(worklist, item);
                     }
                 }
-            }
-            break;
-        }
-        case OBJ_MAP: {
-            if (obj->map.key_boxed || obj->map.value_boxed) {
-                LinkedListRB *ll = rb_to_ll(obj->map.map);
-                LinkedListRB *curr = ll;
-                while (curr != NULL) {
-                    if (obj->map.key_boxed) {
-                        enqueue(worklist, (void *)curr->key);
-                    }
-                    if (obj->map.value_boxed) {
-                        enqueue(worklist, (void *)curr->value);
-                    }
-                    curr = curr->next;
-                }
-            }
 
-            break;
-        }
-        case OBJ_CHAN: {
-            if (obj->channel.boxed_items) {
-                LinkedList *q = obj->channel.chan->q;
-                Node *n = q->head;
-                while (n->next != NULL) {
-                    enqueue(worklist, (void *)n->value);
-                }
+                worklist_items_t *item =
+                    checked_malloc(sizeof(worklist_items_t));
+                item->ptr = &obj->list.items;
+                item->size = sizeof(Value) * obj->list.capacity;
+                item->obj = false;
+                enqueue(worklist, item);
+
+                break;
             }
-            break;
+            // FIXME: handle tuples with objs, maps with objs, variants, etc.
+            }
         }
-        case OBJ_REF: {
-            enqueue(worklist,
-                    (void *)obj->ref.frame->locals[obj->ref.local_ix]);
-            break;
-        }
-        }
+
+        free(w);
     }
+
+    rb_free(forwarding_addr);
 
     free_linkedlist(worklist);
 }

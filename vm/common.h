@@ -163,9 +163,11 @@ typedef union Reg Reg;
 
 struct CheneyState {
     void *from_space;
-    void *extent;
-    void *from_top;
-    int from_space_size;
+    void *to_space;
+    void *top;
+    void *free;
+    void *heap;
+    int extent;
     pthread_mutex_t lock;
 };
 
