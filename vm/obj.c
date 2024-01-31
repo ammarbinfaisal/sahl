@@ -1,7 +1,7 @@
 #include "obj.h"
 #include "common.h"
-#include "gc.h"
 #include "rbtree.h"
+#include "treadmill/gc.h"
 #include <pthread.h>
 #include <stdlib.h>
 
@@ -10,7 +10,7 @@ double value_to_float(Value value) { return *(double *)&value; }
 Value float_to_value(double f) { return *(Value *)&f; }
 
 Obj *new_obj(VM *vm, ObjType type) {
-    Obj *obj = cheney_allocate(vm, sizeof(Obj));
+    Obj *obj = (Obj *)Tm_allocate(vm->heap);
     obj->type = type;
     obj->marked = false;
     return obj;

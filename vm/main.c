@@ -338,7 +338,7 @@ void make_map(VM *vm, int reg, int _) {
 void make_list(VM *vm, int reg, int len) {
     Obj *obj = new_obj(vm, OBJ_LIST);
     size_t cap = GROW_CAPACITY(len);
-    obj->list.items = cheney_allocate(vm, sizeof(Value) * cap);
+    obj->list.items = checked_malloc(sizeof(Value) * cap);
     obj->list.length = len;
     obj->list.capacity = cap;
     vm->regs[reg].i = (uint64_t)obj;
@@ -442,7 +442,7 @@ void handle_list(VM *vm) {
     Obj *newobj = new_obj(vm, OBJ_LIST);
     newobj->list.length = len;
     newobj->list.capacity = len;
-    newobj->list.items = cheney_allocate(vm, sizeof(Value) * len);
+    newobj->list.items = checked_malloc(sizeof(Value) * len);
     newobj->list.boxed_items = heap_alloced;
     for (int i = 0; i < len; ++i) {
         newobj->list.items[i] = pop(vm);
@@ -456,7 +456,7 @@ void handle_tuple(VM *vm) {
     vm->call_frame->ip += 8;
     uint64_t bitsets_count = read_u64(code, vm->call_frame->ip);
     vm->call_frame->ip += 8;
-    uint64_t *bitsets = cheney_allocate(vm, sizeof(uint64_t) * bitsets_count + 1);
+    uint64_t *bitsets = checked_malloc(sizeof(uint64_t) * bitsets_count + 1);
     *bitsets = bitsets_count; // store count in first element
     for (int i = 0; i < bitsets_count; ++i) {
         bitsets[i + 1] = read_u64(code, vm->call_frame->ip);
@@ -466,7 +466,7 @@ void handle_tuple(VM *vm) {
     // pop len values from stack
     Obj *newobj = new_obj(vm, OBJ_TUPLE);
     newobj->tuple.length = len;
-    newobj->tuple.items = cheney_allocate(vm, sizeof(Value) * len);
+    newobj->tuple.items = checked_malloc(sizeof(Value) * len);
     // now, tupleset will be used to set the values
     // for (int i = 0; i < len; ++i) {
     //     newobj->tuple.items[i] = pop(vm);
@@ -685,8 +685,8 @@ void native_append(VM *vm) {
         uint64_t old_cap = obj->list.capacity;
         obj->list.capacity = GROW_CAPACITY(obj->list.capacity);
         void *old = obj->list.items;
-        obj->list.items = cheney_allocate(vm, sizeof(Value) * obj->list.capacity);
-        memcpy(obj->list.items, old, sizeof(Value) * old_cap);
+        obj->list.items =
+            realloc(obj->list.items, sizeof(Value) * obj->list.capacity);
     }
     obj->list.items[obj->list.length] = vm->regs[value].i;
     ++obj->list.length;
@@ -885,6 +885,10 @@ void handle_stack_map(VM *vm) {
         *bitptr = read_u64(code, vm->call_frame->ip);
         vm->call_frame->ip += 8;
         bitptr++;
+    }
+    if (vm->call_frame->stackmap) {
+        free(vm->call_frame->stackmap->bits);
+        free(vm->call_frame->stackmap);
     }
     vm->call_frame->stackmap = stmap;
     --vm->call_frame->ip;

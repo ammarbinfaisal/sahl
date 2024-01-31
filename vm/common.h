@@ -4,6 +4,7 @@
 #define TYPES_H
 
 #include "list.h"
+#include "treadmill/gc.h"
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -109,6 +110,7 @@ enum ObjType {
 typedef enum ObjType ObjType;
 
 struct Obj {
+    TmObjectHeader gc;
     bool marked;
     ObjType type;
     struct Obj *next;
@@ -173,6 +175,15 @@ struct CheneyState {
 
 typedef struct CheneyState CheneyState;
 
+struct VM;
+typedef struct VM VM;
+
+typedef struct state_s {
+    TmStateHeader gc;
+    bool free_entire_heap;
+    VM *vm;
+} State;
+
 struct VM {
     Value *stack;
     int stack_size;
@@ -186,7 +197,8 @@ struct VM {
     int start_func;
 
     // garbage collection
-    CheneyState *cheney_state;
+    TmHeap *heap;
+    State *gc_state;
 
     // thread
     bool coro_to_be_spawned;
@@ -197,8 +209,6 @@ struct VM {
 
     char *filename;
 };
-
-typedef struct VM VM;
 
 void error(VM *vm, char *msg);
 char *stringify(Value value);
