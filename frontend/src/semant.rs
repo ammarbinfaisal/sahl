@@ -9,6 +9,7 @@ pub enum Error<'src> {
     UndefinedFunction(&'src str),
     ArityMismatch(usize, usize),
     TypeMismatch(Vec<Type<'src>>, Vec<Type<'src>>),
+    BoxedTypeInCoroutine,
     InvalidConstantExpr,
     TupleIndexOutOfBounds(usize, usize),
     DuplicateVariant(&'src str, &'src str),
@@ -80,6 +81,9 @@ impl<'src> std::fmt::Display for Error<'src> {
             }
             Error::InvalidConstantExpr => {
                 write!(f, "Invalid constant expression")
+            }
+            Error::BoxedTypeInCoroutine => {
+                write!(f, "Cannot pass boxed type to coroutine")
             }
         }
     }
@@ -956,7 +960,18 @@ impl<'a, 'src> Checker<'a, 'src> {
             }
             Stmt::Coroutine(expr) => {
                 self.check_expr(expr)?;
-                if let Expr::Call { .. } = expr.1 {
+                if let Expr::Call { args, .. } = &expr.1 {
+                    // args shouldn't be heap types
+                    for arg in args {
+                        if (*arg).1.get_type().is_heap_type() {
+                            return Err((
+                                arg.0,
+                                Error::BoxedTypeInCoroutine,
+                                arg.2,
+                            ));
+                        
+                        }
+                    }
                     Ok(())
                 } else {
                     Err((expr.0, Error::CoroutineNotFunction, expr.2))
