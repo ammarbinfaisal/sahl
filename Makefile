@@ -6,7 +6,7 @@ codegen:
 	cd frontend && cargo build --release
 
 vm: vm/*
-	gcc vm/* -o sahl -Iinclude -O2 -g -lm -lpthread
+	gcc vm/* libs/libtreadmill.a  -o sahl -Iinclude -O2 -g -lm -lpthread
 
 check:
 	python3 test.py
