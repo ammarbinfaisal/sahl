@@ -890,9 +890,7 @@ impl<'ctx, 'src> Compiler<'ctx, 'src> {
                         let args = &[fnptr.into(), args_array.into()];
                         self.builder.build_call(spwan_fn, args, "pthread_create");
                     }
-                    RegCode::Ref(_, _) => todo!(),
-                    RegCode::Deref(_, _) => todo!(),
-                    RegCode::DerefAssign(_, _, _) => todo!(),
+                    _ => todo!(),
                 }
             }
             match code[code.len() - 1] {

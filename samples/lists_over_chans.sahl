@@ -1,0 +1,19 @@
+fun printer(l: chan<[int]>, recv: chan<bool>) {
+    while true {
+        let ls = <-l;
+        print(ls, "\n");
+        recv <- true;
+    }
+}
+
+fun main() {
+    let l = make(chan<[int]>, 5);
+    let recv = make(chan<bool>, 100);
+    sahl printer(l, recv);
+    for i in 0..100 {
+        l <- [i];
+    }
+    for i in 0..100 {
+        <-recv;
+    }
+}

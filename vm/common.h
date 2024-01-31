@@ -14,9 +14,8 @@
 // #define PRINT_LOCALS
 // #define DEBUG
 // #define DEBUGGC
-// #define MINARR
 #define UNSAFE
-#define MAX_THREADS 16
+#define MAX_THREADS 4
 #define USE_GC
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 1.5)
@@ -162,18 +161,6 @@ union Reg {
 };
 
 typedef union Reg Reg;
-
-struct CheneyState {
-    void *from_space;
-    void *to_space;
-    void *top;
-    void *free;
-    void *heap;
-    int extent;
-    pthread_mutex_t lock;
-};
-
-typedef struct CheneyState CheneyState;
 
 struct VM;
 typedef struct VM VM;

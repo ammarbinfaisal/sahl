@@ -963,13 +963,15 @@ impl<'a, 'src> Checker<'a, 'src> {
                 if let Expr::Call { args, .. } = &expr.1 {
                     // args shouldn't be heap types
                     for arg in args {
-                        if (*arg).1.get_type().is_heap_type() {
-                            return Err((
-                                arg.0,
-                                Error::BoxedTypeInCoroutine,
-                                arg.2,
-                            ));
-                        
+                        match (*arg).1.get_type() {
+                            Type::List(_) | Type::Map(_, _) | Type::Tuple(_) | Type::Variant(_) => {
+                                return Err((
+                                    arg.0,
+                                    Error::BoxedTypeInCoroutine,
+                                    arg.2,
+                                ));
+                            }
+                            _ => {}
                         }
                     }
                     Ok(())

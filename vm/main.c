@@ -27,10 +27,7 @@
 Scheduler *scheduler;
 
 static void push_scheduler(VM *corovm) {
-    pthread_mutex_lock(&scheduler->vmq_mu);
     enqueue(scheduler->coro_queue, corovm);
-    pthread_cond_broadcast(&scheduler->vmq_cond);
-    pthread_mutex_unlock(&scheduler->vmq_mu);
 }
 
 static VM *pop_scheduler() {
@@ -503,18 +500,17 @@ void handle_chansend(VM *vm) {
     printf("sending %ld over chan %p\n", vm->regs[value].i, obj);
 #endif
     Chan *chan = obj->channel.chan;
-    // printf("waiting send: %p %x\n", chan, vm->coro_id);
     pthread_mutex_lock(&chan->m_mu);
     chan_write(chan, vm->regs[value].i);
     // printf("waiting send sent: %p %x\n", chan, vm->coro_id);
-    int len = chan->len;
+    int len = chan->q->size;
     if (chan->r_waiting > 0) {
-        pthread_cond_broadcast(&chan->r_cond);
+        pthread_cond_signal(&chan->r_cond);
     }
-    pthread_mutex_unlock(&chan->m_mu);
-    if (len == chan->cap) {
+    if (len == chan->cap && vm->coro_id != MAIN_ID) {
         vm->should_yield = true;
     }
+    pthread_mutex_unlock(&chan->m_mu);
 }
 
 void handle_chanrecv(VM *vm) {
@@ -527,15 +523,7 @@ void handle_chanrecv(VM *vm) {
     Chan *chan = obj->channel.chan;
     // printf("waiting recv: %p %x\n", chan, vm->coro_id);
     pthread_mutex_lock(&chan->m_mu);
-    if (chan->len == 0 && vm->coro_id != MAIN_ID) {
-        // printf("giving up waiting recv : %p %x\n", chan, vm->coro_id);
-        pthread_mutex_unlock(&chan->m_mu);
-        vm->should_yield = true;
-        vm->call_frame->ip--; // as we will yield after the ip increment
-                              // and we want to re-execute this instruction
-        return;
-    }
-    if (chan->len == 0) {
+    while (chan->q->size == 0) {
         chan->r_waiting++;
         pthread_cond_wait(&chan->r_cond, &chan->m_mu);
         chan->r_waiting--;
@@ -613,7 +601,10 @@ void handle_corocall(VM *vm) {
     vm->call_frame->ip +=
         16 + nargs; // 16 instead of 17 because we pre-increment ip again
     cf->ip = 0;
+    pthread_mutex_lock(&scheduler->vmq_mu);
     push_scheduler(vmm);
+    pthread_cond_broadcast(&scheduler->vmq_cond);
+    pthread_mutex_unlock(&scheduler->vmq_mu);
 }
 
 typedef void (*native_fn_t)(VM *vm);
@@ -1068,31 +1059,64 @@ void handle_deref_assign(VM *vm) {
     ref->ref.frame->locals[ref->ref.local_ix] = vm->regs[arg].i;
 }
 
+void handle_clone(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int arg = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = vm->regs[arg].o;
+    Obj *newobj = new_obj(vm, obj->type);
+    switch (obj->type) {
+    case OBJ_LIST: {
+        newobj->list.length = obj->list.length;
+        newobj->list.capacity = obj->list.capacity;
+        newobj->list.items = checked_malloc(sizeof(Value) * obj->list.capacity);
+        memcpy(newobj->list.items, obj->list.items,
+               sizeof(Value) * obj->list.length);
+        break;
+    }
+    case OBJ_TUPLE: {
+        newobj->tuple.length = obj->tuple.length;
+        newobj->tuple.items = checked_malloc(sizeof(Value) * obj->tuple.length);
+        newobj->tuple.boxed_items =
+            checked_malloc(sizeof(Value) * obj->tuple.length);
+        memcpy(newobj->tuple.items, obj->tuple.items,
+               sizeof(Value) * obj->tuple.length);
+        break;
+    }
+    default: {
+        char msg[1024] = {0};
+        sprintf(msg, "Cannot clone object of type %d", obj->type);
+        error(vm, msg);
+        break;
+    }
+    }
+    vm->regs[res].i = (uint64_t)newobj;
+}
+
 // Create function pointer table for opcodes
 static OpcodeHandler opcode_handlers[] = {
-    handle_iadd,        handle_isub,     handle_imul,
-    handle_idiv,        handle_irem,     handle_ine,
-    handle_ieq,         handle_ilt,      handle_ile,
-    handle_igt,         handle_ige,      handle_fadd,
-    handle_fsub,        handle_fmul,     handle_fdiv,
-    handle_frem,        handle_fne,      handle_feq,
-    handle_flt,         handle_fle,      handle_fgt,
-    handle_fge,         handle_band,     handle_bor,
-    handle_bxor,        handle_bnot,     handle_land,
-    handle_lor,         handle_lnot,     handle_bshl,
-    handle_bshr,        handle_fneg,     handle_ineg,
-    handle_make,        handle_listset,  handle_listget,
-    handle_tupleset,    handle_tupleget, handle_tuple,
-    handle_strget,      handle_mapget,   handle_mapset,
-    handle_chansend,    handle_chanrecv, handle_jmp,
-    handle_jmpifnot,    handle_call,     handle_ncall,
-    handle_const,       handle_load,     handle_store,
-    handle_cast,        handle_move,     handle_return,
-    handle_push,        handle_pop,      handle_spawn,
-    handle_nop,         handle_ret,      handle_stack_map,
-    handle_nop,         handle_nop,      handle_superinstruction,
-    handle_corocall,    handle_ref,      handle_deref,
-    handle_deref_assign};
+    handle_iadd,     handle_isub,     handle_imul,
+    handle_idiv,     handle_irem,     handle_ine,
+    handle_ieq,      handle_ilt,      handle_ile,
+    handle_igt,      handle_ige,      handle_fadd,
+    handle_fsub,     handle_fmul,     handle_fdiv,
+    handle_frem,     handle_fne,      handle_feq,
+    handle_flt,      handle_fle,      handle_fgt,
+    handle_fge,      handle_band,     handle_bor,
+    handle_bxor,     handle_bnot,     handle_land,
+    handle_lor,      handle_lnot,     handle_bshl,
+    handle_bshr,     handle_fneg,     handle_ineg,
+    handle_make,     handle_listset,  handle_listget,
+    handle_tupleset, handle_tupleget, handle_tuple,
+    handle_strget,   handle_mapget,   handle_mapset,
+    handle_chansend, handle_chanrecv, handle_jmp,
+    handle_jmpifnot, handle_call,     handle_ncall,
+    handle_const,    handle_load,     handle_store,
+    handle_cast,     handle_move,     handle_return,
+    handle_push,     handle_pop,      handle_spawn,
+    handle_nop,      handle_ret,      handle_stack_map,
+    handle_nop,      handle_nop,      handle_superinstruction,
+    handle_corocall, handle_clone};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {
@@ -1156,11 +1180,11 @@ void *poll_spawn(void *i) {
         run(vm);
         pthread_mutex_lock(&scheduler->vmq_mu);
         scheduler->coro_running--;
-        pthread_cond_broadcast(&scheduler->vmq_cond);
-        pthread_mutex_unlock(&scheduler->vmq_mu);
         if (!vm->halted) {
             push_scheduler(vm);
         }
+        pthread_cond_signal(&scheduler->vmq_cond);
+        pthread_mutex_unlock(&scheduler->vmq_mu);
     }
 }
 
@@ -1195,15 +1219,10 @@ int main(int argc, char **argv) {
     for (uint64_t i = 0; i < MAX_THREADS; ++i) {
         pthread_create(threads + i, NULL, poll_spawn, (int *)i);
     }
-    pthread_mutex_lock(&scheduler->vmq_mu);
-    while (scheduler->coro_queue->size || scheduler->coro_running) {
-        pthread_cond_wait(&scheduler->vmq_cond, &scheduler->vmq_mu);
-    }
-    pthread_mutex_unlock(&scheduler->vmq_mu);
+    pthread_join(mainn, NULL);
     for (int i = 0; i < MAX_THREADS; ++i) {
         pthread_cancel(threads[i]);
     }
-    pthread_join(mainn, NULL);
     free(threads);
     free(code->bytes);
     free(code);

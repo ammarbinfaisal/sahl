@@ -66,9 +66,7 @@ const STACKMAP: u8 = 59;
 // const PRINTUNLOCK: u8 = 61;
 const SUPERINST: u8 = 62;
 const CORO_CALL: u8 = 63;
-const REF: u8 = 64;
-const DEREF: u8 = 65;
-const DEREF_ASSIGN: u8 = 66;
+const CLONE: u8 = 64;
 
 const SUPERINST_LOAD_CONST_OP: u8 = 0;
 const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
@@ -425,20 +423,8 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     bytes.extend(opcodes);
                 }
             }
-            RegCode::Ref(v, res) => {
-                bytes.push(REF);
-                bytes.extend(v.to_le_bytes().iter());
-                bytes.push(*res);
-            }
-            RegCode::Deref(res, v) => {
-                bytes.push(DEREF);
-                bytes.extend(v.to_le_bytes().iter());
-                bytes.push(*res);
-            }
-            RegCode::DerefAssign(v, r, _) => {
-                bytes.push(DEREF_ASSIGN);
-                bytes.extend(v.to_le_bytes().iter());
-                bytes.push(*r);
+            RegCode::Clone(r1, r2) => {
+                bytes.extend(vec![CLONE, *r1, *r2]);
             }
             RegCode::Nop => {}
             RegCode::FreeRegs => {}

@@ -1,6 +1,6 @@
 use crate::{
     syntax::*,
-    utils::{extract_var_name, get_literal_type},
+    utils::get_literal_type,
 };
 use std::{collections::HashMap, process::exit};
 
@@ -79,9 +79,7 @@ pub enum RegCode<'src> {
     StackMap(Vec<u64>), // set of locals that are live
     Super(SuperInstruction<'src>),
     CoroCall(usize, Vec<u8>),
-    Ref(usize, u8),   // local_ix, reg
-    Deref(u8, usize), // result reg, local_ix
-    DerefAssign(usize, u8, usize),
+    Clone(u8, u8),
 }
 
 fn is_cond_op(c: &RegCode) -> bool {
@@ -884,24 +882,6 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                         self.free_reg(ix_arg);
                         self.free_reg(ex_arg);
                     }
-                    Expr::Deref { expr, ty: _ } => {
-                        let var = extract_var_name(expr);
-                        if let Some(var) = var {
-                            let v = self.get_local(var);
-                            match v {
-                                Some(var) => {
-                                    let v = *var;
-                                    self.code.push(RegCode::DerefAssign(v, arg, 0));
-                                    self.locals.set_live_var(v);
-                                }
-                                None => {
-                                    unreachable!("Unknown variable: {}", var);
-                                }
-                            }
-                        } else {
-                            unreachable!("Cannot compile deref using a non variable expression");
-                        }
-                    }
                     _ => unreachable!(),
                 }
                 self.free_reg(arg);
@@ -1002,44 +982,6 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 let chan = self.locals.get(name).unwrap();
                 self.code.push(RegCode::ChanRecv(*chan, reg));
                 self.stack_push(reg);
-            }
-            Expr::Ref { expr, .. } => {
-                let v = extract_var_name(expr);
-                if let Some(name) = v {
-                    let var = self.get_local(name);
-                    match var {
-                        Some(var) => {
-                            let v = *var;
-                            let reg = self.get_reg();
-                            self.code.push(RegCode::Ref(v, reg));
-                            self.stack_push(reg);
-                        }
-                        None => {
-                            unreachable!("Unknown variable: {}", name);
-                        }
-                    }
-                } else {
-                    unreachable!("Cannot compile ref using a non variable expression");
-                }
-            }
-            Expr::Deref { expr, ty: _ } => {
-                let v = extract_var_name(expr);
-                if let Some(v) = v {
-                    let var = self.get_local(v);
-                    match var {
-                        Some(var) => {
-                            let v = *var;
-                            let reg = self.get_reg();
-                            self.code.push(RegCode::Deref(reg, v));
-                            self.stack_push(reg);
-                        }
-                        None => {
-                            unreachable!("Unknown variable: {}", v);
-                        }
-                    }
-                } else {
-                    unreachable!("Cannot compile deref using a non variable expression");
-                }
             }
             _ => {
                 unimplemented!();
@@ -1288,7 +1230,14 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             Stmt::ChanWrite(var, expr) => {
                 self.compile_expr(&expr);
-                let arg = self.stack_pop();
+                let mut arg = self.stack_pop();
+                // if expr is heap type then store then clone it
+                if (*expr).1.get_type().is_heap_type() {
+                    let reg = self.get_reg();
+                    self.code.push(RegCode::Clone(arg, reg));
+                    self.free_reg(arg);
+                    arg = reg;
+                }
                 let v = self.get_local(&var);
                 match v {
                     Some(var) => {
@@ -1492,11 +1441,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
         for func in fns {
             self.curr_func = idx;
             self.locals.clear();
-            let args = &func
-                .args
-                .iter()
-                .map(|arg| arg.name)
-                .collect::<Vec<_>>();
+            let args = &func.args.iter().map(|arg| arg.name).collect::<Vec<_>>();
             self.func_args_len.push(args.len() as u32);
             if func.name == "main" {
                 self.start_func_idx = idx;

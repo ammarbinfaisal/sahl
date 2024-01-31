@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 static inline Tm_DArray *get_rootset(TmStateHeader *state_header) {
     // Create the dynamic array that we'll return
     Tm_DArray *rootset = Tm_DArray_create(sizeof(TmObjectHeader *), 1024);
@@ -105,7 +104,7 @@ VM *new_vm(uint8_t *code, int code_length) {
 
     TmHeap *heap = TmHeap_new(
         (TmStateHeader *)state, // your initialized state object
-        1024 * 10,                   // initial size of the heap
+        1024 * 10,              // initial size of the heap
         1024,                   // growth rate in number of cells
         200,                    // scan every 200 allocations
         sizeof(Obj),            // the size of your Objects
@@ -185,6 +184,18 @@ VM *coro_vm(VM *curr, int start_func) {
     vm->stack = checked_malloc(sizeof(Value) * 1024);
     vm->regs = checked_malloc(sizeof(Value) * 256);
 
+    State *state = State_new();
+    state->vm = vm;
+    vm->heap = TmHeap_new(
+        (TmStateHeader *)state, // your initialized state object
+        1024,                   // initial size of the heap
+        1024,                   // growth rate in number of cells
+        200,                    // scan every 200 allocations
+        sizeof(Obj),            // the size of your Objects
+        release_my_object,      // a pointer to your release function
+        scan_my_pointers        // a pointer to your function to scan pointers
+    );
+
     // callframe
     vm->call_frame = new_call_frame(vm->funcs + vm->start_func, NULL);
 
@@ -207,7 +218,7 @@ VM *coro_vm(VM *curr, int start_func) {
 }
 
 void free_vm(VM *vm) {
-    // TmHeap_destroy(vm->heap);
+    // TmHeap_destroy(vm->heap); - this is causing a double free
     free(vm->stack);
     free(vm->consts);
     free(vm->regs);

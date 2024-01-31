@@ -30,7 +30,6 @@ static int chan_read(Chan *chan, Value *v) {
     if (chan->closed) {
         return CHAN_CLOSED;
     }
-    --chan->len;
     *v = (Value)dequeue(chan->q);
     return CHAN_OK;
 }
