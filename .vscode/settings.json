@@ -4,5 +4,8 @@
     },
     "rust-analyzer.linkedProjects": [
         "./frontend/Cargo.toml"
+    ],
+    "clangd.fallbackFlags": [
+        "-I${workspaceFolder}/include"
     ]
 }
