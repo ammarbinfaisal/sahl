@@ -917,8 +917,6 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                         const_0_reg
                     }
                 };
-                let stackmap = self.emit_stack_map();
-                self.code.push(RegCode::StackMap(stackmap));
                 self.code.push(RegCode::Make(ty.clone(), reg, size));
                 self.stack_push(reg);
                 self.free_reg(size);
@@ -933,8 +931,6 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             Expr::Tuple { exprs, .. } => {
                 let reg = self.get_reg();
-                let stackmap = self.emit_stack_map();
-                self.code.push(RegCode::StackMap(stackmap));
                 let tys = exprs.iter().map(|e| e.1.get_type()).collect::<Vec<_>>();
                 self.code.push(RegCode::Tuple(exprs.len(), reg, tys));
                 for expr in exprs.iter().enumerate().rev() {
@@ -952,8 +948,6 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             Expr::List { exprs, .. } => {
                 let reg = self.get_reg();
-                let stackmap = self.emit_stack_map();
-                self.code.push(RegCode::StackMap(stackmap));
                 let len_reg = self.get_reg();
                 let const_ix = self.consts.len();
                 self.consts
@@ -979,9 +973,12 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             Expr::ChanRead { name, .. } => {
                 let reg = self.get_reg();
+                let cloned = self.get_reg();
                 let chan = self.locals.get(name).unwrap();
                 self.code.push(RegCode::ChanRecv(*chan, reg));
-                self.stack_push(reg);
+                self.code.push(RegCode::Clone(reg, cloned));
+                self.free_reg(reg);
+                self.stack_push(cloned);
             }
             _ => {
                 unimplemented!();
@@ -1028,12 +1025,14 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                     Expr::Variable { name, ty } => {
                         let lcl = self.add_local(&name);
                         let reg = self.stack_pop();
+                        self.code.push(RegCode::Store(lcl, reg, 0));
                         if let Some(ty) = ty {
                             if ty.is_heap_type() {
                                 self.locals.set_live_var(lcl);
+                                let stmap = self.emit_stack_map();
+                                self.code.push(RegCode::StackMap(stmap));
                             }
                         }
-                        self.code.push(RegCode::Store(lcl, reg, 0));
                         self.free_reg(reg);
                     }
                     Expr::Tuple { exprs, .. } => {
@@ -1230,7 +1229,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             Stmt::ChanWrite(var, expr) => {
                 self.compile_expr(&expr);
-                let mut arg = self.stack_pop();
+                let mut arg = self.stack_unfree_pop();
                 // if expr is heap type then store then clone it
                 if (*expr).1.get_type().is_heap_type() {
                     let reg = self.get_reg();
@@ -1410,6 +1409,8 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 self.locals.set_live_var(lcl);
             }
         }
+        let stmap = self.emit_stack_map();
+        self.code.push(RegCode::StackMap(stmap));
         self.curr_func = self.func_idx[&func.name];
         for stmt in &func.body {
             self.compile_stmt(&stmt);

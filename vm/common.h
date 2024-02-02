@@ -15,7 +15,7 @@
 // #define DEBUG
 // #define DEBUGGC
 #define UNSAFE
-#define MAX_THREADS 4
+#define MAX_THREADS 12
 #define USE_GC
 
 #define GROW_CAPACITY(capacity) ((capacity) < 8 ? 8 : (capacity) * 1.5)

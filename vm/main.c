@@ -18,6 +18,7 @@
 #include "rbtree.h"
 #include "read.h"
 #include "scheduler.h"
+#include "treadmill/gc.h"
 #include "vm.h"
 
 #define MAX_STACK 1024
@@ -507,7 +508,7 @@ void handle_chansend(VM *vm) {
     if (chan->r_waiting > 0) {
         pthread_cond_signal(&chan->r_cond);
     }
-    if (len == chan->cap && vm->coro_id != MAIN_ID) {
+    if (len == chan->cap) {
         vm->should_yield = true;
     }
     pthread_mutex_unlock(&chan->m_mu);
@@ -525,8 +526,24 @@ void handle_chanrecv(VM *vm) {
     pthread_mutex_lock(&chan->m_mu);
     while (chan->q->size == 0) {
         chan->r_waiting++;
-        pthread_cond_wait(&chan->r_cond, &chan->m_mu);
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        // 1000 nanoseconds = 1 microsecond
+        ts.tv_nsec += 100;
+        pthread_cond_timedwait(&chan->r_cond, &chan->m_mu, &ts);
         chan->r_waiting--;
+        // if we are not the main thread, we should yield
+        if (vm->coro_id != MAIN_ID) {
+            break;
+        }
+    }
+    if (chan->len == 0) {
+        // printf("giving up waiting recv : %p %x\n", chan, vm->coro_id);
+        pthread_mutex_unlock(&chan->m_mu);
+        vm->should_yield = true;
+        vm->call_frame->ip--; // as we will yield after the ip increment
+                              // and we want to re-execute this instruction
+        return;
     }
     chan_read(chan, (Value *)&vm->regs[res].i);
     // printf("waiting recv read: %p %x\n", chan, vm->coro_id);
@@ -1059,38 +1076,50 @@ void handle_deref_assign(VM *vm) {
     ref->ref.frame->locals[ref->ref.local_ix] = vm->regs[arg].i;
 }
 
-void handle_clone(VM *vm) {
-    uint8_t *code = vm->call_frame->func->code;
-    int arg = code[++vm->call_frame->ip];
-    int res = code[++vm->call_frame->ip];
-    Obj *obj = vm->regs[arg].o;
+Obj *clone(VM *vm, Obj *obj) {
     Obj *newobj = new_obj(vm, obj->type);
     switch (obj->type) {
+    case OBJ_STRING: {
+        if (obj->string.constant) {
+            newobj->string.data = obj->string.data;
+        } else {
+            int len = strlen(obj->string.data) + 1;
+            newobj->string.data = checked_malloc(len);
+            memcpy(newobj->string.data, obj->string.data, len);
+        }
+        break;
+    }
     case OBJ_LIST: {
         newobj->list.length = obj->list.length;
         newobj->list.capacity = obj->list.capacity;
         newobj->list.items = checked_malloc(sizeof(Value) * obj->list.capacity);
-        memcpy(newobj->list.items, obj->list.items,
-               sizeof(Value) * obj->list.length);
-        break;
-    }
-    case OBJ_TUPLE: {
-        newobj->tuple.length = obj->tuple.length;
-        newobj->tuple.items = checked_malloc(sizeof(Value) * obj->tuple.length);
-        newobj->tuple.boxed_items =
-            checked_malloc(sizeof(Value) * obj->tuple.length);
-        memcpy(newobj->tuple.items, obj->tuple.items,
-               sizeof(Value) * obj->tuple.length);
+        if (obj->list.boxed_items) {
+            for (int i = 0; i < obj->list.length; ++i) {
+                newobj->list.items[i] =
+                    (Value)clone(vm, (Obj *)obj->list.items[i]);
+            }
+        } else {
+            memcpy(newobj->list.items, obj->list.items,
+                   sizeof(Value) * obj->list.length);
+        }
         break;
     }
     default: {
         char msg[1024] = {0};
         sprintf(msg, "Cannot clone object of type %d", obj->type);
         error(vm, msg);
-        break;
     }
     }
-    vm->regs[res].i = (uint64_t)newobj;
+    return newobj;
+}
+
+void handle_clone(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int arg = code[++vm->call_frame->ip];
+    int res = code[++vm->call_frame->ip];
+    Obj *obj = vm->regs[arg].o;
+    Obj *newobj = clone(vm, obj);
+    vm->regs[res].o = newobj;
 }
 
 // Create function pointer table for opcodes
@@ -1160,7 +1189,7 @@ void run(VM *vm) {
 
         vm->call_frame->ip++;
 
-        if (vm->should_yield) {
+        if (vm->should_yield && vm->is_coro) {
             vm->should_yield = false;
             return;
         }
@@ -1180,7 +1209,9 @@ void *poll_spawn(void *i) {
         run(vm);
         pthread_mutex_lock(&scheduler->vmq_mu);
         scheduler->coro_running--;
-        if (!vm->halted) {
+        if (vm->halted) {
+            TmHeap_destroy(vm->heap);
+        } else {
             push_scheduler(vm);
         }
         pthread_cond_signal(&scheduler->vmq_cond);
@@ -1212,7 +1243,7 @@ int main(int argc, char **argv) {
     // puts("\n\n\n");
     VM *vm = new_vm(code->bytes, code->length);
     scheduler_init();
-    pthread_t *threads = checked_malloc(sizeof(pthread_t) * MAX_THREADS);
+    pthread_t threads[MAX_THREADS];
     pthread_t mainn;
     vm->coro_id = MAIN_ID;
     pthread_create(&mainn, NULL, main_run, (void *)vm);
@@ -1223,7 +1254,6 @@ int main(int argc, char **argv) {
     for (int i = 0; i < MAX_THREADS; ++i) {
         pthread_cancel(threads[i]);
     }
-    free(threads);
     free(code->bytes);
     free(code);
     free_vm(vm);

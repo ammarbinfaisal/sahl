@@ -218,7 +218,7 @@ VM *coro_vm(VM *curr, int start_func) {
 }
 
 void free_vm(VM *vm) {
-    // TmHeap_destroy(vm->heap); - this is causing a double free
+    TmHeap_destroy(vm->heap);
     free(vm->stack);
     free(vm->consts);
     free(vm->regs);

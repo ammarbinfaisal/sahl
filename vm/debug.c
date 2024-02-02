@@ -282,21 +282,6 @@ int print_opcode(uint8_t *code, int i) {
         printf("printunlock\n");
         return i + 1;
     }
-    case OP_REF:
-    case OP_DEREF:
-    case OP_DEREF_ASSIGN: {
-        uint64_t var = read_u64(code, i + 1);
-        uint8_t res = code[i + 9];
-        if (code[i] == OP_REF) {
-            printf("ref");
-        } else if (code[i] == OP_DEREF_ASSIGN) {
-            printf("deref assgn");
-        } else {
-            printf("deref");
-        }
-        printf(" %ld - %d\n", var, res);
-        return i + 10;
-    }
     default:
         printf("Unknown opcode %d\n", code[i]);
         return i + 1;
