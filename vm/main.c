@@ -1076,8 +1076,14 @@ void handle_deref_assign(VM *vm) {
     ref->ref.frame->locals[ref->ref.local_ix] = vm->regs[arg].i;
 }
 
-Obj *clone(VM *vm, Obj *obj) {
-    Obj *newobj = new_obj(vm, obj->type);
+Obj *clone(VM *vm, Obj *obj, bool gced) {
+    Obj *newobj;
+    if (gced) {
+        newobj = new_obj(vm, obj->type);
+    } else {
+        newobj = checked_malloc(sizeof(Obj));
+        newobj->type = obj->type;
+    }
     switch (obj->type) {
     case OBJ_STRING: {
         if (obj->string.constant) {
@@ -1096,7 +1102,7 @@ Obj *clone(VM *vm, Obj *obj) {
         if (obj->list.boxed_items) {
             for (int i = 0; i < obj->list.length; ++i) {
                 newobj->list.items[i] =
-                    (Value)clone(vm, (Obj *)obj->list.items[i]);
+                    (Value)clone(vm, (Obj *)obj->list.items[i], gced);
             }
         } else {
             memcpy(newobj->list.items, obj->list.items,
@@ -1110,6 +1116,9 @@ Obj *clone(VM *vm, Obj *obj) {
         error(vm, msg);
     }
     }
+    if (gced) {
+        free(obj);
+    }
     return newobj;
 }
 
@@ -1117,8 +1126,9 @@ void handle_clone(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int arg = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
+    bool gced = code[++vm->call_frame->ip];
     Obj *obj = vm->regs[arg].o;
-    Obj *newobj = clone(vm, obj);
+    Obj *newobj = clone(vm, obj, gced);
     vm->regs[res].o = newobj;
 }
 

@@ -79,7 +79,7 @@ pub enum RegCode<'src> {
     StackMap(Vec<u64>), // set of locals that are live
     Super(SuperInstruction<'src>),
     CoroCall(usize, Vec<u8>),
-    Clone(u8, u8),
+    Clone(u8, u8, bool),
 }
 
 fn is_cond_op(c: &RegCode) -> bool {
@@ -971,14 +971,19 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 self.free_reg(len_reg);
                 self.stack_push(reg);
             }
-            Expr::ChanRead { name, .. } => {
+            Expr::ChanRead { name, ty } => {
                 let reg = self.get_reg();
                 let cloned = self.get_reg();
                 let chan = self.locals.get(name).unwrap();
                 self.code.push(RegCode::ChanRecv(*chan, reg));
-                self.code.push(RegCode::Clone(reg, cloned));
-                self.free_reg(reg);
-                self.stack_push(cloned);
+                if ty.clone().unwrap().is_heap_type() {
+                    self.code.push(RegCode::Clone(reg, cloned, true));
+                    self.stack_push(cloned);
+                    self.free_reg(reg);
+                } else {
+                    self.stack_push(reg);
+                    self.free_reg(cloned);
+                }
             }
             _ => {
                 unimplemented!();
@@ -1233,7 +1238,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 // if expr is heap type then store then clone it
                 if (*expr).1.get_type().is_heap_type() {
                     let reg = self.get_reg();
-                    self.code.push(RegCode::Clone(arg, reg));
+                    self.code.push(RegCode::Clone(arg, reg, false));
                     self.free_reg(arg);
                     arg = reg;
                 }

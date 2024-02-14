@@ -423,8 +423,8 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     bytes.extend(opcodes);
                 }
             }
-            RegCode::Clone(r1, r2) => {
-                bytes.extend(vec![CLONE, *r1, *r2]);
+            RegCode::Clone(r1, r2, gced) => {
+                bytes.extend(vec![CLONE, *r1, *r2, if *gced { 1 } else { 0 }]);
             }
             RegCode::Nop => {}
             RegCode::FreeRegs => {}
