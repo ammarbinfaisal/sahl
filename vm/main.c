@@ -1266,5 +1266,5 @@ int main(int argc, char **argv) {
     }
     free(code->bytes);
     free(code);
-    free_vm(vm);
+    // free_vm(vm);
 }
