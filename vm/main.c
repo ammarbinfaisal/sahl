@@ -1195,7 +1195,203 @@ void run(VM *vm) {
         }
 #endif
 
-        opcode_handlers[instruction](vm);
+        // opcode_handlers[instruction](vm);
+
+        // switch-case dispatch
+        switch (instruction) {
+        case OP_IADD:
+            handle_iadd(vm);
+            break;
+        case OP_ISUB:
+            handle_isub(vm);
+            break;
+        case OP_IMUL:
+            handle_imul(vm);
+            break;
+        case OP_IDIV:
+            handle_idiv(vm);
+            break;
+        case OP_IREM:
+            handle_irem(vm);
+            break;
+        case OP_INE:
+            handle_ine(vm);
+            break;
+        case OP_IEQ:
+            handle_ieq(vm);
+            break;
+        case OP_ILT:
+            handle_ilt(vm);
+            break;
+        case OP_ILE:
+            handle_ile(vm);
+            break;
+        case OP_IGT:
+            handle_igt(vm);
+            break;
+        case OP_IGE:
+            handle_ige(vm);
+            break;
+        case OP_FADD:
+            handle_fadd(vm);
+            break;
+        case OP_FSUB:
+            handle_fsub(vm);
+            break;
+        case OP_FMUL:
+            handle_fmul(vm);
+            break;
+        case OP_FDIV:
+            handle_fdiv(vm);
+            break;
+        case OP_FREM:
+            handle_frem(vm);
+            break;
+        case OP_FNE:
+            handle_fne(vm);
+            break;
+        case OP_FEQ:
+            handle_feq(vm);
+            break;
+        case OP_FLT:
+            handle_flt(vm);
+            break;
+        case OP_FLE:
+            handle_fle(vm);
+            break;
+        case OP_FGT:
+            handle_fgt(vm);
+            break;
+        case OP_FGE:
+            handle_fge(vm);
+            break;
+        case OP_BAND:
+            handle_band(vm);
+            break;
+        case OP_BOR:
+            handle_bor(vm);
+            break;
+        case OP_BXOR:
+            handle_bxor(vm);
+            break;
+        case OP_BNOT:
+            handle_bnot(vm);
+            break;
+        case OP_LAND:
+            handle_land(vm);
+            break;
+        case OP_LOR:
+            handle_lor(vm);
+            break;
+        case OP_LNOT:
+            handle_lnot(vm);
+            break;
+        case OP_BSHL:
+            handle_bshl(vm);
+            break;
+        case OP_BSHR:
+            handle_bshr(vm);
+            break;
+        case OP_FNEG:
+            handle_fneg(vm);
+            break;
+        case OP_INEG:
+            handle_ineg(vm);
+            break;
+        case OP_MAKE:
+            handle_make(vm);
+            break;
+        case OP_LISTSET:
+            handle_listset(vm);
+            break;
+        case OP_LISTGET:
+            handle_listget(vm);
+            break;
+        case OP_TUPLESET:
+            handle_tupleset(vm);
+            break;
+        case OP_TUPLEGET:
+            handle_tupleget(vm);
+            break;
+        case OP_TUPLE:
+            handle_tuple(vm);
+            break;
+        case OP_STRGET:
+            handle_strget(vm);
+            break;
+        case OP_MAPGET:
+            handle_mapget(vm);
+            break;
+        case OP_MAPSET:
+            handle_mapset(vm);
+            break;
+        case OP_CHANSEND:
+            handle_chansend(vm);
+            break;
+        case OP_CHANRECV:
+            handle_chanrecv(vm);
+            break;
+        case OP_JMP:
+            handle_jmp(vm);
+            break;
+        case OP_JMPNOT:
+            handle_jmpifnot(vm);
+            break;
+        case OP_CALL:
+            handle_call(vm);
+            break;
+        case OP_NCALL:
+            handle_ncall(vm);
+            break;
+        case OP_CONST:
+            handle_const(vm);
+            break;
+        case OP_LOAD:
+            handle_load(vm);
+            break;
+        case OP_STORE:
+            handle_store(vm);
+            break;
+        case OP_CAST:
+            handle_cast(vm);
+            break;
+        case OP_MOVE:
+            handle_move(vm);
+            break;
+        case OP_RETURN:
+            handle_return(vm);
+            break;
+        case OP_PUSH:
+            handle_push(vm);
+            break;
+        case OP_POP:
+            handle_pop(vm);
+            break;
+        case OP_SPAWN:
+            handle_spawn(vm);
+            break;
+        case OP_NOP:
+            handle_nop(vm);
+            break;
+        case OP_RET:
+            handle_ret(vm);
+            break;
+        case OP_STACKMAP:
+            handle_stack_map(vm);
+            break;
+        case OP_SUPER_INSTRUCTION:
+            handle_superinstruction(vm);
+            break;
+        case OP_CORO_CALL:
+            handle_corocall(vm);
+            break;
+        case OP_CLONE:
+            handle_clone(vm);
+            break;
+        default:
+            error(vm, "Invalid opcode");
+            break;
+        }
 
         vm->call_frame->ip++;
 
