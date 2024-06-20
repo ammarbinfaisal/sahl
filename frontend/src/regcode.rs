@@ -1,7 +1,4 @@
-use crate::{
-    syntax::*,
-    utils::get_literal_type,
-};
+use crate::{syntax::*, utils::get_literal_type};
 use std::{collections::HashMap, process::exit};
 
 // highlevel enum for 3/4 address code
@@ -80,6 +77,7 @@ pub enum RegCode<'src> {
     Super(SuperInstruction<'src>),
     CoroCall(usize, Vec<u8>),
     Clone(u8, u8, bool),
+    Halt,
 }
 
 fn is_cond_op(c: &RegCode) -> bool {
@@ -1459,6 +1457,9 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             }
             func_code.push(self.code.clone());
             self.code.clear();
+            if func.name == "main" {
+                func_code.push(vec![RegCode::Halt]);
+            }
             idx += 1;
         }
         self.func_code = func_code;

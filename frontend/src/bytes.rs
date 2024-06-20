@@ -67,6 +67,7 @@ const STACKMAP: u8 = 59;
 const SUPERINST: u8 = 62;
 const CORO_CALL: u8 = 63;
 const CLONE: u8 = 64;
+const HALT: u8 = 65;
 
 const SUPERINST_LOAD_CONST_OP: u8 = 0;
 const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
@@ -176,6 +177,9 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
     for (i, c) in code.iter().enumerate() {
         ixmap.insert(i, bytes.len());
         match c {
+            RegCode::Halt => {
+                bytes.push(HALT);
+            }
             RegCode::IAdd(r1, r2, res) => {
                 bytes.extend(vec![IADD, *r1, *r2, *res]);
             }

@@ -1164,9 +1164,50 @@ void run(VM *vm) {
         pthread_mutex_unlock(&scheduler->vmq_mu);
     }
 
-    while (vm->call_frame->ip < vm->call_frame->func->code_length) {
-        uint8_t instruction = vm->call_frame->func->code[vm->call_frame->ip];
+    static void *dispatch_table[] = {
+        &&do_iadd,     &&do_isub,     &&do_imul,
+        &&do_idiv,     &&do_irem,     &&do_ine,
+        &&do_ieq,      &&do_ilt,      &&do_ile,
+        &&do_igt,      &&do_ige,      &&do_fadd,
+        &&do_fsub,     &&do_fmul,     &&do_fdiv,
+        &&do_frem,     &&do_fne,      &&do_feq,
+        &&do_flt,      &&do_fle,      &&do_fgt,
+        &&do_fge,      &&do_band,     &&do_bor,
+        &&do_bxor,     &&do_bnot,     &&do_land,
+        &&do_lor,      &&do_lnot,     &&do_bshl,
+        &&do_bshr,     &&do_fneg,     &&do_ineg,
+        &&do_make,     &&do_listset,  &&do_listget,
+        &&do_tupleset, &&do_tupleget, &&do_tuple,
+        &&do_strget,   &&do_mapget,   &&do_mapset,
+        &&do_chansend, &&do_chanrecv, &&do_jmp,
+        &&do_jmpifnot, &&do_call,     &&do_ncall,
+        &&do_const,    &&do_load,     &&do_store,
+        &&do_cast,     &&do_move,     &&do_return,
+        &&do_push,     &&do_pop,      &&do_spawn,
+        &&do_nop,      &&do_ret,      &&do_stack_map,
+        &&do_nop,      &&do_nop,      &&do_superinstruction,
+        &&do_corocall, &&do_clone,    &&do_halt};
 
+#define maybe_yield                                                            \
+    do {                                                                       \
+        if (vm->should_yield && vm->is_coro) {                                 \
+            vm->should_yield = false;                                          \
+            return;                                                            \
+        }                                                                      \
+    } while (0)
+
+#define dispatch
+    goto *dispatch_table[vm->call_frame->func->code[vm->call_frame->ip]];
+
+#define next                                                                   \
+    do {                                                                       \
+        vm->call_frame->ip++;                                                  \
+        maybe_yield;                                                           \
+        goto *dispatch_table[vm->call_frame->func->code[vm->call_frame->ip]];  \
+    } while (0)
+
+    dispatch;
+    while (1) {
 #ifdef PRINT_OPCODES
         printf("%x %d ", vm->coro_id, vm->call_frame->ip);
         print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
@@ -1197,210 +1238,264 @@ void run(VM *vm) {
 
         // opcode_handlers[instruction](vm);
 
-        // switch-case dispatch
-        switch (instruction) {
-        case OP_IADD:
-            handle_iadd(vm);
-            break;
-        case OP_ISUB:
-            handle_isub(vm);
-            break;
-        case OP_IMUL:
-            handle_imul(vm);
-            break;
-        case OP_IDIV:
-            handle_idiv(vm);
-            break;
-        case OP_IREM:
-            handle_irem(vm);
-            break;
-        case OP_INE:
-            handle_ine(vm);
-            break;
-        case OP_IEQ:
-            handle_ieq(vm);
-            break;
-        case OP_ILT:
-            handle_ilt(vm);
-            break;
-        case OP_ILE:
-            handle_ile(vm);
-            break;
-        case OP_IGT:
-            handle_igt(vm);
-            break;
-        case OP_IGE:
-            handle_ige(vm);
-            break;
-        case OP_FADD:
-            handle_fadd(vm);
-            break;
-        case OP_FSUB:
-            handle_fsub(vm);
-            break;
-        case OP_FMUL:
-            handle_fmul(vm);
-            break;
-        case OP_FDIV:
-            handle_fdiv(vm);
-            break;
-        case OP_FREM:
-            handle_frem(vm);
-            break;
-        case OP_FNE:
-            handle_fne(vm);
-            break;
-        case OP_FEQ:
-            handle_feq(vm);
-            break;
-        case OP_FLT:
-            handle_flt(vm);
-            break;
-        case OP_FLE:
-            handle_fle(vm);
-            break;
-        case OP_FGT:
-            handle_fgt(vm);
-            break;
-        case OP_FGE:
-            handle_fge(vm);
-            break;
-        case OP_BAND:
-            handle_band(vm);
-            break;
-        case OP_BOR:
-            handle_bor(vm);
-            break;
-        case OP_BXOR:
-            handle_bxor(vm);
-            break;
-        case OP_BNOT:
-            handle_bnot(vm);
-            break;
-        case OP_LAND:
-            handle_land(vm);
-            break;
-        case OP_LOR:
-            handle_lor(vm);
-            break;
-        case OP_LNOT:
-            handle_lnot(vm);
-            break;
-        case OP_BSHL:
-            handle_bshl(vm);
-            break;
-        case OP_BSHR:
-            handle_bshr(vm);
-            break;
-        case OP_FNEG:
-            handle_fneg(vm);
-            break;
-        case OP_INEG:
-            handle_ineg(vm);
-            break;
-        case OP_MAKE:
-            handle_make(vm);
-            break;
-        case OP_LISTSET:
-            handle_listset(vm);
-            break;
-        case OP_LISTGET:
-            handle_listget(vm);
-            break;
-        case OP_TUPLESET:
-            handle_tupleset(vm);
-            break;
-        case OP_TUPLEGET:
-            handle_tupleget(vm);
-            break;
-        case OP_TUPLE:
-            handle_tuple(vm);
-            break;
-        case OP_STRGET:
-            handle_strget(vm);
-            break;
-        case OP_MAPGET:
-            handle_mapget(vm);
-            break;
-        case OP_MAPSET:
-            handle_mapset(vm);
-            break;
-        case OP_CHANSEND:
-            handle_chansend(vm);
-            break;
-        case OP_CHANRECV:
-            handle_chanrecv(vm);
-            break;
-        case OP_JMP:
-            handle_jmp(vm);
-            break;
-        case OP_JMPNOT:
-            handle_jmpifnot(vm);
-            break;
-        case OP_CALL:
-            handle_call(vm);
-            break;
-        case OP_NCALL:
-            handle_ncall(vm);
-            break;
-        case OP_CONST:
-            handle_const(vm);
-            break;
-        case OP_LOAD:
-            handle_load(vm);
-            break;
-        case OP_STORE:
-            handle_store(vm);
-            break;
-        case OP_CAST:
-            handle_cast(vm);
-            break;
-        case OP_MOVE:
-            handle_move(vm);
-            break;
-        case OP_RETURN:
-            handle_return(vm);
-            break;
-        case OP_PUSH:
-            handle_push(vm);
-            break;
-        case OP_POP:
-            handle_pop(vm);
-            break;
-        case OP_SPAWN:
-            handle_spawn(vm);
-            break;
-        case OP_NOP:
-            handle_nop(vm);
-            break;
-        case OP_RET:
-            handle_ret(vm);
-            break;
-        case OP_STACKMAP:
-            handle_stack_map(vm);
-            break;
-        case OP_SUPER_INSTRUCTION:
-            handle_superinstruction(vm);
-            break;
-        case OP_CORO_CALL:
-            handle_corocall(vm);
-            break;
-        case OP_CLONE:
-            handle_clone(vm);
-            break;
-        default:
-            error(vm, "Invalid opcode");
-            break;
-        }
-
-        vm->call_frame->ip++;
-
-        if (vm->should_yield && vm->is_coro) {
-            vm->should_yield = false;
-            return;
-        }
+    do_iadd: {
+        handle_iadd(vm);
+        next;
+    }
+    do_isub: {
+        handle_isub(vm);
+        next;
+    }
+    do_imul: {
+        handle_imul(vm);
+        next;
+    }
+    do_idiv: {
+        handle_idiv(vm);
+        next;
+    }
+    do_irem: {
+        handle_irem(vm);
+        next;
+    }
+    do_ine: {
+        handle_ine(vm);
+        next;
+    }
+    do_ieq: {
+        handle_ieq(vm);
+        next;
+    }
+    do_ilt: {
+        handle_ilt(vm);
+        next;
+    }
+    do_ile: {
+        handle_ile(vm);
+        next;
+    }
+    do_igt: {
+        handle_igt(vm);
+        next;
+    }
+    do_ige: {
+        handle_ige(vm);
+        next;
+    }
+    do_fadd: {
+        handle_fadd(vm);
+        next;
+    }
+    do_fsub: {
+        handle_fsub(vm);
+        next;
+    }
+    do_fmul: {
+        handle_fmul(vm);
+        next;
+    }
+    do_fdiv: {
+        handle_fdiv(vm);
+        next;
+    }
+    do_frem: {
+        handle_frem(vm);
+        next;
+    }
+    do_fne: {
+        handle_fne(vm);
+        next;
+    }
+    do_feq: {
+        handle_feq(vm);
+        next;
+    }
+    do_flt: {
+        handle_flt(vm);
+        next;
+    }
+    do_fle: {
+        handle_fle(vm);
+        next;
+    }
+    do_fgt: {
+        handle_fgt(vm);
+        next;
+    }
+    do_fge: {
+        handle_fge(vm);
+        next;
+    }
+    do_band: {
+        handle_band(vm);
+        next;
+    }
+    do_bor: {
+        handle_bor(vm);
+        next;
+    }
+    do_bxor: {
+        handle_bxor(vm);
+        next;
+    }
+    do_bnot: {
+        handle_bnot(vm);
+        next;
+    }
+    do_land: {
+        handle_land(vm);
+        next;
+    }
+    do_lor: {
+        handle_lor(vm);
+        next;
+    }
+    do_lnot: {
+        handle_lnot(vm);
+        next;
+    }
+    do_bshl: {
+        handle_bshl(vm);
+        next;
+    }
+    do_bshr: {
+        handle_bshr(vm);
+        next;
+    }
+    do_fneg: {
+        handle_fneg(vm);
+        next;
+    }
+    do_ineg: {
+        handle_ineg(vm);
+        next;
+    }
+    do_make: {
+        handle_make(vm);
+        next;
+    }
+    do_listset: {
+        handle_listset(vm);
+        next;
+    }
+    do_listget: {
+        handle_listget(vm);
+        next;
+    }
+    do_tupleset: {
+        handle_tupleset(vm);
+        next;
+    }
+    do_tupleget: {
+        handle_tupleget(vm);
+        next;
+    }
+    do_tuple: {
+        handle_tuple(vm);
+        next;
+    }
+    do_strget: {
+        handle_strget(vm);
+        next;
+    }
+    do_mapget: {
+        handle_mapget(vm);
+        next;
+    }
+    do_mapset: {
+        handle_mapset(vm);
+        next;
+    }
+    do_chansend: {
+        handle_chansend(vm);
+        next;
+    }
+    do_chanrecv: {
+        handle_chanrecv(vm);
+        next;
+    }
+    do_jmp: {
+        handle_jmp(vm);
+        next;
+    }
+    do_jmpifnot: {
+        handle_jmpifnot(vm);
+        next;
+    }
+    do_call: {
+        handle_call(vm);
+        next;
+    }
+    do_ncall: {
+        handle_ncall(vm);
+        next;
+    }
+    do_const: {
+        handle_const(vm);
+        next;
+    }
+    do_load: {
+        handle_load(vm);
+        next;
+    }
+    do_store: {
+        handle_store(vm);
+        next;
+    }
+    do_cast: {
+        handle_cast(vm);
+        next;
+    }
+    do_move: {
+        handle_move(vm);
+        next;
+    }
+    do_return: {
+        handle_return(vm);
+        next;
+    }
+    do_push: {
+        handle_push(vm);
+        next;
+    }
+    do_pop: {
+        handle_pop(vm);
+        next;
+    }
+    do_spawn: {
+        handle_spawn(vm);
+        next;
+    }
+    do_nop: {
+        handle_nop(vm);
+        next;
+    }
+    do_ret: {
+        handle_ret(vm);
+        next;
+    }
+    do_stack_map: {
+        handle_stack_map(vm);
+        next;
+    }
+    do_superinstruction: {
+        handle_superinstruction(vm);
+        next;
+    }
+    do_corocall: {
+        handle_corocall(vm);
+        next;
+    }
+    do_clone: {
+        handle_clone(vm);
+        next;
+    }
+    do_halt: {
+        goto end;
+    }
     }
 
+end:
     vm->halted = true;
 }
 
