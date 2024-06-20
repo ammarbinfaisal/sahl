@@ -991,7 +991,16 @@ static Op op_handlers[] = {
     op_bxor, op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr,
 };
 
-void superinst_load_const_op(VM *vm) {
+void handle_superinstruction(VM *vm) {
+    uint8_t *code = vm->call_frame->func->code;
+    int inst = code[++vm->call_frame->ip];
+
+    const void *dispatch_table[] = {&&load_const_op, &&load_const_op_store,
+                                    &&jmp_ifnot_cond_op, &&load_n, &&const_n};
+
+    goto *dispatch_table[inst];
+
+load_const_op: {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1002,13 +1011,11 @@ void superinst_load_const_op(VM *vm) {
     uint64_t const_val = vm->consts[const_ix];
     vm->regs[res_reg].i =
         op_handlers[code[++vm->call_frame->ip]](var_val, const_val);
-#ifdef DEBUG
-    printf("var (%ld) - const (%ld) - res: (%ld)\n", var_val, const_val,
-           vm->regs[res_reg].i);
-#endif
+    return;
 }
 
-void superinst_load_const_op_store(VM *vm) {
+load_const_op_store: {
+
     uint8_t *code = vm->call_frame->func->code;
     uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1018,9 +1025,11 @@ void superinst_load_const_op_store(VM *vm) {
     uint64_t const_val = vm->consts[const_ix];
     vm->call_frame->locals[var_ix] =
         op_handlers[code[vm->call_frame->ip]](var_val, const_val);
+    return;
 }
 
-void superinst_jmp_ifnot_cond_op(VM *vm) {
+jmp_ifnot_cond_op: {
+
     uint8_t *code = vm->call_frame->func->code;
     uint64_t jmp_ix = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 7;
@@ -1035,16 +1044,34 @@ void superinst_jmp_ifnot_cond_op(VM *vm) {
     if (!vm->regs[res_reg].i) {
         vm->call_frame->ip = jmp_ix - 1;
     }
+    return;
 }
 
-static OpcodeHandler superinst_handlers[] = {superinst_load_const_op,
-                                             superinst_load_const_op_store,
-                                             superinst_jmp_ifnot_cond_op};
+load_n: {
+    // load n values from stack
+    uint64_t n = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7;
+    for (int i = 0; i < n; ++i) {
+        uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
+        vm->call_frame->ip += 8;
+        uint8_t reg = code[vm->call_frame->ip];
+        vm->regs[reg].i = vm->call_frame->locals[var_ix];
+    }
+    return;
+}
 
-void handle_superinstruction(VM *vm) {
-    uint8_t *code = vm->call_frame->func->code;
-    int inst = code[++vm->call_frame->ip];
-    superinst_handlers[inst](vm);
+const_n: {
+    // load n values from stack
+    uint64_t n = read_u64(code, ++vm->call_frame->ip);
+    vm->call_frame->ip += 7;
+    for (int i = 0; i < n; ++i) {
+        uint64_t const_ix = read_u64(code, ++vm->call_frame->ip);
+        vm->call_frame->ip += 8;
+        uint8_t reg = code[vm->call_frame->ip];
+        vm->regs[reg].i = vm->consts[const_ix];
+    }
+    return;
+}
 }
 
 void handle_ref(VM *vm) {
@@ -1490,9 +1517,7 @@ void run(VM *vm) {
         handle_clone(vm);
         next;
     }
-    do_halt: {
-        goto end;
-    }
+    do_halt: { goto end; }
     }
 
 end:

@@ -143,6 +143,10 @@ pub enum SuperInstruction<'src> {
     LoadConstOpStore(usize, usize, Box<RegCode<'src>>),
     /// jmp, reg1, reg2, res_reg, cond_op
     JmpIfNotCond(usize, u8, u8, u8, Box<RegCode<'src>>),
+    // const_ix, reg
+    ConstN(Vec<(usize, u8)>),
+    // Load var_ix, reg
+    LoadN(Vec<(usize, u8)>),
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +160,12 @@ enum SuperInstParseState<'src> {
     LoadConstOp(usize, usize, u8, RegCode<'src>),
     /// jmp_ix, reg
     Cond(RegCode<'src>),
+    // Many Loads
+    LoadN(Vec<(usize, u8)>),
+    // Many Consts
+    ConstN(Vec<(usize, u8)>),
+    // Single Const
+    Const(usize, u8),
 }
 
 #[derive(Debug, Clone)]
@@ -984,7 +994,7 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 }
             }
             _ => {
-                unimplemented!();
+                unimplemented!("Cannot compile {:?}", expr);
             }
         }
         // println!("stack: {:?}", self.stack);
@@ -1276,6 +1286,15 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                         state = SuperInstParseState::Load(var_ix, reg_ix);
                     } else if is_cond_op(&self.code[i]) {
                         state = SuperInstParseState::Cond(self.code[i].clone());
+                    } else if let RegCode::Const(const_ix, reg_ix) = self.code[i] {
+                        state = SuperInstParseState::Const(const_ix, reg_ix);
+                    } else {
+                        state = SuperInstParseState::None;
+                    }
+                }
+                SuperInstParseState::Const(const_ix, reg_ix) => {
+                    if let RegCode::Const(const_ix2, reg_ix2) = self.code[i] {
+                        state = SuperInstParseState::ConstN(vec![(const_ix, reg_ix), (const_ix2, reg_ix2)]);
                     } else {
                         state = SuperInstParseState::None;
                     }
@@ -1283,6 +1302,9 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 SuperInstParseState::Load(var_ix, reg_ix) => {
                     if let RegCode::Const(const_ix, reg_ix2) = self.code[i] {
                         state = SuperInstParseState::LoadConst(var_ix, const_ix, reg_ix, reg_ix2);
+                    } else if let RegCode::Load(var_ix2, reg_ix2, _) = self.code[i] {
+                        let arr = vec![(var_ix, reg_ix), (var_ix2, reg_ix2)];
+                        state = SuperInstParseState::LoadN(arr);
                     } else {
                         state = SuperInstParseState::None;
                     }
@@ -1360,6 +1382,36 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                         }
                     }
                     state = SuperInstParseState::None;
+                }
+                SuperInstParseState::LoadN(n) => {
+                    if let RegCode::Load(var_ix, reg_ix, _) = self.code[i] {
+                        let mut new_vec = n.clone();
+                        new_vec.push((var_ix, reg_ix));
+                        state = SuperInstParseState::LoadN(new_vec);
+                    } else {
+                        state = SuperInstParseState::None;
+                        let l = n.len();
+                        // last n-1 instructions are converted to Nops
+                        for j in 0..l {
+                            self.code[i - j - 1] = RegCode::Nop;
+                        }
+                        self.code[i - l] = RegCode::Super(SuperInstruction::LoadN(n));
+                    }
+                }
+                SuperInstParseState::ConstN(n) => {
+                    if let RegCode::Const(const_ix, reg_ix) = self.code[i] {
+                        let mut new_vec = n.clone();
+                        new_vec.push((const_ix, reg_ix));
+                        state = SuperInstParseState::ConstN(new_vec);
+                    } else {
+                        state = SuperInstParseState::None;
+                        let l = n.len();
+                        // last n-1 instructions are converted to Nops
+                        for j in 0..l {
+                            self.code[i - j - 1] = RegCode::Nop;
+                        }
+                        self.code[i - l] = RegCode::Super(SuperInstruction::ConstN(n));
+                    }
                 }
             }
             i += 1;

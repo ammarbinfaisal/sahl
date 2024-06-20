@@ -72,6 +72,8 @@ const HALT: u8 = 65;
 const SUPERINST_LOAD_CONST_OP: u8 = 0;
 const SUPERINST_LOAD_CONST_OP_STORE: u8 = 1;
 const SUPERINST_JMP_IF_NOT_COND: u8 = 2;
+const SUPERINST_LOAD_N: u8 = 3;
+const SUPERINST_CONST_N: u8 = 4;
 
 fn op_to_byte(r: &RegCode) -> u8 {
     // only instructions with three u8
@@ -456,6 +458,22 @@ pub fn emit_bytes(code: &Vec<RegCode>) -> Vec<u8> {
                     bytes.push(*reg2);
                     bytes.push(*res_reg);
                     bytes.push(op_to_byte(cond_op));
+                }
+                SuperInstruction::LoadN(arr) => {
+                    bytes.extend(vec![SUPERINST, SUPERINST_LOAD_N]);
+                    bytes.extend(arr.len().to_le_bytes().iter());
+                    for (var_ix, reg) in arr {
+                        bytes.extend(var_ix.to_le_bytes().iter());
+                        bytes.push(*reg);
+                    }
+                }
+                SuperInstruction::ConstN(arr) => {
+                    bytes.extend(vec![SUPERINST, SUPERINST_CONST_N]);
+                    bytes.extend(arr.len().to_le_bytes().iter());
+                    for (var_ix, const_ix) in arr {
+                        bytes.extend(var_ix.to_le_bytes().iter());
+                        bytes.extend(const_ix.to_le_bytes().iter());
+                    }
                 }
             },
         }
