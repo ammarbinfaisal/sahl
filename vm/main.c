@@ -87,51 +87,51 @@ void push(VM *vm, Value value) {
     double arg1 = vm->regs[r1].f;                                              \
     double arg2 = vm->regs[r2].f;
 
-static inline handle_iadd(VM *vm) {
+static inline void handle_iadd(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i + vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_isub(VM *vm) {
+static inline void handle_isub(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i - vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_imul(VM *vm) {
+static inline void handle_imul(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i * vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_idiv(VM *vm) {
+static inline void handle_idiv(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i / vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_irem(VM *vm) {
+static inline void handle_irem(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i % vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_ine(VM *vm) {
+static inline void handle_ine(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i != vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-static inline handle_ieq(VM *vm) {
+static inline void handle_ieq(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i == vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-static inline handle_ilt(VM *vm) {
+static inline void handle_ilt(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i < vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
@@ -142,63 +142,63 @@ static inline handle_ilt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_ile(VM *vm) {
+static inline void handle_ile(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i <= vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-static inline handle_igt(VM *vm) {
+static inline void handle_igt(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i > vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-static inline handle_ige(VM *vm) {
+static inline void handle_ige(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i >= vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-static inline handle_fadd(VM *vm) {
+static inline void handle_fadd(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 + arg2;
     vm->regs[res].i = *(uint64_t *)&result;
 }
 
-static inline handle_fsub(VM *vm) {
+static inline void handle_fsub(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 - arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-static inline handle_fmul(VM *vm) {
+static inline void handle_fmul(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 * arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-static inline handle_fdiv(VM *vm) {
+static inline void handle_fdiv(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 / arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-static inline handle_frem(VM *vm) {
+static inline void handle_frem(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = fmod(arg1, arg2);
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-static inline handle_fne(VM *vm) {
+static inline void handle_fne(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 != arg2;
@@ -206,7 +206,7 @@ static inline handle_fne(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_feq(VM *vm) {
+static inline void handle_feq(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 == arg2;
@@ -214,7 +214,7 @@ static inline handle_feq(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_flt(VM *vm) {
+static inline void handle_flt(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 < arg2;
@@ -222,7 +222,7 @@ static inline handle_flt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_fle(VM *vm) {
+static inline void handle_fle(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 <= arg2;
@@ -230,7 +230,7 @@ static inline handle_fle(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_fgt(VM *vm) {
+static inline void handle_fgt(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 > arg2;
@@ -238,7 +238,7 @@ static inline handle_fgt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_fge(VM *vm) {
+static inline void handle_fge(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 >= arg2;
@@ -246,25 +246,25 @@ static inline handle_fge(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_band(VM *vm) {
+static inline void handle_band(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i & vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_bor(VM *vm) {
+static inline void handle_bor(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i | vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_bxor(VM *vm) {
+static inline void handle_bxor(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i ^ vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_bnot(VM *vm) {
+static inline void handle_bnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
@@ -272,19 +272,19 @@ static inline handle_bnot(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_land(VM *vm) {
+static inline void handle_land(VM *vm) {
     OP_R1_R2_RES
     bool result = vm->regs[r1].i && vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_lor(VM *vm) {
+static inline void handle_lor(VM *vm) {
     OP_R1_R2_RES
     bool result = vm->regs[r1].i || vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_lnot(VM *vm) {
+static inline void handle_lnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
@@ -292,25 +292,25 @@ static inline handle_lnot(VM *vm) {
     vm->regs[res].i = result;
 }
 
-static inline handle_bshl(VM *vm) {
+static inline void handle_bshl(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i << vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_bshr(VM *vm) {
+static inline void handle_bshr(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i >> vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-static inline handle_fneg(VM *vm) {
+static inline void handle_fneg(VM *vm) {
     OP_CODE_R1_R2
     double result = -vm->regs[r1].f;
     vm->regs[r2].f = *(int64_t *)&result;
 }
 
-static inline handle_ineg(VM *vm) {
+static inline void handle_ineg(VM *vm) {
     OP_CODE_R1_R2
     int64_t result = -vm->regs[r1].i;
     vm->regs[r2].i = result;
@@ -353,7 +353,7 @@ void make_chan(VM *vm, int reg, int len) {
 #endif
 }
 
-static inline handle_make(VM *vm) {
+static inline void handle_make(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int res = code[++vm->call_frame->ip];
     int len = code[++vm->call_frame->ip];
@@ -372,7 +372,7 @@ static inline handle_make(VM *vm) {
     }
 }
 
-static inline handle_listset(VM *vm) {
+static inline void handle_listset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -388,7 +388,7 @@ static inline handle_listset(VM *vm) {
     obj->list.items[idx] = vm->regs[value].i;
 }
 
-static inline handle_listget(VM *vm) {
+static inline void handle_listget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -404,7 +404,7 @@ static inline handle_listget(VM *vm) {
     vm->regs[res].i = obj->list.items[idx];
 }
 
-static inline handle_mapset(VM *vm) {
+static inline void handle_mapset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
@@ -417,7 +417,7 @@ static inline handle_mapset(VM *vm) {
     obj->map.map->color = BLACK;
 }
 
-static inline handle_mapget(VM *vm) {
+static inline void handle_mapget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
@@ -434,7 +434,7 @@ static inline handle_mapget(VM *vm) {
     }
 }
 
-static inline handle_list(VM *vm) {
+static inline void handle_list(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -452,7 +452,7 @@ static inline handle_list(VM *vm) {
     vm->regs[res].i = (uint64_t)newobj;
 }
 
-static inline handle_tuple(VM *vm) {
+static inline void handle_tuple(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -477,7 +477,7 @@ static inline handle_tuple(VM *vm) {
     vm->regs[res].i = (uint64_t)newobj;
 }
 
-static inline handle_tupleset(VM *vm) {
+static inline void handle_tupleset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int tuple = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -486,7 +486,7 @@ static inline handle_tupleset(VM *vm) {
     obj->tuple.items[vm->regs[index].i] = vm->regs[reg].i;
 }
 
-static inline handle_tupleget(VM *vm) {
+static inline void handle_tupleget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int tuple = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -495,7 +495,7 @@ static inline handle_tupleget(VM *vm) {
     vm->regs[res].i = obj->tuple.items[vm->regs[index].i];
 }
 
-static inline handle_chansend(VM *vm) {
+static inline void handle_chansend(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t chan_var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -518,7 +518,7 @@ static inline handle_chansend(VM *vm) {
     pthread_mutex_unlock(&chan->m_mu);
 }
 
-static inline handle_chanrecv(VM *vm) {
+static inline void handle_chanrecv(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int ip = vm->call_frame->ip;
     uint64_t chan_var = read_u64(code, ++ip);
@@ -555,7 +555,7 @@ static inline handle_chanrecv(VM *vm) {
     vm->call_frame->ip = ip;
 }
 
-static inline handle_strget(VM *vm) {
+static inline void handle_strget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int str = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -564,13 +564,13 @@ static inline handle_strget(VM *vm) {
     vm->regs[res].i = obj->string.data[index];
 }
 
-static inline handle_jmp(VM *vm) {
+static inline void handle_jmp(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int offset = read_u64(code, vm->call_frame->ip + 1);
     vm->call_frame->ip = offset - 1;
 }
 
-static inline handle_jmpifnot(VM *vm) {
+static inline void handle_jmpifnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int cond = code[++vm->call_frame->ip];
     int offset = read_u64(code, ++vm->call_frame->ip);
@@ -584,7 +584,7 @@ static inline handle_jmpifnot(VM *vm) {
     }
 }
 
-static inline handle_call(VM *vm) {
+static inline void handle_call(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
@@ -605,7 +605,7 @@ static inline handle_call(VM *vm) {
     vm->call_frame->ip = -1;
 }
 
-static inline handle_corocall(VM *vm) {
+static inline void handle_corocall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
@@ -756,7 +756,7 @@ void native_get_variant(VM *vm) {
     vm->regs[0].i = obj->variant.value;
 }
 
-static inline handle_ncall(VM *vm) {
+static inline void handle_ncall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = code[++vm->call_frame->ip];
     // native_fn_t fn = native_functions[func];
@@ -799,7 +799,7 @@ static inline handle_ncall(VM *vm) {
     }
 }
 
-static inline handle_const(VM *vm) {
+static inline void handle_const(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -810,7 +810,7 @@ static inline handle_const(VM *vm) {
 #endif
 }
 
-static inline handle_load(VM *vm) {
+static inline void handle_load(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -822,7 +822,7 @@ static inline handle_load(VM *vm) {
 #endif
 }
 
-static inline handle_store(VM *vm) {
+static inline void handle_store(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -847,7 +847,7 @@ const int TYPE_FLOAT = 1;
 const int TYPE_BOOL = 2;
 const int TYPE_CHAR = 3;
 
-static inline handle_cast(VM *vm) {
+static inline void handle_cast(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int ty1 = code[++vm->call_frame->ip];
@@ -872,7 +872,7 @@ static inline handle_cast(VM *vm) {
     }
 }
 
-static inline handle_move(VM *vm) {
+static inline void handle_move(VM *vm) {
     OP_CODE_R1_R2
     vm->regs[r1].i = vm->regs[r2].i;
 #ifdef DEBUG
@@ -880,7 +880,7 @@ static inline handle_move(VM *vm) {
 #endif
 }
 
-static inline handle_ret(VM *vm) {
+static inline void handle_ret(VM *vm) {
     if (vm->call_frame->prev) {
         CallFrame *curr = vm->call_frame;
         vm->call_frame = vm->call_frame->prev;
@@ -888,32 +888,32 @@ static inline handle_ret(VM *vm) {
     }
 }
 
-static inline handle_return(VM *vm) {
+static inline void handle_return(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     vm->regs[0].i = vm->regs[r].i;
     handle_ret(vm);
 }
 
-static inline handle_push(VM *vm) {
+static inline void handle_push(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     push(vm, vm->regs[r].i);
 }
 
-static inline handle_pop(VM *vm) {
+static inline void handle_pop(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     vm->regs[r].i = pop(vm);
 }
 
-static inline handle_spawn(VM *vm) {
+static inline void handle_spawn(VM *vm) {
     // this instruction is deprecated
 }
 
-static inline handle_nop(VM *vm) { ; }
+static inline void handle_nop(VM *vm) { ; }
 
-static inline handle_stack_map(VM *vm) {
+static inline void handle_stack_map(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -935,86 +935,86 @@ static inline handle_stack_map(VM *vm) {
 }
 
 // super instructions
-Value op_iadd(Value v1, Value v2) { return v1 + v2; }
+static inline Value op_iadd(Value v1, Value v2) { return v1 + v2; }
 
-Value op_isub(Value v1, Value v2) { return v1 - v2; }
+static inline Value op_isub(Value v1, Value v2) { return v1 - v2; }
 
-Value op_imul(Value v1, Value v2) { return v1 * v2; }
+static inline Value op_imul(Value v1, Value v2) { return v1 * v2; }
 
-Value op_idiv(Value v1, Value v2) { return v1 / v2; }
+static inline Value op_idiv(Value v1, Value v2) { return v1 / v2; }
 
-Value op_irem(Value v1, Value v2) { return v1 % v2; }
+static inline Value op_irem(Value v1, Value v2) { return v1 % v2; }
 
-Value op_ine(Value v1, Value v2) { return v1 != v2; }
+static inline Value op_ine(Value v1, Value v2) { return v1 != v2; }
 
-Value op_ieq(Value v1, Value v2) { return v1 == v2; }
+static inline Value op_ieq(Value v1, Value v2) { return v1 == v2; }
 
-Value op_ilt(Value v1, Value v2) { return v1 < v2; }
+static inline Value op_ilt(Value v1, Value v2) { return v1 < v2; }
 
-Value op_ile(Value v1, Value v2) { return v1 <= v2; }
+static inline Value op_ile(Value v1, Value v2) { return v1 <= v2; }
 
-Value op_igt(Value v1, Value v2) { return v1 > v2; }
+static inline Value op_igt(Value v1, Value v2) { return v1 > v2; }
 
-Value op_ige(Value v1, Value v2) { return v1 >= v2; }
+static inline Value op_ige(Value v1, Value v2) { return v1 >= v2; }
 
-Value op_fadd(Value v1, Value v2) {
+static inline Value op_fadd(Value v1, Value v2) {
     double res = (AS_DOUBLE(v1) + AS_DOUBLE(v2));
     return *(uint64_t *)&res;
 }
 
-Value op_fsub(Value v1, Value v2) {
+static inline Value op_fsub(Value v1, Value v2) {
     double res = (AS_DOUBLE(v1) - AS_DOUBLE(v2));
     return *(uint64_t *)&res;
 }
 
-Value op_fmul(Value v1, Value v2) {
+static inline Value op_fmul(Value v1, Value v2) {
     double res = (AS_DOUBLE(v1) * AS_DOUBLE(v2));
     return *(uint64_t *)&res;
 }
 
-Value op_fdiv(Value v1, Value v2) {
+static inline Value op_fdiv(Value v1, Value v2) {
     double res = (AS_DOUBLE(v1) / AS_DOUBLE(v2));
     return *(uint64_t *)&res;
 }
 
-Value op_frem(Value v1, Value v2) {
+static inline Value op_frem(Value v1, Value v2) {
     double res = fmod(AS_DOUBLE(v1), AS_DOUBLE(v2));
     return *(uint64_t *)&res;
 }
 
-Value op_feq(Value v1, Value v2) { return AS_DOUBLE(v1) == AS_DOUBLE(v2); }
+static inline Value op_feq(Value v1, Value v2) { return AS_DOUBLE(v1) == AS_DOUBLE(v2); }
 
-Value op_flt(Value v1, Value v2) { return AS_DOUBLE(v1) < AS_DOUBLE(v2); }
+static inline Value op_flt(Value v1, Value v2) { return AS_DOUBLE(v1) < AS_DOUBLE(v2); }
 
-Value op_fle(Value v1, Value v2) { return AS_DOUBLE(v1) <= AS_DOUBLE(v2); }
+static inline Value op_fle(Value v1, Value v2) { return AS_DOUBLE(v1) <= AS_DOUBLE(v2); }
 
-Value op_fgt(Value v1, Value v2) { return AS_DOUBLE(v1) > AS_DOUBLE(v2); }
+static inline Value op_fgt(Value v1, Value v2) { return AS_DOUBLE(v1) > AS_DOUBLE(v2); }
 
-Value op_fge(Value v1, Value v2) { return AS_DOUBLE(v1) >= AS_DOUBLE(v2); }
+static inline Value op_fge(Value v1, Value v2) { return AS_DOUBLE(v1) >= AS_DOUBLE(v2); }
 
-Value op_fne(Value v1, Value v2) { return AS_DOUBLE(v1) != AS_DOUBLE(v2); }
+static inline Value op_fne(Value v1, Value v2) { return AS_DOUBLE(v1) != AS_DOUBLE(v2); }
 
-Value op_band(Value v1, Value v2) { return v1 & v2; }
+static inline Value op_band(Value v1, Value v2) { return v1 & v2; }
 
-Value op_bor(Value v1, Value v2) { return v1 | v2; }
+static inline Value op_bor(Value v1, Value v2) { return v1 | v2; }
 
-Value op_bxor(Value v1, Value v2) { return v1 ^ v2; }
+static inline Value op_bxor(Value v1, Value v2) { return v1 ^ v2; }
 
-Value op_land(Value v1, Value v2) { return v1 && v2; }
+static inline Value op_land(Value v1, Value v2) { return v1 && v2; }
 
-Value op_lor(Value v1, Value v2) { return v1 || v2; }
+static inline Value op_lor(Value v1, Value v2) { return v1 || v2; }
 
-Value op_bshl(Value v1, Value v2) { return v1 << v2; }
+static inline Value op_bshl(Value v1, Value v2) { return v1 << v2; }
 
-Value op_bshr(Value v1, Value v2) { return v1 >> v2; }
+static inline Value op_bshr(Value v1, Value v2) { return v1 >> v2; }
 
-Value op_dummy(Value _1, Value _2) {
+static inline Value op_dummy(Value _1, Value _2) {
     printf("sigill\n");
     exit(1);
     return 0;
 }
 
-Value exec_op(uint8_t op, Value v1, Value v2) {
+static inline Value exec_op(uint8_t op, Value v1, Value v2) {
     switch (op) {
     case OP_IADD:
         return op_iadd(v1, v2);
@@ -1079,7 +1079,7 @@ Value exec_op(uint8_t op, Value v1, Value v2) {
     }
 }
 
-static inline handle_superinstruction(VM *vm) {
+static inline void handle_superinstruction(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int inst = code[++vm->call_frame->ip];
 
@@ -1157,7 +1157,7 @@ const_n: {
 }
 }
 
-static inline handle_ref(VM *vm) {
+static inline void handle_ref(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1168,7 +1168,7 @@ static inline handle_ref(VM *vm) {
     vm->regs[res].o = ref;
 }
 
-static inline handle_deref(VM *vm) {
+static inline void handle_deref(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1177,7 +1177,7 @@ static inline handle_deref(VM *vm) {
     vm->regs[res].i = ref->ref.frame->locals[ref->ref.local_ix];
 }
 
-static inline handle_deref_assign(VM *vm) {
+static inline void handle_deref_assign(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1232,7 +1232,7 @@ Obj *clone(VM *vm, Obj *obj, bool gced) {
     return newobj;
 }
 
-static inline handle_clone(VM *vm) {
+static inline void handle_clone(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int arg = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
