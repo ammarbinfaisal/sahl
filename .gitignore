@@ -9,3 +9,5 @@ sahl
 exe
 dist
 dist-*
+venv
+callgrind.out.*
