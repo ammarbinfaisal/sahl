@@ -72,9 +72,6 @@ void push(VM *vm, Value value) {
     vm->stack[vm->stack_size++] = value;
 }
 
-// Define function pointer type for opcodes
-typedef void (*OpcodeHandler)(VM *);
-
 #define OP_R1_R2_RES                                                           \
     uint8_t *code = vm->call_frame->func->code;                                \
     int r1 = code[++vm->call_frame->ip];                                       \
@@ -90,51 +87,51 @@ typedef void (*OpcodeHandler)(VM *);
     double arg1 = vm->regs[r1].f;                                              \
     double arg2 = vm->regs[r2].f;
 
-void handle_iadd(VM *vm) {
+static inline handle_iadd(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i + vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_isub(VM *vm) {
+static inline handle_isub(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i - vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_imul(VM *vm) {
+static inline handle_imul(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i * vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_idiv(VM *vm) {
+static inline handle_idiv(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i / vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_irem(VM *vm) {
+static inline handle_irem(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i % vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_ine(VM *vm) {
+static inline handle_ine(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i != vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-void handle_ieq(VM *vm) {
+static inline handle_ieq(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i == vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-void handle_ilt(VM *vm) {
+static inline handle_ilt(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i < vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
@@ -145,63 +142,63 @@ void handle_ilt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_ile(VM *vm) {
+static inline handle_ile(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i <= vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-void handle_igt(VM *vm) {
+static inline handle_igt(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i > vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-void handle_ige(VM *vm) {
+static inline handle_ige(VM *vm) {
     OP_CODE_R1_R2
     bool result = vm->regs[r1].i >= vm->regs[r2].i;
     int res = code[++vm->call_frame->ip];
     vm->regs[res].i = result;
 }
 
-void handle_fadd(VM *vm) {
+static inline handle_fadd(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 + arg2;
     vm->regs[res].i = *(uint64_t *)&result;
 }
 
-void handle_fsub(VM *vm) {
+static inline handle_fsub(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 - arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-void handle_fmul(VM *vm) {
+static inline handle_fmul(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 * arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-void handle_fdiv(VM *vm) {
+static inline handle_fdiv(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = arg1 / arg2;
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-void handle_frem(VM *vm) {
+static inline handle_frem(VM *vm) {
     OP_R1_R2_RES
     DOUBLE_ARG1_ARG2
     double result = fmod(arg1, arg2);
     vm->regs[res].i = *(int64_t *)&result;
 }
 
-void handle_fne(VM *vm) {
+static inline handle_fne(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 != arg2;
@@ -209,7 +206,7 @@ void handle_fne(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_feq(VM *vm) {
+static inline handle_feq(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 == arg2;
@@ -217,7 +214,7 @@ void handle_feq(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_flt(VM *vm) {
+static inline handle_flt(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 < arg2;
@@ -225,7 +222,7 @@ void handle_flt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_fle(VM *vm) {
+static inline handle_fle(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 <= arg2;
@@ -233,7 +230,7 @@ void handle_fle(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_fgt(VM *vm) {
+static inline handle_fgt(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 > arg2;
@@ -241,7 +238,7 @@ void handle_fgt(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_fge(VM *vm) {
+static inline handle_fge(VM *vm) {
     OP_CODE_R1_R2
     DOUBLE_ARG1_ARG2
     bool result = arg1 >= arg2;
@@ -249,25 +246,25 @@ void handle_fge(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_band(VM *vm) {
+static inline handle_band(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i & vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_bor(VM *vm) {
+static inline handle_bor(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i | vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_bxor(VM *vm) {
+static inline handle_bxor(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i ^ vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_bnot(VM *vm) {
+static inline handle_bnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
@@ -275,19 +272,19 @@ void handle_bnot(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_land(VM *vm) {
+static inline handle_land(VM *vm) {
     OP_R1_R2_RES
     bool result = vm->regs[r1].i && vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_lor(VM *vm) {
+static inline handle_lor(VM *vm) {
     OP_R1_R2_RES
     bool result = vm->regs[r1].i || vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_lnot(VM *vm) {
+static inline handle_lnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
@@ -295,25 +292,25 @@ void handle_lnot(VM *vm) {
     vm->regs[res].i = result;
 }
 
-void handle_bshl(VM *vm) {
+static inline handle_bshl(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i << vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_bshr(VM *vm) {
+static inline handle_bshr(VM *vm) {
     OP_R1_R2_RES
     int64_t result = vm->regs[r1].i >> vm->regs[r2].i;
     vm->regs[res].i = result;
 }
 
-void handle_fneg(VM *vm) {
+static inline handle_fneg(VM *vm) {
     OP_CODE_R1_R2
     double result = -vm->regs[r1].f;
     vm->regs[r2].f = *(int64_t *)&result;
 }
 
-void handle_ineg(VM *vm) {
+static inline handle_ineg(VM *vm) {
     OP_CODE_R1_R2
     int64_t result = -vm->regs[r1].i;
     vm->regs[r2].i = result;
@@ -356,19 +353,26 @@ void make_chan(VM *vm, int reg, int len) {
 #endif
 }
 
-typedef void (*MakeFn)(VM *vm, int reg, int len);
-
-static MakeFn make_fns[] = {make_list, make_map, make_chan};
-
-void handle_make(VM *vm) {
+static inline handle_make(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int res = code[++vm->call_frame->ip];
     int len = code[++vm->call_frame->ip];
     int type = code[++vm->call_frame->ip] - 5;
-    make_fns[type](vm, res, vm->regs[len].i);
+    // make_fns[type](vm, res, vm->regs[len].i);
+    switch (type) {
+    case 0:
+        make_list(vm, res, vm->regs[len].i);
+        break;
+    case 1:
+        make_map(vm, res, vm->regs[len].i);
+        break;
+    case 2:
+        make_chan(vm, res, vm->regs[len].i);
+        break;
+    }
 }
 
-void handle_listset(VM *vm) {
+static inline handle_listset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -384,7 +388,7 @@ void handle_listset(VM *vm) {
     obj->list.items[idx] = vm->regs[value].i;
 }
 
-void handle_listget(VM *vm) {
+static inline handle_listget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int list = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -400,7 +404,7 @@ void handle_listget(VM *vm) {
     vm->regs[res].i = obj->list.items[idx];
 }
 
-void handle_mapset(VM *vm) {
+static inline handle_mapset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
@@ -413,7 +417,7 @@ void handle_mapset(VM *vm) {
     obj->map.map->color = BLACK;
 }
 
-void handle_mapget(VM *vm) {
+static inline handle_mapget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int map = code[++vm->call_frame->ip];
     int key = code[++vm->call_frame->ip];
@@ -430,7 +434,7 @@ void handle_mapget(VM *vm) {
     }
 }
 
-void handle_list(VM *vm) {
+static inline handle_list(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -448,7 +452,7 @@ void handle_list(VM *vm) {
     vm->regs[res].i = (uint64_t)newobj;
 }
 
-void handle_tuple(VM *vm) {
+static inline handle_tuple(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -473,7 +477,7 @@ void handle_tuple(VM *vm) {
     vm->regs[res].i = (uint64_t)newobj;
 }
 
-void handle_tupleset(VM *vm) {
+static inline handle_tupleset(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int tuple = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -482,7 +486,7 @@ void handle_tupleset(VM *vm) {
     obj->tuple.items[vm->regs[index].i] = vm->regs[reg].i;
 }
 
-void handle_tupleget(VM *vm) {
+static inline handle_tupleget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int tuple = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -491,7 +495,7 @@ void handle_tupleget(VM *vm) {
     vm->regs[res].i = obj->tuple.items[vm->regs[index].i];
 }
 
-void handle_chansend(VM *vm) {
+static inline handle_chansend(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t chan_var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -514,7 +518,7 @@ void handle_chansend(VM *vm) {
     pthread_mutex_unlock(&chan->m_mu);
 }
 
-void handle_chanrecv(VM *vm) {
+static inline handle_chanrecv(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int ip = vm->call_frame->ip;
     uint64_t chan_var = read_u64(code, ++ip);
@@ -551,7 +555,7 @@ void handle_chanrecv(VM *vm) {
     vm->call_frame->ip = ip;
 }
 
-void handle_strget(VM *vm) {
+static inline handle_strget(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int str = code[++vm->call_frame->ip];
     int index = code[++vm->call_frame->ip];
@@ -560,13 +564,13 @@ void handle_strget(VM *vm) {
     vm->regs[res].i = obj->string.data[index];
 }
 
-void handle_jmp(VM *vm) {
+static inline handle_jmp(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int offset = read_u64(code, vm->call_frame->ip + 1);
     vm->call_frame->ip = offset - 1;
 }
 
-void handle_jmpifnot(VM *vm) {
+static inline handle_jmpifnot(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int cond = code[++vm->call_frame->ip];
     int offset = read_u64(code, ++vm->call_frame->ip);
@@ -580,7 +584,7 @@ void handle_jmpifnot(VM *vm) {
     }
 }
 
-void handle_call(VM *vm) {
+static inline handle_call(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
@@ -601,7 +605,7 @@ void handle_call(VM *vm) {
     vm->call_frame->ip = -1;
 }
 
-void handle_corocall(VM *vm) {
+static inline handle_corocall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = read_u64(code, vm->call_frame->ip + 1);
     int nargs = read_u64(code, vm->call_frame->ip + 9);
@@ -623,8 +627,6 @@ void handle_corocall(VM *vm) {
     pthread_cond_broadcast(&scheduler->vmq_cond);
     pthread_mutex_unlock(&scheduler->vmq_mu);
 }
-
-typedef void (*native_fn_t)(VM *vm);
 
 void native_print_int(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
@@ -754,13 +756,7 @@ void native_get_variant(VM *vm) {
     vm->regs[0].i = obj->variant.value;
 }
 
-static native_fn_t native_functions[] = {
-    native_print_int,  native_print_float, native_print_char,
-    native_print_bool, native_print_str,   native_append,
-    native_list_len,   native_pop,         native_make_variant,
-    native_is_variant, native_get_variant};
-
-void handle_ncall(VM *vm) {
+static inline handle_ncall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = code[++vm->call_frame->ip];
     // native_fn_t fn = native_functions[func];
@@ -803,7 +799,7 @@ void handle_ncall(VM *vm) {
     }
 }
 
-void handle_const(VM *vm) {
+static inline handle_const(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -814,7 +810,7 @@ void handle_const(VM *vm) {
 #endif
 }
 
-void handle_load(VM *vm) {
+static inline handle_load(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -826,7 +822,7 @@ void handle_load(VM *vm) {
 #endif
 }
 
-void handle_store(VM *vm) {
+static inline handle_store(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int index = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -851,7 +847,7 @@ const int TYPE_FLOAT = 1;
 const int TYPE_BOOL = 2;
 const int TYPE_CHAR = 3;
 
-void handle_cast(VM *vm) {
+static inline handle_cast(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r1 = code[++vm->call_frame->ip];
     int ty1 = code[++vm->call_frame->ip];
@@ -876,7 +872,7 @@ void handle_cast(VM *vm) {
     }
 }
 
-void handle_move(VM *vm) {
+static inline handle_move(VM *vm) {
     OP_CODE_R1_R2
     vm->regs[r1].i = vm->regs[r2].i;
 #ifdef DEBUG
@@ -884,7 +880,7 @@ void handle_move(VM *vm) {
 #endif
 }
 
-void handle_ret(VM *vm) {
+static inline handle_ret(VM *vm) {
     if (vm->call_frame->prev) {
         CallFrame *curr = vm->call_frame;
         vm->call_frame = vm->call_frame->prev;
@@ -892,32 +888,32 @@ void handle_ret(VM *vm) {
     }
 }
 
-void handle_return(VM *vm) {
+static inline handle_return(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     vm->regs[0].i = vm->regs[r].i;
     handle_ret(vm);
 }
 
-void handle_push(VM *vm) {
+static inline handle_push(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     push(vm, vm->regs[r].i);
 }
 
-void handle_pop(VM *vm) {
+static inline handle_pop(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int r = code[++vm->call_frame->ip];
     vm->regs[r].i = pop(vm);
 }
 
-void handle_spawn(VM *vm) {
+static inline handle_spawn(VM *vm) {
     // this instruction is deprecated
 }
 
-void handle_nop(VM *vm) { ; }
+static inline handle_nop(VM *vm) { ; }
 
-void handle_stack_map(VM *vm) {
+static inline handle_stack_map(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     uint64_t len = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1018,15 +1014,6 @@ Value op_dummy(Value _1, Value _2) {
     return 0;
 }
 
-typedef Value (*Op)(Value, Value);
-
-static Op op_handlers[] = {
-    op_iadd, op_isub,  op_imul, op_idiv, op_irem,  op_ine,  op_ieq,  op_ilt,
-    op_ile,  op_igt,   op_ige,  op_fadd, op_fsub,  op_fmul, op_fdiv, op_frem,
-    op_fne,  op_feq,   op_flt,  op_fle,  op_fgt,   op_fge,  op_band, op_bor,
-    op_bxor, op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr,
-};
-
 Value exec_op(uint8_t op, Value v1, Value v2) {
     switch (op) {
     case OP_IADD:
@@ -1092,7 +1079,7 @@ Value exec_op(uint8_t op, Value v1, Value v2) {
     }
 }
 
-void handle_superinstruction(VM *vm) {
+static inline handle_superinstruction(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int inst = code[++vm->call_frame->ip];
 
@@ -1170,7 +1157,7 @@ const_n: {
 }
 }
 
-void handle_ref(VM *vm) {
+static inline handle_ref(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1181,7 +1168,7 @@ void handle_ref(VM *vm) {
     vm->regs[res].o = ref;
 }
 
-void handle_deref(VM *vm) {
+static inline handle_deref(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1190,7 +1177,7 @@ void handle_deref(VM *vm) {
     vm->regs[res].i = ref->ref.frame->locals[ref->ref.local_ix];
 }
 
-void handle_deref_assign(VM *vm) {
+static inline handle_deref_assign(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int var = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1245,7 +1232,7 @@ Obj *clone(VM *vm, Obj *obj, bool gced) {
     return newobj;
 }
 
-void handle_clone(VM *vm) {
+static inline handle_clone(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int arg = code[++vm->call_frame->ip];
     int res = code[++vm->call_frame->ip];
@@ -1254,31 +1241,6 @@ void handle_clone(VM *vm) {
     Obj *newobj = clone(vm, obj, gced);
     vm->regs[res].o = newobj;
 }
-
-// Create function pointer table for opcodes
-static OpcodeHandler opcode_handlers[] = {
-    handle_iadd,     handle_isub,     handle_imul,
-    handle_idiv,     handle_irem,     handle_ine,
-    handle_ieq,      handle_ilt,      handle_ile,
-    handle_igt,      handle_ige,      handle_fadd,
-    handle_fsub,     handle_fmul,     handle_fdiv,
-    handle_frem,     handle_fne,      handle_feq,
-    handle_flt,      handle_fle,      handle_fgt,
-    handle_fge,      handle_band,     handle_bor,
-    handle_bxor,     handle_bnot,     handle_land,
-    handle_lor,      handle_lnot,     handle_bshl,
-    handle_bshr,     handle_fneg,     handle_ineg,
-    handle_make,     handle_listset,  handle_listget,
-    handle_tupleset, handle_tupleget, handle_tuple,
-    handle_strget,   handle_mapget,   handle_mapset,
-    handle_chansend, handle_chanrecv, handle_jmp,
-    handle_jmpifnot, handle_call,     handle_ncall,
-    handle_const,    handle_load,     handle_store,
-    handle_cast,     handle_move,     handle_return,
-    handle_push,     handle_pop,      handle_spawn,
-    handle_nop,      handle_ret,      handle_stack_map,
-    handle_nop,      handle_nop,      handle_superinstruction,
-    handle_corocall, handle_clone};
 
 void run(VM *vm) {
     if (vm->coro_id != MAIN_ID) {
