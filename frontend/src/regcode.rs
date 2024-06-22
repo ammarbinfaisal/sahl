@@ -1294,7 +1294,10 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
                 }
                 SuperInstParseState::Const(const_ix, reg_ix) => {
                     if let RegCode::Const(const_ix2, reg_ix2) = self.code[i] {
-                        state = SuperInstParseState::ConstN(vec![(const_ix, reg_ix), (const_ix2, reg_ix2)]);
+                        state = SuperInstParseState::ConstN(vec![
+                            (const_ix, reg_ix),
+                            (const_ix2, reg_ix2),
+                        ]);
                     } else {
                         state = SuperInstParseState::None;
                     }
@@ -1507,11 +1510,11 @@ impl<'a, 'src> RegCodeGen<'a, 'src> {
             if super_inst {
                 self.parse_super_inst();
             }
+            if func.name == "main" {
+                self.code.push(RegCode::Halt);
+            }
             func_code.push(self.code.clone());
             self.code.clear();
-            if func.name == "main" {
-                func_code.push(vec![RegCode::Halt]);
-            }
             idx += 1;
         }
         self.func_code = func_code;
