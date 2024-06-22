@@ -508,7 +508,7 @@ void handle_chansend(VM *vm) {
     if (chan->r_waiting > 0) {
         pthread_cond_signal(&chan->r_cond);
     }
-    if (len == chan->cap) {
+    if (len == chan->cap && vm->is_coro) {
         vm->should_yield = true;
     }
     pthread_mutex_unlock(&chan->m_mu);
@@ -537,7 +537,7 @@ void handle_chanrecv(VM *vm) {
             break;
         }
     }
-    if (chan->len == 0) {
+    if (chan->len == 0 && vm->is_coro) {
         // printf("giving up waiting recv : %p %x\n", chan, vm->coro_id);
         pthread_mutex_unlock(&chan->m_mu);
         vm->should_yield = true;
@@ -763,8 +763,44 @@ static native_fn_t native_functions[] = {
 void handle_ncall(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int func = code[++vm->call_frame->ip];
-    native_fn_t fn = native_functions[func];
-    fn(vm);
+    // native_fn_t fn = native_functions[func];
+    // fn(vm);
+
+    switch (func) {
+    case 0:
+        native_print_int(vm);
+        break;
+    case 1:
+        native_print_float(vm);
+        break;
+    case 2:
+        native_print_char(vm);
+        break;
+    case 3:
+        native_print_bool(vm);
+        break;
+    case 4:
+        native_print_str(vm);
+        break;
+    case 5:
+        native_append(vm);
+        break;
+    case 6:
+        native_list_len(vm);
+        break;
+    case 7:
+        native_pop(vm);
+        break;
+    case 8:
+        native_make_variant(vm);
+        break;
+    case 9:
+        native_is_variant(vm);
+        break;
+    case 10:
+        native_get_variant(vm);
+        break;
+    }
 }
 
 void handle_const(VM *vm) {
@@ -991,6 +1027,71 @@ static Op op_handlers[] = {
     op_bxor, op_dummy, op_land, op_lor,  op_dummy, op_bshl, op_bshr,
 };
 
+Value exec_op(uint8_t op, Value v1, Value v2) {
+    switch (op) {
+    case OP_IADD:
+        return op_iadd(v1, v2);
+    case OP_ISUB:
+        return op_isub(v1, v2);
+    case OP_IMUL:
+        return op_imul(v1, v2);
+    case OP_IDIV:
+        return op_idiv(v1, v2);
+    case OP_IREM:
+        return op_irem(v1, v2);
+    case OP_INE:
+        return op_ine(v1, v2);
+    case OP_IEQ:
+        return op_ieq(v1, v2);
+    case OP_ILT:
+        return op_ilt(v1, v2);
+    case OP_ILE:
+        return op_ile(v1, v2);
+    case OP_IGT:
+        return op_igt(v1, v2);
+    case OP_IGE:
+        return op_ige(v1, v2);
+    case OP_FADD:
+        return op_fadd(v1, v2);
+    case OP_FSUB:
+        return op_fsub(v1, v2);
+    case OP_FMUL:
+        return op_fmul(v1, v2);
+    case OP_FDIV:
+        return op_fdiv(v1, v2);
+    case OP_FREM:
+        return op_frem(v1, v2);
+    case OP_FNE:
+        return op_fne(v1, v2);
+    case OP_FEQ:
+        return op_feq(v1, v2);
+    case OP_FLT:
+        return op_flt(v1, v2);
+    case OP_FLE:
+        return op_fle(v1, v2);
+    case OP_FGT:
+        return op_fgt(v1, v2);
+    case OP_FGE:
+        return op_fge(v1, v2);
+    case OP_BAND:
+        return op_band(v1, v2);
+    case OP_BOR:
+        return op_bor(v1, v2);
+    case OP_BXOR:
+        return op_bxor(v1, v2);
+    case OP_LAND:
+        return op_land(v1, v2);
+    case OP_LOR:
+        return op_lor(v1, v2);
+    case OP_BSHL:
+        return op_bshl(v1, v2);
+    case OP_BSHR:
+        return op_bshr(v1, v2);
+    default:
+        return op_dummy(v1, v2); // Default case to handle any invalid op codes
+    }
+}
+
 void handle_superinstruction(VM *vm) {
     uint8_t *code = vm->call_frame->func->code;
     int inst = code[++vm->call_frame->ip];
@@ -1010,12 +1111,11 @@ load_const_op: {
     uint64_t var_val = vm->call_frame->locals[var_ix];
     uint64_t const_val = vm->consts[const_ix];
     vm->regs[res_reg].i =
-        op_handlers[code[++vm->call_frame->ip]](var_val, const_val);
+        exec_op(code[++vm->call_frame->ip], var_val, const_val);
     return;
 }
 
 load_const_op_store: {
-
     uint8_t *code = vm->call_frame->func->code;
     uint64_t var_ix = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 8;
@@ -1024,23 +1124,19 @@ load_const_op_store: {
     uint64_t var_val = vm->call_frame->locals[var_ix];
     uint64_t const_val = vm->consts[const_ix];
     vm->call_frame->locals[var_ix] =
-        op_handlers[code[vm->call_frame->ip]](var_val, const_val);
+        exec_op(code[vm->call_frame->ip], var_val, const_val);
     return;
 }
 
 jmp_ifnot_cond_op: {
-
     uint8_t *code = vm->call_frame->func->code;
     uint64_t jmp_ix = read_u64(code, ++vm->call_frame->ip);
     vm->call_frame->ip += 7;
-#ifdef DEBUG
-#endif
     uint8_t reg1 = code[++vm->call_frame->ip];
     uint8_t reg2 = code[++vm->call_frame->ip];
     uint8_t res_reg = code[++vm->call_frame->ip];
     uint8_t condop = code[++vm->call_frame->ip];
-    vm->regs[res_reg].i =
-        op_handlers[condop](vm->regs[reg1].i, vm->regs[reg2].i);
+    vm->regs[res_reg].i = exec_op(condop, vm->regs[reg1].i, vm->regs[reg2].i);
     if (!vm->regs[res_reg].i) {
         vm->call_frame->ip = jmp_ix - 1;
     }
@@ -1217,7 +1313,7 @@ void run(VM *vm) {
 
 #define maybe_yield                                                            \
     do {                                                                       \
-        if (vm->should_yield && vm->is_coro) {                                 \
+        if (vm->should_yield) {                                                \
             vm->should_yield = false;                                          \
             return;                                                            \
         }                                                                      \
@@ -1226,19 +1322,26 @@ void run(VM *vm) {
 #define dispatch
     goto *dispatch_table[vm->call_frame->func->code[vm->call_frame->ip]];
 
+#ifdef PRINT_OPCODES
+#define print_op(code, ip)                                                     \
+    do {                                                                       \
+        printf("%x %d ", vm->coro_id, vm->call_frame->ip);                     \
+        print_opcode(vm->call_frame->func->code, vm->call_frame->ip);          \
+    } while (0)
+#else
+#define print_op(code, ip)
+#endif
+
 #define next                                                                   \
     do {                                                                       \
         vm->call_frame->ip++;                                                  \
         maybe_yield;                                                           \
+        print_op(vm->call_frame->func->code, vm->call_frame->ip);              \
         goto *dispatch_table[vm->call_frame->func->code[vm->call_frame->ip]];  \
     } while (0)
 
     dispatch;
     while (1) {
-#ifdef PRINT_OPCODES
-        printf("%x %d ", vm->coro_id, vm->call_frame->ip);
-        print_opcode(vm->call_frame->func->code, vm->call_frame->ip);
-#endif
 
 #ifdef PRINT_STACK
         printf("Stack: ");
