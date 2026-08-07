@@ -529,7 +529,7 @@ void chansend(Obj *chan, uint64_t val) {
 uint64_t chanrecv(Obj *chan) {
     chan_t *c = chan->chan;
     pthread_mutex_lock(&c->m_mu);
-    while (c->len == 0) {
+    while (c->len == 0 && !c->closed) {
         pthread_cond_wait(&c->r_cond, &c->m_mu);
     }
     uint64_t val;
